@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "PyPFT"
+version = "0.0.1"
+authors = [
+  {name="Hossein Ghasem Damghani", email="hghdamghani@gmail.com"},
+]
+description = "Polar Fourier Transform for Reconstruction of Polar MR images"
+readme = "README.md"
+requires-python = ">=3.13"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+]
+license = "MIT"
+license-files = ["LICENCSE"]
+
+[project.urls]
+Homepage = "https://github.com/GhDamghani/PyPFT"
+Issues = "https://github.com/GhDamghani/PyPFT/issues"
