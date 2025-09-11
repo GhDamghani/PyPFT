@@ -2,7 +2,7 @@ import numpy as np
 from scipy.special import jv
 
 def bessel_mat(samples, spokes):
-    """Symmetric Bessel matrix calculation implementation. Based on the fact that \[{J_{ - \alpha }}\left( x \right) = {\left( { - 1} \right)^\alpha }{J_\alpha }\left( x \right)\]
+    """Symmetric Bessel matrix calculation implementation. Based on the fact that ${J_{ - \alpha }}\left( x \right) = {\left( { - 1} \right)^\alpha }{J_\alpha }\left( x \right)$
     samples: integer, number of samples.
     spokes: integer, number of spokes. spokes must be even.
     
