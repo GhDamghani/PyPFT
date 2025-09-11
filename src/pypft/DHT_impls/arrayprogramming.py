@@ -1,6 +1,6 @@
 import numpy as np
 def transform(f, bessel_mat):
-    """Naive DHT implementation.
+    """Array Programming DHT implementation.
     f: 2D numpy array, in the shape of (samples, spokes). spokes is an even number.
     
     return:
@@ -15,8 +15,7 @@ def transform(f, bessel_mat):
 
     cart_r = int(np.round(samples * np.sqrt(2)))
     F = np.zeros((cart_r, spokes), "complex128")
-    for ord_n in np.arange(spokes):
-        for j in np.arange(cart_r):
-            F[j, ord_n] = np.sum(f_rho[:, ord_n] * bessel_mat[samples * j: samples * (j + 1), ord_n])
+    for j in np.arange(cart_r):
+        F[j, :] = np.sum(f_rho * bessel_mat[samples * j: samples * (j + 1)], axis=0)
     
     return F
