@@ -34,10 +34,8 @@ Then, once the environment is activated, install it using pip
 pip install pypft
 ```
 
-You can run the tests when you are in the directory by running this command:
+You can run a sample test with this command:
 
 ```
-run-tests
+python -m pypft test
 ```
-
-You need to have the test files in order to run `test_*_sample` functions. However, you can run the random ones without test files.
