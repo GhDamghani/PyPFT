@@ -12,6 +12,7 @@ def main():
             El‐Rewaidy, H., Fahmy, A. S., Pashakhanloo, F., Cai, X., Kucukseymen, S., Csecs, I., ... & Nezafat, R. (2021).
             Multi‐domain convolutional neural network (MD‐CNN) for radial reconstruction of dynamic cardiac MRI.
             Magnetic Resonance in Medicine, 85(3), 1195-1208."""
+        
         test_data = np.load(Path(__file__).parent/'test_data.npy')
         test_data = diagonal_to_radial(test_data)
         result = inverse(test_data)
