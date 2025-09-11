@@ -4,7 +4,6 @@ from src.pypft.tranform import inverse
 from src.pypft.utils.polar import diagonal_to_radial
 from src.pypft.utils.visualization import visualize_reconstructed, show
 from src.pypft.bessel_mat_handler import filename_bessel_mat, delete_bessel_mat_cache_npy
-from tqdm import tqdm
 
 class TestTransformations(TestCase):
     def setUp(self):
@@ -17,7 +16,7 @@ class TestTransformations(TestCase):
     def test_inverse_sample(self):
         test_data = diagonal_to_radial(self.test_data)
 
-        for DHT_impl in tqdm(self.DHT_impls):
+        for DHT_impl in self.DHT_impls:
             result = inverse(test_data, bessel_mat=self.bessel_mat, DHT_impl=DHT_impl)
 
             # compare_results_vis(result, self.test_data_recon)
@@ -35,7 +34,7 @@ class TestTransformations(TestCase):
         filename = filename_bessel_mat(sample, spoke)
         delete_bessel_mat_cache_npy(filename)
 
-        for bessel_mat_impl in tqdm(self.bessel_mat_impls):
+        for bessel_mat_impl in self.bessel_mat_impls:
            result = inverse(test_data, bessel_mat=bessel_mat_impl)
            self.assertEqual(result.shape, (cart_r, spoke))
         
