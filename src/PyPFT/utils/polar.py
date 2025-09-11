@@ -12,8 +12,8 @@ def diagonal_to_radial(x):
     diag_samples, diag_spokes = x.shape
     samples = diag_samples // 2
     spokes = diag_spokes * 2
-    x1 = x[samples:, :diag_spokes]
-    x2 = x[:samples, :diag_spokes][::-1]
+    x1 = x[:samples, :diag_spokes][::-1]
+    x2 = x[samples:, :diag_spokes]
     y = np.concatenate((x1, x2), axis=1)
     assert y.shape == (samples, spokes)
     return y
