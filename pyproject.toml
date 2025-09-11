@@ -4,11 +4,12 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pypft"
-version = "0.0.2"
+version = "0.0.3"
 authors = [
   {name="Hossein Ghasem Damghani", email="hghdamghani@gmail.com"},
 ]
 description = "Polar Fourier Transform for Reconstruction of Polar MR images"
+keywords = ["PFT", "Polar MRI", "MRI", "Hankel Transform"]
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
@@ -20,8 +21,12 @@ dependencies = [
     "scipy>=1.16"
 ]
 classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.13',
+    'Topic :: Software Development',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Scientific/Engineering :: Image Processing',
+    'Operating System :: OS Independent',
 ]
 license = "MIT"
 license-files = ["LICENCSE"]
@@ -30,5 +35,5 @@ license-files = ["LICENCSE"]
 Homepage = "https://github.com/GhDamghani/PyPFT"
 Issues = "https://github.com/GhDamghani/PyPFT/issues"
 
-[project.scripts]
-run-tests = "pypft.run_tests:main"
+[tool.coverage.run]
+source = ["src/pypft"]
