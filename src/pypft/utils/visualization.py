@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from .coordinates import polar_to_cart
 
-def plot_bessel_mat(x, title=None):
+def plot_cimage(x, title=None):
     """Plot complex image.
     input:
     x: 2D numpy array"""
@@ -18,6 +19,7 @@ def plot_bessel_mat(x, title=None):
     plt.figure()
     plt.imshow(x, cmap='gray')
     plt.title(title)
+
 def plot_bessel_mat(im, title=None):
     """Plot bessel matrix.
     input:
@@ -72,12 +74,26 @@ def visualize_reconstructed(f, title=None):
     assert f.ndim == 2
     assert f.shape[1] % 2 == 0
 
-    from .coordinates import polar_to_cart
 
     f = np.abs(f)
     f = polar_to_cart(f)
     f = circle_frame(f)
     plot_image(f, title)
 
+def visualize_kspace(f, title=None):
+    """Given a 2D numpy array of K-Space image in polar coordinates, plot it in Cartesian coordinates.
+    input:
+    f: 2D numpy array, in the shape of (samples, spokes)."""
+
+    assert f.ndim == 2
+    assert f.shape[1] % 2 == 0
+
+
+    f = np.abs(f)
+    f = f / np.max(f)
+    f = f ** 0.3
+    f = polar_to_cart(f)
+    f = circle_frame(f)
+    plot_image(f, title)
 def show():
     plt.show()
