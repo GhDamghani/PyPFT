@@ -19,7 +19,7 @@ def inverse(F_rho_phi, bessel_mat=None, DHT_impl=None):
     f_r_theta: 2D numpy array in the shape of (samples, spokes) spokes are radial, NOT diagonal, therefore spokes is an even number
 
     Steps:
-    \[F\left( {\rho ,\varphi } \right)\mathop  \leftrightarrow \limits^{FF{T_\varphi }} {F_n}\left( \rho  \right)\mathop  \leftrightarrow \limits^{{H_n}} {f_n}\left( r \right)\mathop  \leftrightarrow \limits^{IFF{T_\theta }} f\left( {r,\theta } \right)\]
+    $F\left( {\rho ,\varphi } \right)\mathop  \leftrightarrow \limits^{FF{T_\varphi }} {F_n}\left( \rho  \right)\mathop  \leftrightarrow \limits^{{H_n}} {f_n}\left( r \right)\mathop  \leftrightarrow \limits^{IFF{T_\theta }} f\left( {r,\theta } \right)$
     """
     assert F_rho_phi.ndim == 2
     assert F_rho_phi.shape[1] % 2 == 0
@@ -29,7 +29,7 @@ def inverse(F_rho_phi, bessel_mat=None, DHT_impl=None):
     samples, spokes = F_rho_phi.shape
 
     if bessel_mat is None:
-        bessel_mat = bessel_mat_handler.bessel_mat(samples, spokes)
+        bessel_mat = bessel_mat_handler.load_bessel_mat(samples, spokes)
     elif type(bessel_mat) == str:
         bessel_mat_impl = bessel_mat
         bessel_mat = bessel_mat_handler.load_bessel_mat(samples, spokes, bessel_mat_impl)
