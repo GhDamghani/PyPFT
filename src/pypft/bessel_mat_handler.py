@@ -1,7 +1,7 @@
 from pathlib import Path
 from platformdirs import user_cache_dir
 import numpy as np
-import src.pypft.bessel_mat_impls as bessel_mat_impls
+from . import bessel_mat_impls as bessel_mat_impls
 
 cache_dir = Path(user_cache_dir("PyPFT"))
 
