@@ -61,7 +61,15 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml CHANGELOG.md
           git commit -m "chore(release): bump to v${{ steps.apply.outputs.new_version }} (${{ steps.apply.outputs.release_class }})"
-          git push
+
+      - name: Push to the protected branch 'protected'
+        uses: CasperWA/push-protected@v2
+        with:
+          token: ${{ secrets.PUSH_TO_PROTECTED }}
+          branch: ${{ github.event.pull_request.base.ref }}
+          force: false
+          unprotect_reviews: true
+          tags: true
 
       - name: Write workflow summary
         run: |
