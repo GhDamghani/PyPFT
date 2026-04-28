@@ -39,3 +39,14 @@ You can run a sample test with this command:
 ```
 python -m pypft test
 ```
+
+## Release automation
+
+Merged pull requests into `main` can drive version and changelog updates based on the source branch prefix.
+
+- `major/*` produces a major version bump and a changelog entry.
+- `minor/*` produces a minor version bump and a changelog entry.
+- `patch/*` produces a patch version bump and a changelog entry.
+- `hotfix/*` produces a patch version bump and a changelog entry, while remaining a distinct release class for downstream automation.
+
+The GitHub Actions workflow at `.github/workflows/update-release-metadata.yml` updates `pyproject.toml` and `CHANGELOG.md` after a qualifying pull request is merged into `main`.
