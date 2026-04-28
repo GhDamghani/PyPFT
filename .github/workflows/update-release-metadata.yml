@@ -68,7 +68,7 @@ jobs:
           token: ${{ secrets.PUSH_TO_PROTECTED }}
           branch: ${{ github.event.pull_request.base.ref }}
           force: false
-          unprotect_reviews: true
+          unprotect_reviews: false
           tags: true
 
       - name: Write workflow summary
