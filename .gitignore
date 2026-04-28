@@ -3,3 +3,5 @@
 /tests/test_files
 /dist
 .coverage
+/.extrafiles
+/.github/prompts
