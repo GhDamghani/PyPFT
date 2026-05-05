@@ -7,6 +7,8 @@ from scripts.update_release_metadata import (
     build_changelog_entry,
     bump_version,
     detect_release_class,
+    extract_description_section,
+    format_description_lines,
     read_current_version,
     update_changelog,
     update_pyproject_version,
@@ -18,12 +20,11 @@ class TestReleaseUpdate(TestCase):
         self.assertEqual(detect_release_class("major/add-breaking-change"), ("major", "major"))
         self.assertEqual(detect_release_class("minor/new-feature"), ("minor", "minor"))
         self.assertEqual(detect_release_class("patch/fix-docs"), ("patch", "patch"))
+        self.assertEqual(detect_release_class("hotfix/outage-fix"), ("hotfix", "patch"))
 
     def test_detect_release_class_rejects_unknown_prefix(self):
         with self.assertRaises(ValueError):
             detect_release_class("feature/new-work")
-        with self.assertRaises(ValueError):
-            detect_release_class("hotfix/outage-fix")
 
     def test_bump_version(self):
         self.assertEqual(bump_version("0.0.4", "major"), "1.0.0")
@@ -43,6 +44,51 @@ class TestReleaseUpdate(TestCase):
             self.assertTrue(changed)
             self.assertEqual(read_current_version(pyproject_path), "0.1.0")
 
+    def test_extract_description_section_prefers_extended_description_heading(self):
+        body = """## Summary
+Ignore this section.
+
+## Extended Description
+- Adds merge-triggered changelog updates
+- Includes PR description details
+
+## Checklist
+- [x] Tests added
+"""
+
+        self.assertEqual(
+            extract_description_section(body),
+            [
+                "- Adds merge-triggered changelog updates",
+                "- Includes PR description details",
+            ],
+        )
+
+    def test_format_description_lines_preserves_markdown_list_items(self):
+        body = """Extended explanation line
+- Bullet one
+1. Bullet two
+"""
+
+        self.assertEqual(
+            format_description_lines(body),
+            "  Extended explanation line\n  - Bullet one\n  1. Bullet two\n",
+        )
+
+    def test_build_changelog_entry_includes_pr_body_details(self):
+        entry = build_changelog_entry(
+            new_version="0.1.0",
+            release_class="minor",
+            pr_title="Add release automation",
+            pr_number="15",
+            release_date="2026-04-29",
+            pr_body="## Extended Description\n- Adds workflow automation\n- Uses PR metadata\n",
+        )
+
+        self.assertIn("- Add release automation (#15)", entry)
+        self.assertIn("  - Adds workflow automation", entry)
+        self.assertIn("  - Uses PR metadata", entry)
+
     def test_update_changelog_creates_and_prepends_entries(self):
         with TemporaryDirectory() as tmp_dir:
             changelog_path = Path(tmp_dir) / "CHANGELOG.md"
@@ -52,6 +98,7 @@ class TestReleaseUpdate(TestCase):
                 pr_title="Fix cache invalidation",
                 pr_number="12",
                 release_date="2026-04-28",
+                pr_body="",
             )
             second_entry = build_changelog_entry(
                 new_version="0.1.0",
@@ -59,6 +106,7 @@ class TestReleaseUpdate(TestCase):
                 pr_title="Add release automation",
                 pr_number="15",
                 release_date="2026-04-29",
+                pr_body="",
             )
 
             created = update_changelog(changelog_path, first_entry, "0.0.5")
@@ -79,6 +127,7 @@ class TestReleaseUpdate(TestCase):
                 pr_title="Tighten tests",
                 pr_number="21",
                 release_date="2026-04-28",
+                pr_body="",
             )
 
             first = update_changelog(changelog_path, entry, "0.0.5")
