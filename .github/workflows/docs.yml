@@ -29,9 +29,3 @@ jobs:
 
       - name: Build Sphinx documentation
         run: python -m sphinx -W -b html docs/source docs/build/html
-
-      - name: Upload built documentation artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: pypft-docs-html
-          path: docs/build/html
