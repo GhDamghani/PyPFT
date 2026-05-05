@@ -31,6 +31,13 @@ classifiers = [
 license = "MIT"
 license-files = ["LICENCSE"]
 
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "invoke>=2.2",
+  "sphinx>=8.0",
+]
+
 [project.urls]
 Homepage = "https://github.com/GhDamghani/PyPFT"
 Issues = "https://github.com/GhDamghani/PyPFT/issues"

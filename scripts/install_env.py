@@ -8,11 +8,21 @@ import textwrap
 import venv
 from pathlib import Path
 
-from sync_dependencies import DEFAULT_PYPROJECT, DEFAULT_README, DEFAULT_REQUIREMENTS, sync_pyproject, sync_readme
+try:
+    from .sync_dependencies import (
+        DEFAULT_PYPROJECT,
+        DEFAULT_README,
+        DEFAULT_REQUIREMENTS,
+        sync_pyproject,
+        sync_readme,
+    )
+except ImportError:
+    from sync_dependencies import DEFAULT_PYPROJECT, DEFAULT_README, DEFAULT_REQUIREMENTS, sync_pyproject, sync_readme
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_VENV = REPO_ROOT / ".venv"
+DEFAULT_DEV_REQUIREMENTS = REPO_ROOT / "requirements" / "dev.txt"
 REQUIRED_PYTHON = (3, 14)
 
 
@@ -90,6 +100,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the runtime dependency file.",
     )
     parser.add_argument(
+        "--dev-requirements",
+        type=Path,
+        default=DEFAULT_DEV_REQUIREMENTS,
+        help="Path to the optional development dependency file.",
+    )
+    parser.add_argument(
         "--pyproject",
         type=Path,
         default=DEFAULT_PYPROJECT,
@@ -105,6 +121,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--dry-run",
         action="store_true",
         help="Print the actions without creating a virtual environment or installing anything.",
+    )
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Also install development dependencies from requirements/dev.txt.",
     )
     return parser
 
@@ -130,6 +151,8 @@ def main() -> int:
     venv_python = venv_python_path(venv_path)
     run_command([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"], args.dry_run)
     run_command([str(venv_python), "-m", "pip", "install", "-r", str(args.requirements)], args.dry_run)
+    if args.dev:
+        run_command([str(venv_python), "-m", "pip", "install", "-r", str(args.dev_requirements)], args.dry_run)
     run_command(
         [str(venv_python), "-m", "pip", "install", "-e", str(REPO_ROOT), "--no-deps"],
         args.dry_run,

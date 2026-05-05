@@ -38,13 +38,33 @@ On Windows, if `python3.14` is not on `PATH`, use:
 py -3.14 scripts/install_env.py
 ```
 
-The installer checks that it is running with Python 3.14, tells you how to install Python 3.14 if it is missing, creates `.venv`, syncs `pyproject.toml` and `README.md` from `requirements/runtime.txt`, installs the runtime dependencies, and installs PyPFT in editable mode.
+The installer checks that it is running with Python 3.14, tells you how to install Python 3.14 if it is missing, creates `.venv`, upgrades `pip`, syncs `pyproject.toml` and `README.md` from `requirements/runtime.txt`, installs the runtime dependencies, and installs PyPFT in editable mode.
+
+To include local development tools such as `invoke`, `build`, and `sphinx`, run:
+
+```bash
+python3.14 scripts/install_env.py --dev
+```
 
 To update `pyproject.toml` and `README.md` after changing `requirements/runtime.txt`, run:
 
 ```bash
 python3.14 scripts/sync_dependencies.py
 ```
+
+For local maintenance commands, install the dev extras and use `invoke`:
+
+```bash
+python3.14 scripts/install_env.py --dev
+inv --list
+```
+
+Available tasks include:
+
+- `inv install --dev` to create the environment with dev tools installed
+- `inv sync-deps` to sync dependency metadata
+- `inv backfill-dist --dry-run` to preview missing distribution artifacts
+- `inv docs` to build the Sphinx docs into `docs/build/html`
 
 You can run a sample test with this command:
 
