@@ -18,11 +18,12 @@ class TestReleaseUpdate(TestCase):
         self.assertEqual(detect_release_class("major/add-breaking-change"), ("major", "major"))
         self.assertEqual(detect_release_class("minor/new-feature"), ("minor", "minor"))
         self.assertEqual(detect_release_class("patch/fix-docs"), ("patch", "patch"))
-        self.assertEqual(detect_release_class("hotfix/outage-fix"), ("hotfix", "patch"))
 
     def test_detect_release_class_rejects_unknown_prefix(self):
         with self.assertRaises(ValueError):
             detect_release_class("feature/new-work")
+        with self.assertRaises(ValueError):
+            detect_release_class("hotfix/outage-fix")
 
     def test_bump_version(self):
         self.assertEqual(bump_version("0.0.4", "major"), "1.0.0")
