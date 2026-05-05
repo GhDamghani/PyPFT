@@ -22,7 +22,12 @@ class TestUpdateReleaseMetadataWorkflow(TestCase):
         self.assertIn('--pr-body "$PR_BODY"', self.workflow_text)
         self.assertIn("python scripts/update_release_metadata.py apply", self.workflow_text)
 
-    def test_workflow_commits_and_pushes_generated_metadata(self):
-        self.assertIn("git diff --quiet -- pyproject.toml CHANGELOG.md", self.workflow_text)
+    def test_workflow_builds_and_commits_local_distribution(self):
+        self.assertIn("python -m pip install --upgrade build", self.workflow_text)
+        self.assertIn("python -m build --outdir dist", self.workflow_text)
+        self.assertNotIn("rm -rf dist", self.workflow_text)
+        self.assertIn('git status --porcelain -- pyproject.toml CHANGELOG.md dist', self.workflow_text)
+        self.assertIn("git add -f dist", self.workflow_text)
         self.assertIn("CasperWA/push-protected@v2", self.workflow_text)
+        self.assertIn("- Local distribution: dist/", self.workflow_text)
         self.assertIn("## Release metadata updated", self.workflow_text)

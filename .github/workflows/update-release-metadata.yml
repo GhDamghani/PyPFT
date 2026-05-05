@@ -29,6 +29,9 @@ jobs:
         with:
           python-version: '3.14'
 
+      - name: Install build tooling
+        run: python -m pip install --upgrade build
+
       - name: Detect release class
         id: detect
         run: |
@@ -52,9 +55,13 @@ jobs:
             --pr-body "$PR_BODY" \
             --github-output "$GITHUB_OUTPUT"
 
+      - name: Build local distribution
+        run: |
+          python -m build --outdir dist
+
       - name: Commit generated metadata
         run: |
-          if git diff --quiet -- pyproject.toml CHANGELOG.md; then
+          if [ -z "$(git status --porcelain -- pyproject.toml CHANGELOG.md dist)" ]; then
             echo "No release metadata changes detected."
             exit 0
           fi
@@ -62,6 +69,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml CHANGELOG.md
+          git add -f dist
           git commit -m "chore(release): bump to v${{ steps.apply.outputs.new_version }} (${{ steps.apply.outputs.release_class }})"
 
       - name: Push to protected branch
@@ -82,5 +90,6 @@ jobs:
             echo "- Bump kind: ${{ steps.apply.outputs.bump_kind }}"
             echo "- Previous version: ${{ steps.apply.outputs.previous_version }}"
             echo "- New version: ${{ steps.apply.outputs.new_version }}"
+            echo "- Local distribution: dist/"
             echo "- Source branch: ${{ github.event.pull_request.head.ref }}"
           } >> "$GITHUB_STEP_SUMMARY"
