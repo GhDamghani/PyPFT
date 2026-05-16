@@ -1,7 +1,9 @@
-API reference
+API Reference
 =============
 
 .. automodule:: pypft
    :members:
    :undoc-members:
-   :show-inheritance:
+
+.. automodule:: pypft.dht.registry
+   :members:
