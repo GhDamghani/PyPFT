@@ -1,9 +1,3 @@
-*.pyc
-/.vscode
-/tests/test_files
-/dist
-.coverage
-/.extrafiles
+/.localfiles
 /.github/prompts
-docs\docs
-.venv
+/.vscode
