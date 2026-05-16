@@ -1,3 +1,12 @@
-/.localfiles
+/.local_files
 /.github/prompts
-/.vscode
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+build/
+dist/
+docs/build/
+*.egg-info/

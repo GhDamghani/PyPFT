@@ -1,83 +1,123 @@
 # PyPFT
-Polar Fourier Transform for Reconstruction of Polar MR images in Python using Numpy
 
-Assuming you have raw kspace data in polar coordinates $F\left( {\rho ,\varphi } \right)$, if you want to reconstruct the image in the spatial domain with polar coordinates $f\left( {r,\theta } \right)$, you can follow these steps:
+PyPFT is a Python package for exact discrete Fourier transforms in polar coordinates. The public API is centered on a single facade object:
 
-$F\left( {\rho ,\varphi } \right)\mathop  \leftrightarrow \limits^{FF{T_\varphi }} {F_n}\left( \rho  \right)\mathop  \leftrightarrow \limits^{{H_n}} {f_n}\left( r \right)\mathop  \leftrightarrow \limits^{IFF{T_\theta }} f\left( {r,\theta } \right)$
+```python
+from pypft import PyPFT
 
-Meaning that you need to take two FFTs and one Hankel Transform. FFT is already implemented in `numpy.fft.fft`. However, Hankel transform is not implemented. Also, in general, there is no package to handle this type of data natively in Python. This package serves as a toolkit to reconstruct polar MR images using PFT and handle the images after that.
+pft = PyPFT()
+transformed = pft.forward(image)
+reconstructed = pft.backward(transformed)
+```
 
-Based on:
+The current repository state provides the installable package scaffold, the `PyPFT` facade, modular FFT and operator layers, and a single mock DHT implementation. The current DHT key is `mock-mirror`, which simply returns its input so the existing forward and backward pipelines behave like identity transforms while the real radial math is still under development.
 
-    Golshani, S., & Nasiraei‐Moghaddam, A. (2017). Efficient radial tagging CMR exam: A coherent k‐space reading and image reconstruction approach. Magnetic resonance in medicine, 77(4), 1459-1472. https://doi.org/10.1002/mrm.26219
+## Current design
 
-## Dependencies
+- Default input contract: one 2D `complex128` array with shape `(n_r, n_theta)`.
+- Optional batched contract: one leading batch axis with shape `(batch, n_r, n_theta)` when `enable_batching=True`.
+- Angular transforms: backend-dispatched FFT wrappers using SciPy on CPU and optional CuPy on GPU.
+- Radial transforms: DHT selected by string key from a registry; the current key is `mock-mirror`, and the same implementation is reused by forward and backward plans.
+- Backend support: `backend="cpu"` is the default; `backend="gpu"` is available when the optional CuPy extra is installed.
+- Operator layer: separate forward and backward plans keep the facade small and the stages independently testable.
 
-<!-- dependencies:start -->
+## Reference materials
+
+Authoritative papers and derivations are stored under `.local_files/sources`. The current scaffold freezes only structural conventions such as axis order and dtype policy. Mathematical normalization, phase conventions, and grid sampling semantics remain pending until the DHT implementation work begins.
+
+## Installation
+
+PyPFT currently targets Python 3.14.
+
+To create a local development environment:
+
+```bash
+python scripts/install_dev.py
+```
+
+That script creates `.venv`, upgrades `pip`, and installs the package in editable mode with development, documentation, and benchmark extras.
+
+To include the optional CuPy GPU backend during environment setup:
+
+```bash
+python scripts/install_dev.py --gpu
+```
+
+You can also install manually:
+
+```bash
+python -m pip install -e .[dev,docs,bench]
+```
+
+For optional GPU support on CUDA 12.x:
+
+```bash
+python -m pip install -e .[dev,docs,bench,gpu]
+```
+
+Then select the GPU path explicitly:
+
+```python
+from pypft import PyPFT
+
+pft = PyPFT(backend="gpu")
+```
+
+The current GPU milestone accelerates array conversion and angular FFT/IFFT
+dispatch only. The current DHT implementation is still `mock-mirror`, so this
+does not yet represent real GPU-accelerated radial transform math.
+
+## Validation
+
+Run the test suite with:
+
+```bash
+python -m pytest
+```
+
+Build the documentation with:
+
+```bash
+python -m sphinx -b html docs docs/build/html
+```
+
+Build source and wheel distributions with:
+
+```bash
+python -m build
+```
+
+## Repository layout
+
 ```text
-numpy>=2.1
-matplotlib>=2.0
-joblib>=1.5
-opencv-python>=4.12
-platformdirs>=4.4
-scipy>=1.16
-```
-<!-- dependencies:end -->
-
-## Installing
-
-Use the cross-platform installer script from the repository root:
-
-```bash
-python3.14 scripts/install_env.py
-```
-
-On Windows, if `python3.14` is not on `PATH`, use:
-
-```powershell
-py -3.14 scripts/install_env.py
+src/pypft/
+    api.py
+    config.py
+    backends/
+    core/
+    dft/
+    dht/
+    grids/
+    idft/
+    operators/
+    validation/
+    visualization/
+tests/
+docs/
+scripts/
+benchmarks/
+notebooks/
 ```
 
-The installer checks that it is running with Python 3.14, tells you how to install Python 3.14 if it is missing, creates `.venv`, upgrades `pip`, syncs `pyproject.toml` and `README.md` from `requirements/runtime.txt`, installs the runtime dependencies, and installs PyPFT in editable mode.
+## GitHub and publishing
 
-To include local development tools such as `invoke`, `build`, and `sphinx`, run:
+The repository now includes GitHub Actions workflows for:
 
-```bash
-python3.14 scripts/install_env.py --dev
-```
+- test and package-build verification on push and pull request
+- documentation builds on push and pull request
+- merge-triggered version and changelog updates for `major/*`, `minor/*`, and `patch/*` branches merged into `main`
+- tagged releases that build distributions, publish a GitHub Release, and publish to PyPI via Trusted Publishing
 
-To update `pyproject.toml` and `README.md` after changing `requirements/runtime.txt`, run:
+When a release-managed pull request is merged into `main`, the version workflow reads the branch prefix to choose the semantic version bump and uses the merge commit description body as the new changelog entry body.
 
-```bash
-python3.14 scripts/sync_dependencies.py
-```
-
-For local maintenance commands, install the dev extras and use `invoke`:
-
-```bash
-python3.14 scripts/install_env.py --dev
-inv --list
-```
-
-Available tasks include:
-
-- `inv install --dev` to create the environment with dev tools installed
-- `inv sync-deps` to sync dependency metadata
-- `inv backfill-dist --dry-run` to preview missing distribution artifacts
-- `inv docs` to build the Sphinx docs into `docs/build/html`
-
-You can run a sample test with this command:
-
-```bash
-python -m pypft test
-```
-
-## Release automation
-
-Merged pull requests into `main` can trigger an automated release based on the source branch prefix.
-
-- `major/*` forces a major release.
-- `minor/*` forces a minor release.
-- `patch/*` forces a patch release.
-
-The GitHub Actions workflow at `.github/workflows/release.yml` runs after a qualifying pull request is merged into `main`, creates the release with `python-semantic-release`, publishes release artifacts to GitHub, and publishes the package to PyPI when a release is produced.
+Before enabling PyPI publishing, configure the PyPI Trusted Publisher for this repository and confirm that the release tags match the package version in `pyproject.toml`.

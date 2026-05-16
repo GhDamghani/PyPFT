@@ -1,0 +1,103 @@
+name: Version And Changelog
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - closed
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-metadata-main
+  cancel-in-progress: false
+
+jobs:
+  update-release-metadata:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install project with development extras
+        run: python -m pip install -e .[dev]
+
+      - name: Determine release bump from branch prefix
+        id: bump
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          branch_name="${HEAD_REF}"
+          bump_kind="${branch_name%%/*}"
+
+          case "$bump_kind" in
+            major|minor|patch)
+              echo "value=$bump_kind" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Merged branch '$branch_name' must start with major/, minor/, or patch/." >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Read merge commit description
+        env:
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import subprocess
+
+          merge_commit_sha = os.environ.get("MERGE_COMMIT_SHA", "").strip()
+          if not merge_commit_sha:
+              raise SystemExit(
+                  "The merged pull request did not expose merge_commit_sha. "
+                  "Use merge or squash merges for release-managed branches."
+              )
+
+          message = subprocess.check_output(
+              ["git", "log", "-1", "--format=%B", merge_commit_sha],
+              text=True,
+          )
+          parts = message.split("\n", 1)
+          body = parts[1].strip() if len(parts) > 1 else ""
+          Path("merge-body.md").write_text(f"{body}\n", encoding="utf-8")
+          PY
+
+      - name: Update version and changelog
+        id: metadata
+        run: |
+          new_version=$(python scripts/update_release_metadata.py \
+            --bump "${{ steps.bump.outputs.value }}" \
+            --merge-body-file merge-body.md)
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Commit release metadata and tag
+        env:
+          NEW_VERSION: ${{ steps.metadata.outputs.new_version }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml src/pypft/__init__.py CHANGELOG.md
+
+          if git diff --cached --quiet; then
+            echo "No release metadata changes detected."
+            exit 0
+          fi
+
+          git commit -m "chore(release): v${NEW_VERSION}"
+          git tag "v${NEW_VERSION}"
+          git push origin HEAD:"${BASE_REF}" --follow-tags

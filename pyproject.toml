@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=80", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyPFT"
+version = "0.1.0.dev0"
+description = "Polar Fourier transform toolkit with a modular PyPFT facade."
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+license = { file = "LICENSE" }
+authors = [
+  { name = "GhDamghani" },
+]
+keywords = ["polar-fourier-transform", "scientific-computing", "mri", "fourier", "hankel-transform"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+  "numba>=0.61",
+  "numpy>=2.1",
+  "scipy>=1.16",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "mypy>=1.16",
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "ruff>=0.11",
+]
+docs = [
+  "furo>=2024.8.6",
+  "sphinx>=8.0",
+]
+bench = [
+  "pytest-benchmark>=5.1",
+]
+gpu = [
+  "cupy-cuda12x>=13.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/GhDamghani/PyPFT"
+Documentation = "https://github.com/GhDamghani/PyPFT"
+Issues = "https://github.com/GhDamghani/PyPFT/issues"
+Source = "https://github.com/GhDamghani/PyPFT"
+
+[tool.setuptools]
+license-files = ["LICENSE"]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+markers = [
+  "gpu: tests requiring the optional CuPy GPU backend",
+]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+packages = ["pypft"]
+warn_unused_configs = true
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
