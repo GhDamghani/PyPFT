@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-metadata-main
@@ -16,7 +17,10 @@ concurrency:
 
 jobs:
   update-release-metadata:
-    if: github.event.pull_request.merged == true
+    # Skip when a release metadata PR itself is merged to avoid an infinite loop.
+    if: >
+      github.event.pull_request.merged == true &&
+      !startsWith(github.event.pull_request.head.ref, 'chore/release-')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -84,10 +88,11 @@ jobs:
             --merge-body-file merge-body.md)
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Commit release metadata and tag
+      - name: Open release metadata pull request
         env:
           NEW_VERSION: ${{ steps.metadata.outputs.new_version }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -98,6 +103,45 @@ jobs:
             exit 0
           fi
 
+          RELEASE_BRANCH="chore/release-v${NEW_VERSION}"
+          git checkout -b "${RELEASE_BRANCH}"
           git commit -m "chore(release): v${NEW_VERSION}"
-          git tag "v${NEW_VERSION}"
-          git push origin HEAD:"${BASE_REF}" --follow-tags
+          git push origin "${RELEASE_BRANCH}"
+
+          gh pr create \
+            --title "chore(release): v${NEW_VERSION}" \
+            --body "Automated release metadata update for v${NEW_VERSION}." \
+            --base "${BASE_REF}" \
+            --head "${RELEASE_BRANCH}"
+
+          gh pr merge "${RELEASE_BRANCH}" \
+            --merge \
+            --auto \
+            || echo "Auto-merge could not be enabled; the PR can be merged manually."
+
+  tag-release:
+    # Run when a release metadata PR is merged so the git tag points to the
+    # correct merge commit on main.
+    if: >
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'chore/release-')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+
+      - name: Create and push release tag
+        env:
+          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          VERSION="${RELEASE_BRANCH#chore/release-}"
+          if [[ -z "${VERSION}" || ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Could not extract a valid version from branch '${RELEASE_BRANCH}'." >&2
+            exit 1
+          fi
+          git tag "${VERSION}"
+          git push origin "${VERSION}"
