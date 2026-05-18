@@ -9,7 +9,6 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 concurrency:
   group: release-metadata-main
@@ -17,10 +16,7 @@ concurrency:
 
 jobs:
   update-release-metadata:
-    # Skip when a release metadata PR itself is merged to avoid an infinite loop.
-    if: >
-      github.event.pull_request.merged == true &&
-      !startsWith(github.event.pull_request.head.ref, 'chore/release-')
+    if: ${{ github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
@@ -29,15 +25,35 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.base.ref }}
 
+      - name: Skip if this merge commit already produced release metadata
+        id: release_guard
+        env:
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          if [[ -z "${MERGE_COMMIT_SHA}" ]]; then
+            echo "The merged pull request did not expose merge_commit_sha." >&2
+            exit 1
+          fi
+
+          if git log --format=%B HEAD | grep -Fxq "release-source: ${MERGE_COMMIT_SHA}"; then
+            echo "already_released=true" >> "$GITHUB_OUTPUT"
+            echo "Release metadata for ${MERGE_COMMIT_SHA} is already present on the base branch."
+          else
+            echo "already_released=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up Python 3.14
+        if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         uses: actions/setup-python@v5
         with:
           python-version: "3.14"
 
       - name: Install project with development extras
+        if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         run: python -m pip install -e .[dev]
 
       - name: Determine release bump from branch prefix
+        if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         id: bump
         env:
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
@@ -56,6 +72,7 @@ jobs:
           esac
 
       - name: Read merge commit description
+        if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         env:
           MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
@@ -81,6 +98,7 @@ jobs:
           PY
 
       - name: Update version and changelog
+        if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         id: metadata
         run: |
           new_version=$(python scripts/update_release_metadata.py \
@@ -88,11 +106,12 @@ jobs:
             --merge-body-file merge-body.md)
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Open release metadata pull request
+      - name: Commit release metadata and tag release
+        if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         env:
           NEW_VERSION: ${{ steps.metadata.outputs.new_version }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-          GH_TOKEN: ${{ github.token }}
+          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -103,45 +122,11 @@ jobs:
             exit 0
           fi
 
-          RELEASE_BRANCH="chore/release-v${NEW_VERSION}"
-          git checkout -b "${RELEASE_BRANCH}"
-          git commit -m "chore(release): v${NEW_VERSION}"
-          git push origin "${RELEASE_BRANCH}"
+          git commit \
+            -m "chore(release): v${NEW_VERSION}" \
+            -m "release-source: ${MERGE_COMMIT_SHA}"
+          git push origin HEAD:"${BASE_REF}"
 
-          gh pr create \
-            --title "chore(release): v${NEW_VERSION}" \
-            --body "Automated release metadata update for v${NEW_VERSION}." \
-            --base "${BASE_REF}" \
-            --head "${RELEASE_BRANCH}"
-
-          gh pr merge "${RELEASE_BRANCH}" \
-            --merge \
-            --auto \
-            || echo "Auto-merge could not be enabled; the PR can be merged manually."
-
-  tag-release:
-    # Run when a release metadata PR is merged so the git tag points to the
-    # correct merge commit on main.
-    if: >
-      github.event.pull_request.merged == true &&
-      startsWith(github.event.pull_request.head.ref, 'chore/release-')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.base.ref }}
-
-      - name: Create and push release tag
-        env:
-          RELEASE_BRANCH: ${{ github.event.pull_request.head.ref }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          VERSION="${RELEASE_BRANCH#chore/release-}"
-          if [[ -z "${VERSION}" || ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Could not extract a valid version from branch '${RELEASE_BRANCH}'." >&2
-            exit 1
-          fi
-          git tag "${VERSION}"
-          git push origin "${VERSION}"
+          VERSION_TAG="v${NEW_VERSION}"
+          git tag "${VERSION_TAG}"
+          git push origin "${VERSION_TAG}"
