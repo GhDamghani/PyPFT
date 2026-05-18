@@ -29,8 +29,15 @@ jobs:
       - name: Skip if this merge commit already produced release metadata
         id: release_guard
         env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
           MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
+          if [[ "${HEAD_REF}" == release-metadata/* ]]; then
+            echo "already_released=true" >> "$GITHUB_OUTPUT"
+            echo "Release metadata pull requests do not generate a follow-up release metadata PR."
+            exit 0
+          fi
+
           if [[ -z "${MERGE_COMMIT_SHA}" ]]; then
             echo "The merged pull request did not expose merge_commit_sha." >&2
             exit 1
@@ -102,7 +109,7 @@ jobs:
             --merge-body-file merge-body.md)
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Create release metadata pull request
+      - name: Create and merge release metadata pull request
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -128,6 +135,15 @@ jobs:
             -m "release-source: ${MERGE_COMMIT_SHA}"
           git push --force-with-lease origin "$branch"
 
+          fetch_pr_data() {
+            gh pr list \
+              --base "$BASE_REF" \
+              --head "$branch" \
+              --state open \
+              --json number,url \
+              --jq 'if length == 0 then "" else [.[0].number, .[0].url] | @tsv end'
+          }
+
           pr_title="chore(release): v${NEW_VERSION}"
           pr_body=$(cat <<EOF
           Automated release metadata update after merging \`${HEAD_REF}\`.
@@ -135,13 +151,33 @@ jobs:
           release-source: \`${MERGE_COMMIT_SHA}\`
           EOF
           )
-          existing_pr_number=$(gh pr list --base "$BASE_REF" --head "$branch" --state open --json number --jq '.[0].number // empty')
+          pr_data=$(fetch_pr_data)
 
-          if [[ -n "$existing_pr_number" ]]; then
-            gh pr edit "$existing_pr_number" --title "$pr_title" --body "$pr_body"
+          if [[ -n "$pr_data" ]]; then
+            IFS=$'\t' read -r pr_number pr_url <<< "$pr_data"
+            gh pr edit "$pr_number" --title "$pr_title" --body "$pr_body"
           else
             if ! gh pr create --base "$BASE_REF" --head "$branch" --title "$pr_title" --body "$pr_body"; then
               echo "::warning::Unable to create pull request with GITHUB_TOKEN. This repository likely disallows GitHub Actions from creating pull requests."
               echo "::notice::Create the release metadata PR manually: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/pull/new/${branch}"
+              exit 0
             fi
+
+            pr_data=$(fetch_pr_data)
+            if [[ -z "$pr_data" ]]; then
+              echo "::warning::Created the release metadata branch, but could not resolve the pull request for automatic merging."
+              echo "::notice::Review the release metadata pull request manually for branch ${branch}."
+              exit 0
+            fi
+
+            IFS=$'\t' read -r pr_number pr_url <<< "$pr_data"
+          fi
+
+          if gh pr merge "$pr_number" --auto --squash --delete-branch; then
+            echo "Enabled auto-merge for release metadata PR #${pr_number}."
+          elif gh pr merge "$pr_number" --squash --delete-branch; then
+            echo "Merged release metadata PR #${pr_number} immediately."
+          else
+            echo "::warning::Unable to merge the release metadata pull request automatically."
+            echo "::notice::Merge the release metadata PR manually: ${pr_url}"
           fi
