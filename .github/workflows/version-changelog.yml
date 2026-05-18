@@ -114,7 +114,7 @@ jobs:
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ github.token }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           add-paths: |
             pyproject.toml
             src/pypft/__init__.py
