@@ -85,7 +85,10 @@ jobs:
           import os
 
           body = os.environ.get("PULL_REQUEST_BODY", "")
-          Path("merge-body.md").write_text(f"{body.rstrip()}\n", encoding="utf-8")
+          Path("merge-body.md").write_text(
+              f"{body.rstrip('\n')}\n",
+              encoding="utf-8",
+          )
           PY
 
       - name: Update version and changelog
