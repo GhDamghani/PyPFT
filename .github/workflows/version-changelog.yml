@@ -65,8 +65,11 @@ jobs:
             major|minor|patch)
               echo "value=$bump_kind" >> "$GITHUB_OUTPUT"
               ;;
+            copilot)
+              echo "value=patch" >> "$GITHUB_OUTPUT"
+              ;;
             *)
-              echo "Merged branch '$branch_name' must start with major/, minor/, or patch/." >&2
+              echo "Merged branch '$branch_name' must start with major/, minor/, patch/, or copilot/." >&2
               exit 1
               ;;
           esac
