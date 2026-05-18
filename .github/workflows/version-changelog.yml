@@ -125,7 +125,7 @@ jobs:
             release-source: ${{ github.event.pull_request.merge_commit_sha }}
           branch: release-metadata/${{ github.event.pull_request.merge_commit_sha }}
           base: ${{ github.event.pull_request.base.ref }}
-          title: chore(release): v${{ steps.metadata.outputs.new_version }}
+          title: "chore(release): v${{ steps.metadata.outputs.new_version }}"
           body: |
             Automated release metadata update after merging `${{ github.event.pull_request.head.ref }}`.
 
