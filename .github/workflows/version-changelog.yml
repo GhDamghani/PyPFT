@@ -75,30 +75,17 @@ jobs:
               ;;
           esac
 
-      - name: Read merge commit description
+      - name: Read merged pull request description
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         env:
-          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          PULL_REQUEST_BODY: ${{ github.event.pull_request.body || '' }}
         run: |
           python - <<'PY'
           from pathlib import Path
           import os
-          import subprocess
 
-          merge_commit_sha = os.environ.get("MERGE_COMMIT_SHA", "").strip()
-          if not merge_commit_sha:
-              raise SystemExit(
-                  "The merged pull request did not expose merge_commit_sha. "
-                  "Use merge or squash merges for release-managed branches."
-              )
-
-          message = subprocess.check_output(
-              ["git", "log", "-1", "--format=%B", merge_commit_sha],
-              text=True,
-          )
-          parts = message.split("\n", 1)
-          body = parts[1].strip() if len(parts) > 1 else ""
-          Path("merge-body.md").write_text(f"{body}\n", encoding="utf-8")
+          body = os.environ.get("PULL_REQUEST_BODY", "")
+          Path("merge-body.md").write_text(f"{body.rstrip()}\n", encoding="utf-8")
           PY
 
       - name: Update version and changelog
