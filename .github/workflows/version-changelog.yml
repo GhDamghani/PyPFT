@@ -77,17 +77,21 @@ jobs:
 
       - name: Read merged pull request description
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
-        env:
-          PULL_REQUEST_BODY: ${{ github.event.pull_request.body || '' }}
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          import os
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("node:fs");
 
-          body = os.environ.get("PULL_REQUEST_BODY", "")
-          normalized_body = body.rstrip("\n") + "\n" if body else "\n"
-          Path("merge-body.md").write_text(normalized_body, encoding="utf-8")
-          PY
+            const pullNumber = context.payload.pull_request.number;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pullNumber,
+            });
+
+            const body = pullRequest.body ?? "";
+            const normalizedBody = body ? `${body.replace(/\n+$/, "")}\n` : "\n";
+            fs.writeFileSync("merge-body.md", normalizedBody, "utf8");
 
       - name: Update version and changelog
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
