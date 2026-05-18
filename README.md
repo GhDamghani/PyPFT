@@ -120,4 +120,4 @@ The repository now includes GitHub Actions workflows for:
 
 When a release-managed pull request is merged into `main`, the version workflow reads the branch prefix to choose the semantic version bump and uses the merge commit description body as the new changelog entry body.
 
-Before enabling PyPI publishing, configure the PyPI Trusted Publisher for this repository and confirm that the release tags match the package version in `pyproject.toml`.
+Before enabling PyPI publishing, configure the PyPI Trusted Publisher for this repository and confirm that the release tags match the package version in `pyproject.toml`. 
