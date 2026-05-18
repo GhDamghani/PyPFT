@@ -143,7 +143,7 @@ jobs:
           release-source: \`${MERGE_COMMIT_SHA}\`
           EOF
           )
-          existing_pr_number=$(gh pr list --base "$BASE_REF" --head "$branch" --state open --json number --jq '.[0].number')
+          existing_pr_number=$(gh pr list --base "$BASE_REF" --head "$branch" --state open --json number --jq '.[0].number // empty')
 
           if [[ -n "$existing_pr_number" ]]; then
             gh pr edit "$existing_pr_number" --title "$pr_title" --body "$pr_body"
