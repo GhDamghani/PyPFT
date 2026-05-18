@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-metadata-main
@@ -109,27 +110,23 @@ jobs:
             --merge-body-file merge-body.md)
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Commit release metadata and tag release
+      - name: Create release metadata pull request
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
-        env:
-          NEW_VERSION: ${{ steps.metadata.outputs.new_version }}
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add pyproject.toml src/pypft/__init__.py CHANGELOG.md
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ github.token }}
+          add-paths: |
+            pyproject.toml
+            src/pypft/__init__.py
+            CHANGELOG.md
+          commit-message: |
+            chore(release): v${{ steps.metadata.outputs.new_version }}
 
-          if git diff --cached --quiet; then
-            echo "No release metadata changes detected."
-            exit 0
-          fi
+            release-source: ${{ github.event.pull_request.merge_commit_sha }}
+          branch: release-metadata/${{ github.event.pull_request.merge_commit_sha }}
+          base: ${{ github.event.pull_request.base.ref }}
+          title: chore(release): v${{ steps.metadata.outputs.new_version }}
+          body: |
+            Automated release metadata update after merging `${{ github.event.pull_request.head.ref }}`.
 
-          git commit \
-            -m "chore(release): v${NEW_VERSION}" \
-            -m "release-source: ${MERGE_COMMIT_SHA}"
-          git push origin HEAD:"${BASE_REF}"
-
-          VERSION_TAG="v${NEW_VERSION}"
-          git tag "${VERSION_TAG}"
-          git push origin "${VERSION_TAG}"
+            release-source: `${{ github.event.pull_request.merge_commit_sha }}`
