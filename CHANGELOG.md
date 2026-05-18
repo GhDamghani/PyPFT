@@ -13,6 +13,12 @@ All notable changes to this project will be documented in this file.
 - Add Sphinx documentation, GitHub Actions workflows, and a developer installer script.
 - Add merge-triggered version and changelog automation based on `major`, `minor`, and `patch` branch prefixes.
 
+## [v0.0.6] - 2026-05-18
+
+### Patch
+
+- No changelog body was provided in the merge description.
+
 ## [v0.0.5] - 2026-04-28
 
 ### Patch
