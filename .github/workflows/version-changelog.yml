@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: release-metadata-main
@@ -109,11 +110,13 @@ jobs:
             --merge-body-file merge-body.md)
           echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
 
-      - name: Commit release metadata and tag release
+      - name: Create release metadata pull request
         if: ${{ steps.release_guard.outputs.already_released != 'true' }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_VERSION: ${{ steps.metadata.outputs.new_version }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
           MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
         run: |
           git config user.name "github-actions[bot]"
@@ -125,11 +128,25 @@ jobs:
             exit 0
           fi
 
+          short_sha="${MERGE_COMMIT_SHA:0:12}"
+          branch="release-metadata/${short_sha}"
+          git checkout -B "$branch"
           git commit \
             -m "chore(release): v${NEW_VERSION}" \
             -m "release-source: ${MERGE_COMMIT_SHA}"
-          git push origin HEAD:"${BASE_REF}"
+          git push --force-with-lease origin "$branch"
 
-          VERSION_TAG="v${NEW_VERSION}"
-          git tag "${VERSION_TAG}"
-          git push origin "${VERSION_TAG}"
+          pr_title="chore(release): v${NEW_VERSION}"
+          pr_body=$(cat <<EOF
+          Automated release metadata update after merging \`${HEAD_REF}\`.
+
+          release-source: \`${MERGE_COMMIT_SHA}\`
+          EOF
+          )
+          existing_pr_number=$(gh pr list --base "$BASE_REF" --head "$branch" --state open --json number --jq '.[0].number // empty')
+
+          if [[ -n "$existing_pr_number" ]]; then
+            gh pr edit "$existing_pr_number" --title "$pr_title" --body "$pr_body"
+          else
+            gh pr create --base "$BASE_REF" --head "$branch" --title "$pr_title" --body "$pr_body"
+          fi
