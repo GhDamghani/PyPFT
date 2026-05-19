@@ -117,6 +117,7 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
           MERGE_COMMIT_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          MERGED_BY: ${{ github.event.pull_request.merged_by.login }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -142,6 +143,19 @@ jobs:
               --state open \
               --json number,url \
               --jq 'if length == 0 then "" else [.[0].number, .[0].url] | @tsv end'
+          }
+
+          describe_merge_blockers() {
+            merge_state=$(gh pr view "$pr_number" --json mergeStateStatus --jq '.mergeStateStatus')
+            auto_merge_allowed=$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.allow_auto_merge')
+
+            if [[ "$auto_merge_allowed" != "true" ]]; then
+              echo "::notice::Repository auto-merge is disabled. Enable Settings > General > Pull Requests > Allow auto-merge if you want this workflow to queue the release metadata PR for merging."
+            fi
+
+            if [[ "$merge_state" == "REVIEW_REQUIRED" ]]; then
+              echo "::notice::The base branch requires an approving review. A pull request created by github-actions[bot] cannot satisfy that review requirement on its own."
+            fi
           }
 
           pr_title="chore(release): v${NEW_VERSION}"
@@ -171,11 +185,17 @@ jobs:
             fi
           fi
 
-          if gh pr merge "$pr_number" --auto --squash --delete-branch; then
+          if [[ -n "$MERGED_BY" && "$MERGED_BY" != "github-actions[bot]" ]]; then
+            gh pr edit "$pr_number" --add-reviewer "$MERGED_BY" || \
+              echo "::notice::Unable to request a review from ${MERGED_BY}."
+          fi
+
+          if gh pr merge "$pr_number" --auto --merge --delete-branch; then
             echo "Enabled auto-merge for release metadata PR #${pr_number}."
-          elif gh pr merge "$pr_number" --squash --delete-branch; then
+          elif gh pr merge "$pr_number" --merge --delete-branch; then
             echo "Merged release metadata PR #${pr_number} immediately."
           else
+            describe_merge_blockers
             echo "::warning::Unable to merge the release metadata pull request automatically."
             echo "::notice::Merge the release metadata PR manually: ${pr_url}"
           fi
