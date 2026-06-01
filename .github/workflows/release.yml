@@ -24,7 +24,11 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+<<<<<<< Updated upstream
           token: ${{ secrets.PUSH_TO_PROTECTED }}
+=======
+          token: ${{ secrets.DEPLOY_KEY }}
+>>>>>>> Stashed changes
           persist-credentials: false
 
       - name: Set up Python 3.14
