@@ -10,20 +10,20 @@ transformed = pft.forward(image)
 reconstructed = pft.backward(transformed)
 ```
 
-The current repository state provides the installable package scaffold, the `PyPFT` facade, modular FFT and operator layers, and a single mock DHT implementation. The current DHT key is `mock-mirror`, which simply returns its input so the existing forward and backward pipelines behave like identity transforms while the real radial math is still under development.
+The current repository state provides the installable package scaffold, the `PyPFT` facade, modular FFT and operator layers, and a single legacy-style direct DHT implementation. The compatibility key remains `naive`, but it now runs a reference radial transform derived from the pre-0.1 codebase instead of an identity passthrough.
 
 ## Current design
 
 - Default input contract: one 2D `complex128` array with shape `(n_r, n_theta)`.
 - Optional batched contract: one leading batch axis with shape `(batch, n_r, n_theta)` when `enable_batching=True`.
 - Angular transforms: backend-dispatched FFT wrappers using SciPy on CPU and optional CuPy on GPU.
-- Radial transforms: DHT selected by string key from a registry; the current key is `mock-mirror`, and the same implementation is reused by forward and backward plans.
+- Radial transforms: DHT selected by string key from a registry; the compatibility key is `naive`, and the same legacy-style direct implementation is reused by forward and backward plans.
 - Backend support: `backend="cpu"` is the default; `backend="gpu"` is available when the optional CuPy extra is installed.
 - Operator layer: separate forward and backward plans keep the facade small and the stages independently testable.
 
 ## Reference materials
 
-Authoritative papers and derivations are stored under `.local_files/sources`. The current scaffold freezes only structural conventions such as axis order and dtype policy. Mathematical normalization, phase conventions, and grid sampling semantics remain pending until the DHT implementation work begins.
+Authoritative papers and derivations are stored under `.local_files/sources`. The current scaffold freezes structural conventions such as axis order and dtype policy while the new reference DHT is validated. Mathematical normalization, phase conventions, and final grid sampling semantics still need to be hardened beyond the legacy baseline.
 
 ## Installation
 
@@ -64,8 +64,9 @@ pft = PyPFT(backend="gpu")
 ```
 
 The current GPU milestone accelerates array conversion and angular FFT/IFFT
-dispatch only. The current DHT implementation is still `mock-mirror`, so this
-does not yet represent real GPU-accelerated radial transform math.
+dispatch only. The compatibility `naive` DHT still uses a CPU-side
+reference kernel and converts the result back to the active array backend, so
+this does not yet represent real GPU-accelerated radial transform math.
 
 ## Validation
 

@@ -1,7 +1,8 @@
 """Tests for the top-level PyPFT package and facade contract.
 
 These checks cover exported package symbols, default configuration, and the
-current mock DHT behavior of ``forward`` and ``backward``.
+current legacy-style naive DHT behavior exposed through ``forward`` and
+``backward``.
 """
 
 from __future__ import annotations
@@ -20,36 +21,43 @@ def test_package_exports() -> None:
 def test_default_pypft_configuration() -> None:
     pft = PyPFT()
 
-    assert pft.config.dht_implementation == "mock-mirror"
+    assert pft.config.dht_implementation == "naive"
     assert pft.config.enable_batching is False
-    assert pft.dht_implementation.key == "mock-mirror"
+    assert pft.dht_implementation.key == "naive"
 
 
-def test_forward_returns_input_for_mock_mirror(
+def test_forward_preserves_runtime_shape_and_returns_complex128(
     sample_image: np.ndarray,
 ) -> None:
     pft = PyPFT()
 
     transformed = pft.forward(sample_image)
 
-    np.testing.assert_allclose(transformed, sample_image)
+    assert transformed.shape == sample_image.shape
+    assert transformed.dtype == np.complex128
+    assert not np.allclose(transformed, sample_image)
 
 
-def test_backward_returns_input_for_mock_mirror(
+def test_backward_matches_forward_for_default_dht(
     sample_image: np.ndarray,
 ) -> None:
     pft = PyPFT()
 
-    transformed = pft.backward(sample_image)
+    forward_transformed = pft.forward(sample_image)
+    backward_transformed = pft.backward(sample_image)
 
-    np.testing.assert_allclose(transformed, sample_image)
+    np.testing.assert_allclose(backward_transformed, forward_transformed)
 
 
-def test_batched_input_returns_same_values_for_mock_mirror(
+def test_batched_input_matches_per_image_forward_calls(
     sample_batch: np.ndarray,
 ) -> None:
     pft = PyPFT(enable_batching=True)
 
     transformed = pft.forward(sample_batch)
+    expected = np.stack(
+        [PyPFT().forward(image) for image in sample_batch],
+        axis=0,
+    )
 
-    np.testing.assert_allclose(transformed, sample_batch)
+    np.testing.assert_allclose(transformed, expected)

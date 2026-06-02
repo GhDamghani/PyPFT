@@ -22,7 +22,7 @@ class PyPFT:
     def __init__(
         self,
         *,
-        dht_implementation: str = "mock-mirror",
+        dht_implementation: str = "naive",
         enable_batching: bool = False,
         backend: str = "cpu",
         spatial_grid: PolarSpatialGrid | None = None,

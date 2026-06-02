@@ -14,13 +14,13 @@ from pypft.dht import available_dht_implementations, create_dht_implementation
 
 
 def test_available_dht_implementations_are_sorted() -> None:
-    assert available_dht_implementations() == ("mock-mirror",)
+    assert available_dht_implementations() == ("naive",)
 
 
 def test_create_known_dht_implementation() -> None:
-    implementation = create_dht_implementation("mock-mirror")
+    implementation = create_dht_implementation("naive")
 
-    assert implementation.key == "mock-mirror"
+    assert implementation.key == "naive"
     assert implementation.supports_batching is True
 
 
