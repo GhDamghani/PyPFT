@@ -282,10 +282,11 @@ def _build_weighted_kernel(
 
     rho = _normalized_midpoint_samples(source_radial_size)
     radii = _normalized_midpoint_samples(target_radial_size)
+    radial_step = 1.0 / float(source_radial_size)
     orders = np.arange(-(angular_size // 2), angular_size // 2)
     kernel_arguments = np.pi * radii[:, None] * rho[None, :]
     bessel_kernel = jv(orders[None, None, :], kernel_arguments[:, :, None])
-    return bessel_kernel * rho[None, :, None]
+    return bessel_kernel * (rho[None, :, None] * radial_step)
 
 
 def _normalized_midpoint_samples(size: int) -> np.ndarray:

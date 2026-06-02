@@ -74,7 +74,11 @@ def test_weighted_kernel_normalizes_target_radial_samples() -> None:
 
     rho = _normalized_midpoint_samples(2)
     radii = _normalized_midpoint_samples(4)
-    expected = jv(0, np.pi * radii[:, None] * rho[None, :]) * rho[None, :]
+    expected = (
+        jv(0, np.pi * radii[:, None] * rho[None, :])
+        * rho[None, :]
+        / 2.0
+    )
 
     np.testing.assert_allclose(kernel[:, :, 1], expected)
 
@@ -248,7 +252,7 @@ def _normalized_midpoint_direct_dht(
         (values.shape[0], target_radial_size, angular_size),
         dtype=np.complex128,
     )
-    scaled_values = values * rho[None, :, None]
+    scaled_values = values * (rho / float(source_radial_size))[None, :, None]
 
     for mode_index, order in enumerate(orders):
         for radius_index, radius in enumerate(radii):

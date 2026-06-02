@@ -178,11 +178,10 @@ def test_forward_plan_matches_analytic_gaussian_for_radial_input() -> None:
         -((np.pi * radii) ** 2) / (4.0 * gaussian_decay)
     )
     expected = np.tile(expected_radial_profile[:, None], (1, angular_size))
-    normalized_transformed = transformed.asarray() / radial_size
 
     assert isinstance(transformed, FrequencySamples)
     np.testing.assert_allclose(
-        normalized_transformed,
+        transformed.asarray(),
         expected,
         atol=6e-5,
         rtol=0.0,
