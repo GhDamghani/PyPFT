@@ -1,3 +1,10 @@
+"""Tests for polar field containers.
+
+Fixtures such as ``sample_image`` and ``sample_batch`` come from the parent
+``tests/conftest.py``; pytest discovers parent conftest files for modules
+under the configured ``tests`` testpath.
+"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -80,6 +87,22 @@ def test_cross_stage_addition_fails_early(
         _ = spatial + frequency
 
 
+def test_scalar_ops_preserve_real_dtype_for_python_floats() -> None:
+    values = np.arange(12, dtype=np.float32).reshape(3, 4)
+    field = SpatialSamples(
+        data=values,
+        grid=PolarSpatialGrid.infer_from_shape(values.shape),
+    )
+
+    scaled = field * 2.0
+    reduced = field / 2.0
+
+    assert scaled.asarray().dtype == np.float32
+    assert reduced.asarray().dtype == np.float32
+    np.testing.assert_allclose(scaled.asarray(copy=True), values * 2.0)
+    np.testing.assert_allclose(reduced.asarray(copy=True), values / 2.0)
+
+
 def test_common_methods_preserve_stage_type(
     sample_image: np.ndarray,
 ) -> None:
@@ -89,6 +112,7 @@ def test_common_methods_preserve_stage_type(
             radial_size=sample_image.shape[0],
             angular_mode_count=sample_image.shape[1],
         ),
+        endpoint_grid=PolarSpatialGrid.infer_from_shape(sample_image.shape),
     )
 
     conjugated = spectrum.conj()
@@ -96,6 +120,8 @@ def test_common_methods_preserve_stage_type(
 
     assert isinstance(conjugated, AngularSpectrum)
     assert isinstance(recast, AngularSpectrum)
+    assert conjugated.endpoint_grid is spectrum.endpoint_grid
+    assert recast.endpoint_grid is spectrum.endpoint_grid
     assert recast.asarray().dtype == np.complex64
     assert not spectrum.real.flags.writeable
     assert not spectrum.imag.flags.writeable

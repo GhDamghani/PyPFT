@@ -10,8 +10,8 @@ The public entry point is the ``PyPFT`` object.
 
    image = np.ones((16, 32), dtype=np.complex128)
    pft = PyPFT()
-    transformed = pft.forward(image)
-    reconstructed = pft.backward(transformed)
+   transformed = pft.forward(image)
+   reconstructed = pft.backward(transformed)
 
 The current default DHT implementation keeps the compatibility key
 ``naive``, but it now runs a legacy-style direct radial transform.
@@ -24,7 +24,7 @@ Use ``enable_batching=True`` to accept a leading batch axis:
 
    batch = np.ones((4, 16, 32), dtype=np.complex128)
    pft = PyPFT(enable_batching=True)
-    transformed_batch = pft.forward(batch)
+   transformed_batch = pft.forward(batch)
 
 The batch path is validated and wired through the same operator plans, and the
 current reference DHT applies the same direct radial kernel independently to

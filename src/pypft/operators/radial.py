@@ -48,10 +48,7 @@ class RadialDHT:
         ):
             transformed = self.implementation.apply(
                 values.asarray(),
-                source_grid=PolarSpatialGrid(
-                    radial_size=values.grid.radial_size,
-                    angular_size=values.grid.angular_mode_count,
-                ),
+                source_grid=values.endpoint_grid,
                 target_grid=target_grid,
                 direction="forward",
             )
@@ -61,6 +58,7 @@ class RadialDHT:
                     radial_frequency_size=target_grid.radial_size,
                     angular_mode_count=target_grid.angular_size,
                 ),
+                endpoint_grid=target_grid,
             )
 
         if isinstance(values, RadialSpectrum) and isinstance(
@@ -69,10 +67,7 @@ class RadialDHT:
         ):
             transformed = self.implementation.apply(
                 values.asarray(),
-                source_grid=PolarFrequencyGrid(
-                    radial_size=values.grid.radial_frequency_size,
-                    angular_size=values.grid.angular_mode_count,
-                ),
+                source_grid=values.endpoint_grid,
                 target_grid=target_grid,
                 direction="backward",
             )
@@ -82,6 +77,7 @@ class RadialDHT:
                     radial_size=target_grid.radial_size,
                     angular_mode_count=target_grid.angular_size,
                 ),
+                endpoint_grid=target_grid,
             )
 
         raise InvalidFieldOperationError(

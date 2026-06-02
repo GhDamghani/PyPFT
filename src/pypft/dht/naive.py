@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
+import warnings
 
 import numpy as np
 from scipy.special import jv
@@ -9,6 +11,8 @@ from pypft.core.exceptions import GridMismatchError, InputShapeError
 from pypft.core.typing import ComplexArray
 from pypft.dht.base import DHTDirection
 from pypft.grids import PolarFrequencyGrid, PolarSpatialGrid
+
+_PSEUDOINVERSE_RCOND = 1e-12
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,10 +108,8 @@ def _validate_contract(
 
 
 def _as_numpy_with_restorer(values: ComplexArray):
-    module_name = type(values).__module__
-    if module_name.startswith("cupy"):
-        import cupy as cp
-
+    cp = _load_optional_cupy()
+    if cp is not None and isinstance(values, cp.ndarray):
         return cp.asnumpy(values), lambda result: cp.asarray(
             result,
             dtype=cp.complex128,
@@ -119,6 +121,14 @@ def _as_numpy_with_restorer(values: ComplexArray):
     )
 
 
+def _load_optional_cupy() -> Any | None:
+    try:
+        import cupy as cp
+    except ImportError:
+        return None
+    return cp
+
+
 def _apply_direct_dht(
     values: np.ndarray,
     *,
@@ -126,7 +136,7 @@ def _apply_direct_dht(
     target_radial_size: int,
     angular_size: int,
 ) -> np.ndarray:
-    batched_values = np.asarray(values, dtype=np.complex128)
+    batched_values = values
     had_batch_axis = batched_values.ndim == 3
     if not had_batch_axis:
         batched_values = batched_values[None, :, :]
@@ -156,7 +166,7 @@ def _apply_inverse_dht(
     target_radial_size: int,
     angular_size: int,
 ) -> np.ndarray:
-    batched_values = np.asarray(values, dtype=np.complex128)
+    batched_values = values
     had_batch_axis = batched_values.ndim == 3
     if not had_batch_axis:
         batched_values = batched_values[None, :, :]
@@ -166,15 +176,7 @@ def _apply_inverse_dht(
         target_radial_size=source_radial_size,
         angular_size=angular_size,
     )
-    inverse_kernel = np.empty(
-        (target_radial_size, source_radial_size, angular_size),
-        dtype=np.complex128,
-    )
-    for mode_index in range(angular_size):
-        inverse_kernel[:, :, mode_index] = np.linalg.pinv(
-            forward_kernel[:, :, mode_index],
-            rcond=1e-12,
-        )
+    inverse_kernel = _build_inverse_kernel(forward_kernel)
 
     transformed = np.einsum(
         "bta,sta->bsa",
@@ -187,6 +189,84 @@ def _apply_inverse_dht(
     if had_batch_axis:
         return transformed
     return transformed[0]
+
+
+def _build_inverse_kernel(
+    forward_kernel: np.ndarray,
+    *,
+    rcond: float = _PSEUDOINVERSE_RCOND,
+) -> np.ndarray:
+    source_radial_size, target_radial_size, angular_size = (
+        forward_kernel.shape
+    )
+    inverse_kernel = np.empty(
+        (target_radial_size, source_radial_size, angular_size),
+        dtype=np.complex128,
+    )
+    truncation_messages: list[str] = []
+
+    for mode_index in range(angular_size):
+        mode_inverse, truncation_message = _compute_mode_pseudoinverse(
+            forward_kernel[:, :, mode_index],
+            mode_index=mode_index,
+            rcond=rcond,
+        )
+        inverse_kernel[:, :, mode_index] = mode_inverse
+        if truncation_message is not None:
+            truncation_messages.append(truncation_message)
+
+    if truncation_messages:
+        warnings.warn(
+            "NaiveDHTImplementation inverse kernel truncated singular "
+            f"values using rcond={rcond:.1e}; "
+            + "; ".join(truncation_messages),
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    return inverse_kernel
+
+
+def _compute_mode_pseudoinverse(
+    kernel: np.ndarray,
+    *,
+    mode_index: int,
+    rcond: float,
+) -> tuple[np.ndarray, str | None]:
+    left_singular_vectors, singular_values, right_h = np.linalg.svd(
+        kernel,
+        full_matrices=False,
+    )
+    if singular_values.size == 0:
+        return np.empty((kernel.shape[1], kernel.shape[0]), dtype=np.complex128), None
+
+    largest_singular_value = float(singular_values[0])
+    if largest_singular_value == 0.0:
+        return np.zeros((kernel.shape[1], kernel.shape[0]), dtype=np.complex128), (
+            f"mode {mode_index}: retained rank 0/{singular_values.size}, "
+            "cutoff 0.000e+00, largest singular value 0.000e+00, "
+            "smallest singular value 0.000e+00"
+        )
+
+    cutoff = rcond * largest_singular_value
+    retained_mask = singular_values > cutoff
+    inverse_singular_values = np.zeros_like(singular_values)
+    inverse_singular_values[retained_mask] = 1.0 / singular_values[
+        retained_mask
+    ]
+    pseudoinverse = (
+        right_h.conj().T * inverse_singular_values[None, :]
+    ) @ left_singular_vectors.conj().T
+
+    if np.all(retained_mask):
+        return np.asarray(pseudoinverse, dtype=np.complex128), None
+
+    return np.asarray(pseudoinverse, dtype=np.complex128), (
+        f"mode {mode_index}: retained rank {int(retained_mask.sum())}/"
+        f"{singular_values.size}, cutoff {cutoff:.3e}, largest singular "
+        f"value {largest_singular_value:.3e}, smallest singular value "
+        f"{float(singular_values[-1]):.3e}"
+    )
 
 
 def _build_weighted_kernel(

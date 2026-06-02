@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import overload
 
+import numpy as np
+
 from pypft.core.exceptions import InvalidFieldOperationError
 from pypft.dft import AngularFFT
 from pypft.fields import (
@@ -13,9 +15,7 @@ from pypft.fields import (
 )
 from pypft.grids import (
     PolarAngularModeGrid,
-    PolarFrequencyGrid,
     PolarRadialModeGrid,
-    PolarSpatialGrid,
 )
 from pypft.idft import AngularIFFT
 
@@ -34,7 +34,10 @@ class AngularDFT:
         self,
         values: SpatialSamples | FrequencySamples,
     ) -> AngularSpectrum | RadialSpectrum:
-        transformed = self.transform.execute(values.asarray())
+        transformed = _fftshift(
+            self.transform.execute(values.asarray()),
+            axis=self.transform.axis,
+        )
 
         if isinstance(values, SpatialSamples):
             return AngularSpectrum(
@@ -43,6 +46,7 @@ class AngularDFT:
                     radial_size=values.grid.radial_size,
                     angular_mode_count=values.grid.angular_size,
                 ),
+                endpoint_grid=values.grid,
             )
 
         if isinstance(values, FrequencySamples):
@@ -52,6 +56,7 @@ class AngularDFT:
                     radial_frequency_size=values.grid.radial_size,
                     angular_mode_count=values.grid.angular_size,
                 ),
+                endpoint_grid=values.grid,
             )
 
         raise InvalidFieldOperationError(
@@ -73,29 +78,45 @@ class AngularIDFT:
         self,
         values: AngularSpectrum | RadialSpectrum,
     ) -> SpatialSamples | FrequencySamples:
-        reconstructed = self.transform.execute(values.asarray())
+        reconstructed = self.transform.execute(
+            _ifftshift(values.asarray(), axis=self.transform.axis)
+        )
 
         if isinstance(values, AngularSpectrum):
             return SpatialSamples(
                 data=reconstructed,
-                grid=PolarSpatialGrid(
-                    radial_size=values.grid.radial_size,
-                    angular_size=values.grid.angular_mode_count,
-                ),
+                grid=values.endpoint_grid,
             )
 
         if isinstance(values, RadialSpectrum):
             return FrequencySamples(
                 data=reconstructed,
-                grid=PolarFrequencyGrid(
-                    radial_size=values.grid.radial_frequency_size,
-                    angular_size=values.grid.angular_mode_count,
-                ),
+                grid=values.endpoint_grid,
             )
 
         raise InvalidFieldOperationError(
             "AngularIDFT expects AngularSpectrum or RadialSpectrum."
         )
+
+
+def _fftshift(values, *, axis: int):
+    module_name = type(values).__module__
+    if module_name.startswith("cupy"):
+        import cupy as cp
+
+        return cp.fft.fftshift(values, axes=axis)
+
+    return np.fft.fftshift(values, axes=axis)
+
+
+def _ifftshift(values, *, axis: int):
+    module_name = type(values).__module__
+    if module_name.startswith("cupy"):
+        import cupy as cp
+
+        return cp.fft.ifftshift(values, axes=axis)
+
+    return np.fft.ifftshift(values, axes=axis)
 
 
 __all__ = ["AngularDFT", "AngularIDFT"]

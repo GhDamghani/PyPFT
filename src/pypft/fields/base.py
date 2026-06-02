@@ -31,8 +31,6 @@ class _FieldArray(Protocol):
 
     def copy(self) -> Any: ...
 
-    def view(self) -> Any: ...
-
     def __add__(self, other: object) -> Any: ...
 
     def __sub__(self, other: object) -> Any: ...
@@ -132,7 +130,14 @@ class PolarFieldBase(Generic[GridT]):
         return self._wrap(-self.data)
 
     def _wrap(self, data: _FieldArray) -> Self:
-        return type(self)(data=data, grid=self.grid)
+        return type(self)(
+            data=data,
+            grid=self.grid,
+            **self._extra_init_kwargs(),
+        )
+
+    def _extra_init_kwargs(self) -> dict[str, object]:
+        return {}
 
     def _require_compatible_field(
         self,
@@ -160,6 +165,12 @@ class PolarFieldBase(Generic[GridT]):
                 f"{operation}."
             )
 
+        if self._extra_init_kwargs() != other._extra_init_kwargs():
+            raise GridMismatchError(
+                f"{type(self).__name__} requires matching metadata for "
+                f"{operation}."
+            )
+
         return cast(Self, other)
 
 
@@ -177,13 +188,17 @@ def _readonly_view(values: Any) -> Any:
     return values
 
 
-def _require_scalar(value: object, *, stage_name: str) -> complex:
-    scalar_array = np.asarray(value)
-    if scalar_array.ndim != 0:
+def _require_scalar(value: object, *, stage_name: str) -> object:
+    if hasattr(value, "ndim"):
+        scalar_ndim = cast(Any, value).ndim
+    else:
+        scalar_ndim = np.ndim(value)
+
+    if scalar_ndim != 0:
         raise InvalidFieldOperationError(
             f"{stage_name} only supports scalar multiplication and division."
         )
-    return complex(scalar_array.item())
+    return value
 
 
 __all__ = ["PolarFieldBase"]
