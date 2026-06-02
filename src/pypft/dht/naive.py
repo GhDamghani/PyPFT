@@ -195,14 +195,21 @@ def _build_weighted_kernel(
     target_radial_size: int,
     angular_size: int,
 ) -> np.ndarray:
-    rho = (0.5 + np.arange(source_radial_size, dtype=np.float64)) / float(
-        source_radial_size
-    )
-    radii = 0.5 * (1.0 + np.arange(target_radial_size, dtype=np.float64))
+    if angular_size % 2 != 0:
+        raise InputShapeError(
+            "NaiveDHTImplementation requires an even angular size."
+        )
+
+    rho = _normalized_midpoint_samples(source_radial_size)
+    radii = _normalized_midpoint_samples(target_radial_size)
     orders = np.arange(-(angular_size // 2), angular_size // 2)
     kernel_arguments = np.pi * radii[:, None] * rho[None, :]
     bessel_kernel = jv(orders[None, None, :], kernel_arguments[:, :, None])
     return bessel_kernel * rho[None, :, None]
+
+
+def _normalized_midpoint_samples(size: int) -> np.ndarray:
+    return (0.5 + np.arange(size, dtype=np.float64)) / float(size)
 
 
 __all__ = ["NaiveDHTImplementation"]

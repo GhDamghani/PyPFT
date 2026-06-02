@@ -7,11 +7,11 @@ import pytest
 from scipy.special import jv
 
 from pypft.core.exceptions import GridMismatchError, InputShapeError
-from pypft.dht.naive import NaiveDHTImplementation
+from pypft.dht.naive import NaiveDHTImplementation, _build_weighted_kernel
 from pypft.grids import PolarFrequencyGrid, PolarSpatialGrid
 
 
-def test_naive_dht_matches_direct_legacy_formula(
+def test_naive_dht_matches_direct_normalized_midpoint_formula(
     sample_batch: np.ndarray,
 ) -> None:
     implementation = NaiveDHTImplementation()
@@ -25,13 +25,39 @@ def test_naive_dht_matches_direct_legacy_formula(
         direction="forward",
     )
 
-    expected = _legacy_direct_dht(
+    expected = _normalized_midpoint_direct_dht(
         sample_batch,
         target_radial_size=target_grid.radial_size,
     )
 
     assert transformed.shape == (2, 5, 4)
     np.testing.assert_allclose(transformed, expected)
+
+
+def test_weighted_kernel_normalizes_target_radial_samples() -> None:
+    kernel = _build_weighted_kernel(
+        source_radial_size=2,
+        target_radial_size=4,
+        angular_size=2,
+    )
+
+    rho = _normalized_midpoint_samples(2)
+    radii = _normalized_midpoint_samples(4)
+    expected = jv(0, np.pi * radii[:, None] * rho[None, :]) * rho[None, :]
+
+    np.testing.assert_allclose(kernel[:, :, 1], expected)
+
+
+def test_weighted_kernel_requires_even_angular_size() -> None:
+    with pytest.raises(
+        InputShapeError,
+        match="requires an even angular size",
+    ):
+        _build_weighted_kernel(
+            source_radial_size=2,
+            target_radial_size=4,
+            angular_size=3,
+        )
 
 
 def test_naive_dht_supports_two_dimensional_inputs(
@@ -78,16 +104,14 @@ def test_naive_dht_requires_matching_angular_sizes(
         )
 
 
-def _legacy_direct_dht(
+def _normalized_midpoint_direct_dht(
     values: np.ndarray,
     *,
     target_radial_size: int,
 ) -> np.ndarray:
     source_radial_size, angular_size = values.shape[-2:]
-    rho = (0.5 + np.arange(source_radial_size, dtype=np.float64)) / float(
-        source_radial_size
-    )
-    radii = 0.5 * (1.0 + np.arange(target_radial_size, dtype=np.float64))
+    rho = _normalized_midpoint_samples(source_radial_size)
+    radii = _normalized_midpoint_samples(target_radial_size)
     orders = np.arange(-(angular_size // 2), angular_size // 2)
 
     expected = np.zeros(
@@ -105,3 +129,7 @@ def _legacy_direct_dht(
             )
 
     return expected
+
+
+def _normalized_midpoint_samples(size: int) -> np.ndarray:
+    return (0.5 + np.arange(size, dtype=np.float64)) / float(size)
