@@ -11,9 +11,16 @@ from pypft.core.validation import (
 )
 from pypft.dft import AngularFFT
 from pypft.dht import DHTImplementation, create_dht_implementation
+from pypft.fields import FrequencySamples, SpatialSamples
 from pypft.grids import PolarFrequencyGrid, PolarSpatialGrid
 from pypft.idft import AngularIFFT
-from pypft.operators import BackwardPFTPlan, ForwardPFTPlan
+from pypft.operators import (
+    AngularDFT,
+    AngularIDFT,
+    BackwardPFTPlan,
+    ForwardPFTPlan,
+    RadialDHT,
+)
 
 
 class PyPFT:
@@ -43,14 +50,22 @@ class PyPFT:
             config.dht_implementation
         )
         self._forward_plan = ForwardPFTPlan(
-            angular_transform=AngularFFT(backend=self._backend),
-            radial_transform=self._dht,
-            angular_reconstruction=AngularIFFT(backend=self._backend),
+            angular_transform=AngularDFT(
+                transform=AngularFFT(backend=self._backend)
+            ),
+            radial_transform=RadialDHT(implementation=self._dht),
+            angular_reconstruction=AngularIDFT(
+                transform=AngularIFFT(backend=self._backend)
+            ),
         )
         self._backward_plan = BackwardPFTPlan(
-            angular_transform=AngularFFT(backend=self._backend),
-            radial_transform=self._dht,
-            angular_reconstruction=AngularIFFT(backend=self._backend),
+            angular_transform=AngularDFT(
+                transform=AngularFFT(backend=self._backend)
+            ),
+            radial_transform=RadialDHT(implementation=self._dht),
+            angular_reconstruction=AngularIDFT(
+                transform=AngularIFFT(backend=self._backend)
+            ),
         )
 
     @property
@@ -76,12 +91,11 @@ class PyPFT:
             normalized.values.shape[-2:]
         )
         transformed = self._forward_plan.execute(
-            normalized.values,
-            spatial_grid=spatial_grid,
+            SpatialSamples(data=normalized.values, grid=spatial_grid),
             frequency_grid=frequency_grid,
         )
         return restore_output_shape(
-            transformed,
+            transformed.asarray(),
             had_batch_axis=normalized.had_batch_axis,
         )
 
@@ -96,12 +110,11 @@ class PyPFT:
         )
         spatial_grid = self._resolve_spatial_grid(normalized.values.shape[-2:])
         transformed = self._backward_plan.execute(
-            normalized.values,
-            frequency_grid=frequency_grid,
+            FrequencySamples(data=normalized.values, grid=frequency_grid),
             spatial_grid=spatial_grid,
         )
         return restore_output_shape(
-            transformed,
+            transformed.asarray(),
             had_batch_axis=normalized.had_batch_axis,
         )
 

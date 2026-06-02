@@ -40,12 +40,20 @@ class NaiveDHTImplementation:
         )
 
         values_numpy, restore_output = _as_numpy_with_restorer(values)
-        transformed = _apply_direct_dht(
-            values_numpy,
-            source_radial_size=source_grid.radial_size,
-            target_radial_size=target_grid.radial_size,
-            angular_size=source_grid.angular_size,
-        )
+        if direction == "forward":
+            transformed = _apply_direct_dht(
+                values_numpy,
+                source_radial_size=source_grid.radial_size,
+                target_radial_size=target_grid.radial_size,
+                angular_size=source_grid.angular_size,
+            )
+        else:
+            transformed = _apply_inverse_dht(
+                values_numpy,
+                source_radial_size=source_grid.radial_size,
+                target_radial_size=target_grid.radial_size,
+                angular_size=source_grid.angular_size,
+            )
         return restore_output(transformed)
 
 
@@ -123,18 +131,14 @@ def _apply_direct_dht(
     if not had_batch_axis:
         batched_values = batched_values[None, :, :]
 
-    rho = (0.5 + np.arange(source_radial_size, dtype=np.float64)) / float(
-        source_radial_size
+    kernel = _build_weighted_kernel(
+        source_radial_size=source_radial_size,
+        target_radial_size=target_radial_size,
+        angular_size=angular_size,
     )
-    radii = 0.5 * (1.0 + np.arange(target_radial_size, dtype=np.float64))
-    orders = np.arange(-(angular_size // 2), angular_size // 2)
-    kernel_arguments = np.pi * radii[:, None] * rho[None, :]
-    kernel = jv(orders[None, None, :], kernel_arguments[:, :, None])
-
-    scaled_values = batched_values * rho[None, :, None]
     transformed = np.einsum(
         "bsa,tsa->bta",
-        scaled_values,
+        batched_values,
         kernel,
         optimize=True,
         dtype=np.complex128,
@@ -143,6 +147,62 @@ def _apply_direct_dht(
     if had_batch_axis:
         return transformed
     return transformed[0]
+
+
+def _apply_inverse_dht(
+    values: np.ndarray,
+    *,
+    source_radial_size: int,
+    target_radial_size: int,
+    angular_size: int,
+) -> np.ndarray:
+    batched_values = np.asarray(values, dtype=np.complex128)
+    had_batch_axis = batched_values.ndim == 3
+    if not had_batch_axis:
+        batched_values = batched_values[None, :, :]
+
+    forward_kernel = _build_weighted_kernel(
+        source_radial_size=target_radial_size,
+        target_radial_size=source_radial_size,
+        angular_size=angular_size,
+    )
+    inverse_kernel = np.empty(
+        (target_radial_size, source_radial_size, angular_size),
+        dtype=np.complex128,
+    )
+    for mode_index in range(angular_size):
+        inverse_kernel[:, :, mode_index] = np.linalg.pinv(
+            forward_kernel[:, :, mode_index],
+            rcond=1e-12,
+        )
+
+    transformed = np.einsum(
+        "bta,sta->bsa",
+        batched_values,
+        inverse_kernel,
+        optimize=True,
+        dtype=np.complex128,
+    )
+
+    if had_batch_axis:
+        return transformed
+    return transformed[0]
+
+
+def _build_weighted_kernel(
+    *,
+    source_radial_size: int,
+    target_radial_size: int,
+    angular_size: int,
+) -> np.ndarray:
+    rho = (0.5 + np.arange(source_radial_size, dtype=np.float64)) / float(
+        source_radial_size
+    )
+    radii = 0.5 * (1.0 + np.arange(target_radial_size, dtype=np.float64))
+    orders = np.arange(-(angular_size // 2), angular_size // 2)
+    kernel_arguments = np.pi * radii[:, None] * rho[None, :]
+    bessel_kernel = jv(orders[None, None, :], kernel_arguments[:, :, None])
+    return bessel_kernel * rho[None, :, None]
 
 
 __all__ = ["NaiveDHTImplementation"]

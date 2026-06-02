@@ -68,13 +68,19 @@ class PolarAngularModeGrid:
         return (self.radial_size, self.angular_mode_count)
 
     @property
+    def angular_orders(self) -> tuple[int, ...]:
+        start = -(self.angular_mode_count // 2)
+        return tuple(range(start, start + self.angular_mode_count))
+
+    @property
     def max_angular_order(self) -> int:
         return _validate_and_get_max_angular_order(self.angular_mode_count)
 
     def validate_shape(self, shape: tuple[int, int]) -> None:
         if self.shape != shape:
             raise GridMismatchError(
-                f"Angular-mode grid shape {self.shape!r} does not match runtime "
+                f"Angular-mode grid shape {self.shape!r} does not match "
+                f"runtime "
                 f"input shape {shape!r}."
             )
 
@@ -85,11 +91,19 @@ class PolarRadialModeGrid:
     angular_mode_count: int
 
     def __post_init__(self) -> None:
-        _validate_grid_sizes(self.radial_frequency_size, self.angular_mode_count)
+        _validate_grid_sizes(
+            self.radial_frequency_size,
+            self.angular_mode_count,
+        )
 
     @property
     def shape(self) -> tuple[int, int]:
         return (self.radial_frequency_size, self.angular_mode_count)
+
+    @property
+    def angular_orders(self) -> tuple[int, ...]:
+        start = -(self.angular_mode_count // 2)
+        return tuple(range(start, start + self.angular_mode_count))
 
     @property
     def max_angular_order(self) -> int:
@@ -98,7 +112,8 @@ class PolarRadialModeGrid:
     def validate_shape(self, shape: tuple[int, int]) -> None:
         if self.shape != shape:
             raise GridMismatchError(
-                f"Radial-mode grid shape {self.shape!r} does not match runtime "
+                f"Radial-mode grid shape {self.shape!r} does not match "
+                f"runtime "
                 f"input shape {shape!r}."
             )
 
@@ -118,8 +133,9 @@ class PolarTransformGrids:
     ) -> "PolarTransformGrids":
         if spatial.angular_size != frequency.angular_size:
             raise GridMismatchError(
-                "Spatial and frequency grids must use the same angular size so "
-                "the angular DFT and inverse DFT operate on the same mode count."
+                "Spatial and frequency grids must use the same angular size "
+                "so the angular DFT and inverse DFT operate on the same mode "
+                "count."
             )
 
         angular_modes = PolarAngularModeGrid(
@@ -158,12 +174,7 @@ def _validate_grid_sizes(radial_size: int, angular_size: int) -> None:
 
 
 def _validate_and_get_max_angular_order(angular_mode_count: int) -> int:
-    if angular_mode_count % 2 == 0:
-        raise InputShapeError(
-            "The angular mode count must be odd so it can represent symmetric "
-            "orders n = -M, ..., M with N_theta = 2M + 1."
-        )
-    return (angular_mode_count - 1) // 2
+    return angular_mode_count // 2
 
 
 __all__ = [
