@@ -286,6 +286,10 @@ def _build_weighted_kernel(
     orders = np.arange(-(angular_size // 2), angular_size // 2)
     kernel_arguments = np.pi * radii[:, None] * rho[None, :]
     bessel_kernel = jv(orders[None, None, :], kernel_arguments[:, :, None])
+    # Approximate the continuous Hankel integral
+    #   ∫_0^1 f(rho) J_m(pi r rho) rho d rho
+    # with midpoint samples rho_j = (j + 0.5) / N_r, so each source sample
+    # contributes the quadrature weight rho_j * Δrho where Δrho = 1 / N_r.
     return bessel_kernel * (rho[None, :, None] * radial_step)
 
 
