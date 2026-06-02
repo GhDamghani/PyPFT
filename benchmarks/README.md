@@ -6,5 +6,5 @@ The benchmark suite will be added after the first DHT implementation exists. At 
 
 - single-image forward and backward execution
 - batched forward and backward execution
-- mock-mirror versus future reference versus optimized DHT selections
+- the compatibility `naive` reference path versus future optimized DHT selections
 - representative small, medium, and larger grid sizes

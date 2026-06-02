@@ -8,7 +8,7 @@ from pypft.grids import PolarFrequencyGrid, PolarSpatialGrid
 
 @dataclass(frozen=True, slots=True)
 class PyPFTConfig:
-    dht_implementation: str = "mock-mirror"
+    dht_implementation: str = "naive"
     enable_batching: bool = False
     backend: str = "cpu"
     conventions: TransformConventions = DEFAULT_CONVENTIONS

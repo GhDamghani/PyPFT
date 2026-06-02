@@ -4,10 +4,10 @@ from typing import Final
 
 from pypft.core.exceptions import UnknownDHTImplementationError
 from pypft.dht.base import DHTImplementation
-from pypft.dht.mock_mirror import MockMirrorDHTImplementation
+from pypft.dht.naive import NaiveDHTImplementation
 
 _REGISTRY: Final[dict[str, DHTImplementation]] = {
-    "mock-mirror": MockMirrorDHTImplementation(),
+    "naive": NaiveDHTImplementation(),
 }
 
 

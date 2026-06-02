@@ -10,6 +10,10 @@ class GridMismatchError(PyPFTError):
     """Raised when an explicit grid does not match the runtime data shape."""
 
 
+class InvalidFieldOperationError(PyPFTError):
+    """Raised when a stage-aware field operation is invalid."""
+
+
 class UnknownDHTImplementationError(PyPFTError):
     """Raised when the selected DHT implementation key is unavailable."""
 
@@ -31,6 +35,7 @@ __all__ = [
     "DHTImplementationPendingError",
     "GridMismatchError",
     "InputShapeError",
+    "InvalidFieldOperationError",
     "PyPFTError",
     "UnknownBackendError",
     "UnknownDHTImplementationError",

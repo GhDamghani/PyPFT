@@ -20,7 +20,7 @@ The package is organized so each transform stage can evolve independently.
 - ``pypft.core`` contains conventions, exceptions, typing aliases, and input normalization.
 - ``pypft.grids`` contains structural spatial and frequency grid objects.
 - ``pypft.dft`` and ``pypft.idft`` wrap the backend-driven angular FFT and IFFT stages.
-- ``pypft.dht`` contains the DHT registry and the current mock implementation.
+- ``pypft.dht`` contains the DHT registry and the current legacy-style direct reference implementation.
 - ``pypft.operators`` contains forward and backward plan orchestration.
 - ``pypft.validation`` and ``pypft.visualization`` reserve space for reference cases and array inspection helpers.
 
@@ -35,10 +35,13 @@ The current execution path is:
 4. Dispatch to the selected DHT implementation key.
 5. Apply the angular IFFT after the radial stage through the selected backend.
 
-The current DHT key is ``mock-mirror``, which returns its input unchanged.
-That gives the package a concrete end-to-end execution path while preserving the
-same operator boundaries needed for a future real DHT implementation.
+The current DHT key is ``naive`` for compatibility, but it now runs the
+legacy-style direct radial transform from the pre-0.1 codebase. That gives the
+package a concrete end-to-end execution path with real radial computation while
+preserving the same operator boundaries needed for future optimized DHT
+implementations.
 
 The current backend options are ``cpu`` and ``gpu``. CPU remains the default.
 GPU requires the optional CuPy extra and currently accelerates only the array
-and angular FFT/IFFT path, not a real radial DHT kernel.
+and angular FFT/IFFT path. The current radial DHT reference kernel still runs
+through NumPy/SciPy math, even when the caller selected the GPU backend.
