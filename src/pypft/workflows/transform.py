@@ -8,9 +8,11 @@ import pypft
 from pypft import PyPFT
 from pypft.io import (
     TransformRunManifest,
+    build_stage_array_path,
     load_spatial_sample,
     load_transform_metadata,
     prepare_transform_artifacts,
+    relative_artifact_path,
     save_array,
     write_json,
 )
@@ -71,19 +73,29 @@ def run_transform_workflow(
 
     trace_payload = _serialize_trace(
         traced.trace,
+        artifact_root=artifacts.output_dir,
         stage_array_paths=stage_array_paths,
         figure_paths=figure_paths,
     )
     write_json(artifacts.trace_path, trace_payload)
 
     manifest = TransformRunManifest(
-        schema_version=1,
+        schema_version=2,
         direction=request.direction,
         input_path=str(request.input_path),
         metadata_path=str(metadata_source),
-        output_array_path=str(artifacts.output_array_path),
-        trace_path=str(artifacts.trace_path),
-        manifest_path=str(artifacts.manifest_path),
+        output_array_path=relative_artifact_path(
+            artifacts.output_array_path,
+            root=artifacts.output_dir,
+        ),
+        trace_path=relative_artifact_path(
+            artifacts.trace_path,
+            root=artifacts.output_dir,
+        ),
+        manifest_path=relative_artifact_path(
+            artifacts.manifest_path,
+            root=artifacts.output_dir,
+        ),
         package_version=pypft.__version__,
         backend=backend,
         dht_implementation=dht_implementation,
@@ -92,11 +104,17 @@ def run_transform_workflow(
         save_all_views=request.save_all_views,
         save_stage_arrays=request.save_stage_arrays,
         metadata=metadata,
+        artifact_root=".",
+        trace_stage_names=traced.trace.stage_names,
         stage_array_paths={
-            stage: str(path) for stage, path in stage_array_paths.items()
+            stage: relative_artifact_path(path, root=artifacts.output_dir)
+            for stage, path in stage_array_paths.items()
         },
         figure_paths={
-            stage: [str(path) for path in paths]
+            stage: [
+                relative_artifact_path(path, root=artifacts.output_dir)
+                for path in paths
+            ]
             for stage, paths in figure_paths.items()
         },
     )
@@ -134,7 +152,11 @@ def _save_stage_arrays(
 
     saved: dict[str, Path] = {}
     for index, frame in enumerate(trace.frames, start=1):
-        path = output_dir / f"{index:02d}_{frame.stage}.npy"
+        path = build_stage_array_path(
+            output_dir,
+            index=index,
+            stage=frame.stage,
+        )
         save_array(path, squeeze_single_sample(frame.asarray(copy=False)))
         saved[frame.stage] = path
     return saved
@@ -143,6 +165,7 @@ def _save_stage_arrays(
 def _serialize_trace(
     trace: TransformTrace,
     *,
+    artifact_root: Path,
     stage_array_paths: dict[str, Path],
     figure_paths: dict[str, tuple[Path, ...]],
 ) -> dict[str, object]:
@@ -159,16 +182,19 @@ def _serialize_trace(
                 "dtype": str(array.dtype),
                 "grid": asdict(frame.grid),
                 "array_path": _optional_path(
-                    stage_array_paths.get(frame.stage)
+                    stage_array_paths.get(frame.stage),
+                    root=artifact_root,
                 ),
                 "figure_paths": [
-                    str(path) for path in figure_paths.get(frame.stage, ())
+                    relative_artifact_path(path, root=artifact_root)
+                    for path in figure_paths.get(frame.stage, ())
                 ],
             }
         )
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
+        "artifact_root": ".",
         "direction": trace.direction,
         "frames": frames,
     }
@@ -178,10 +204,10 @@ def _output_array(values: Any):
     return values
 
 
-def _optional_path(path: Path | None) -> str | None:
+def _optional_path(path: Path | None, *, root: Path) -> str | None:
     if path is None:
         return None
-    return str(path)
+    return relative_artifact_path(path, root=root)
 
 
 __all__ = ["run_transform_workflow"]

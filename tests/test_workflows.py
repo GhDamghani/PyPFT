@@ -66,3 +66,32 @@ def test_run_transform_workflow_saves_phase_one_artifacts(
         "angular_idft",
         "frequency_samples",
     }
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    trace = json.loads(result.trace_path.read_text(encoding="utf-8"))
+
+    assert manifest["schema_version"] == 2
+    assert manifest["artifact_root"] == "."
+    assert manifest["output_array_path"] == "output.npy"
+    assert manifest["trace_path"] == "trace.json"
+    assert manifest["trace_stage_names"] == [
+        "spatial_samples",
+        "angular_dft",
+        "radial_dht",
+        "angular_idft",
+        "frequency_samples",
+    ]
+    assert manifest["stage_array_paths"]["spatial_samples"] == (
+        "stages/01_spatial_samples.npy"
+    )
+    assert manifest["figure_paths"]["spatial_samples"] == [
+        "figures/01_spatial_samples.magnitude.png",
+        "figures/01_spatial_samples.phase.png",
+    ]
+    assert trace["schema_version"] == 2
+    assert trace["artifact_root"] == "."
+    assert trace["frames"][0]["array_path"] == "stages/01_spatial_samples.npy"
+    assert trace["frames"][0]["figure_paths"] == [
+        "figures/01_spatial_samples.magnitude.png",
+        "figures/01_spatial_samples.phase.png",
+    ]

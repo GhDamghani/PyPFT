@@ -12,7 +12,7 @@ from pypft.visualization.models import (
     RenderView,
     normalize_complex_view,
 )
-from pypft.visualization.trace import save_trace_figures
+from pypft.visualization.trace import save_field_figures, save_trace_figures
 
 __all__ = [
     "ComplexView",
@@ -24,6 +24,7 @@ __all__ = [
     "magnitude",
     "normalize_complex_view",
     "phase",
+    "save_field_figures",
     "save_trace_figures",
     "squeeze_single_sample",
 ]

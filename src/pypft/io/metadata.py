@@ -56,7 +56,7 @@ def load_transform_metadata(
             f"Metadata file {resolved_path} is not valid JSON."
         ) from error
 
-    metadata = _parse_metadata(payload)
+    metadata = parse_transform_metadata(payload)
     if metadata.domain != expected_domain:
         raise MetadataValidationError(
             f"Metadata domain {metadata.domain!r} does not match the "
@@ -77,7 +77,7 @@ def load_transform_metadata(
     return metadata, resolved_path
 
 
-def _parse_metadata(payload: object) -> TransformMetadata:
+def parse_transform_metadata(payload: object) -> TransformMetadata:
     if not isinstance(payload, dict):
         raise MetadataValidationError("Metadata JSON must be an object.")
 
@@ -178,5 +178,6 @@ __all__ = [
     "MetadataDomain",
     "TransformMetadata",
     "load_transform_metadata",
+    "parse_transform_metadata",
     "resolve_metadata_path",
 ]
