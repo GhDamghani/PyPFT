@@ -30,13 +30,23 @@ class BackendUnavailableError(PyPFTError):
     """Raised when an optional backend dependency is not installed."""
 
 
+class MetadataValidationError(PyPFTError):
+    """Raised when CLI metadata is missing or scientifically incomplete."""
+
+
+class VisualizationDependencyError(PyPFTError):
+    """Raised when an optional visualization backend dependency is missing."""
+
+
 __all__ = [
     "BackendUnavailableError",
     "DHTImplementationPendingError",
     "GridMismatchError",
     "InputShapeError",
     "InvalidFieldOperationError",
+    "MetadataValidationError",
     "PyPFTError",
     "UnknownBackendError",
     "UnknownDHTImplementationError",
+    "VisualizationDependencyError",
 ]
