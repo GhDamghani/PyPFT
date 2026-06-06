@@ -38,14 +38,14 @@ def test_forward_preserves_runtime_shape_and_returns_complex128(
 
 
 def test_backward_inverts_forward_for_default_dht(
-    sample_image: np.ndarray,
+    roundtrip_image: np.ndarray,
 ) -> None:
     pft = PyPFT()
 
-    forward_transformed = pft.forward(sample_image)
+    forward_transformed = pft.forward(roundtrip_image)
     backward_transformed = pft.backward(forward_transformed)
 
-    np.testing.assert_allclose(backward_transformed, sample_image)
+    np.testing.assert_allclose(backward_transformed, roundtrip_image)
 
 
 def test_batched_input_matches_per_image_forward_calls(
