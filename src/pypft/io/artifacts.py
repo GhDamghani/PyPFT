@@ -93,8 +93,6 @@ def prepare_transform_artifacts(output_dir: Path) -> TransformArtifactLayout:
     output_dir.mkdir(parents=True, exist_ok=True)
     stage_array_dir = output_dir / "stages"
     figure_dir = output_dir / "figures"
-    stage_array_dir.mkdir(exist_ok=True)
-    figure_dir.mkdir(exist_ok=True)
     return TransformArtifactLayout(
         output_dir=output_dir,
         output_array_path=output_dir / "output.npy",

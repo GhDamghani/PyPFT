@@ -4,8 +4,23 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
+from pypft.core.exceptions import InputShapeError
 from pypft.workflows import TransformWorkflowRequest, run_transform_workflow
+
+
+def _write_metadata(input_path: Path, *, domain: str = "spatial") -> None:
+    input_path.with_suffix(".pypft.json").write_text(
+        json.dumps(
+            {
+                "domain": domain,
+                "spatial_grid": {"radial_size": 3, "angular_size": 4},
+                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+            }
+        ),
+        encoding="utf-8",
+    )
 
 
 def test_transform_workflow_request_normalizes_angular_alias() -> None:
@@ -25,17 +40,7 @@ def test_run_transform_workflow_saves_phase_one_artifacts(
 ) -> None:
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
-    metadata_path = input_path.with_suffix(".pypft.json")
-    metadata_path.write_text(
-        json.dumps(
-            {
-                "domain": "spatial",
-                "spatial_grid": {"radial_size": 3, "angular_size": 4},
-                "frequency_grid": {"radial_size": 3, "angular_size": 4},
-            }
-        ),
-        encoding="utf-8",
-    )
+    _write_metadata(input_path)
 
     result = run_transform_workflow(
         TransformWorkflowRequest(
@@ -95,3 +100,46 @@ def test_run_transform_workflow_saves_phase_one_artifacts(
         "figures/01_spatial_samples.magnitude.png",
         "figures/01_spatial_samples.phase.png",
     ]
+
+
+def test_run_transform_workflow_skips_optional_artifact_directories(
+    tmp_path: Path,
+    sample_image: np.ndarray,
+) -> None:
+    input_path = tmp_path / "input.npy"
+    np.save(input_path, sample_image)
+    _write_metadata(input_path)
+
+    artifacts_dir = tmp_path / "artifacts"
+    result = run_transform_workflow(
+        TransformWorkflowRequest(
+            direction="forward",
+            input_path=input_path,
+            output_dir=artifacts_dir,
+        )
+    )
+
+    assert result.output_path.exists()
+    assert result.trace_path.exists()
+    assert result.manifest_path.exists()
+    assert not (artifacts_dir / "stages").exists()
+    assert not (artifacts_dir / "figures").exists()
+
+
+def test_run_transform_workflow_uses_direction_aware_shape_errors(
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / "input.npy"
+    np.save(input_path, np.zeros((1, 3, 4), dtype=np.complex128))
+
+    with pytest.raises(
+        InputShapeError,
+        match="The backward transform requires a 2D input",
+    ):
+        run_transform_workflow(
+            TransformWorkflowRequest(
+                direction="backward",
+                input_path=input_path,
+                output_dir=tmp_path / "artifacts",
+            )
+        )

@@ -6,10 +6,11 @@ from typing import Any
 
 import pypft
 from pypft import PyPFT
+from pypft.core.exceptions import InputShapeError
 from pypft.io import (
     TransformRunManifest,
     build_stage_array_path,
-    load_spatial_sample,
+    load_array,
     load_transform_metadata,
     prepare_transform_artifacts,
     relative_artifact_path,
@@ -29,7 +30,7 @@ from pypft.workflows.results import TransformWorkflowResult
 def run_transform_workflow(
     request: TransformWorkflowRequest,
 ) -> TransformWorkflowResult:
-    values = load_spatial_sample(request.input_path)
+    values = _load_transform_input(request)
     expected_domain = (
         "spatial" if request.direction == "forward" else "frequency"
     )
@@ -139,6 +140,16 @@ def _run_traced_transform(
     if direction == "forward":
         return pft.forward_with_trace(values)
     return pft.backward_with_trace(values)
+
+
+def _load_transform_input(request: TransformWorkflowRequest) -> Any:
+    values = load_array(request.input_path)
+    if values.ndim != 2:
+        raise InputShapeError(
+            f"The {request.direction} transform requires a 2D input "
+            f"with shape (n_r, n_theta). Got shape {values.shape}."
+        )
+    return values
 
 
 def _save_stage_arrays(

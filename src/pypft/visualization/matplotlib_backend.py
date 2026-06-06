@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import numpy as np
 
@@ -19,7 +20,11 @@ def _load_matplotlib():
     try:
         import matplotlib
 
-        matplotlib.use("Agg")
+        if (
+            "matplotlib.pyplot" not in sys.modules
+            and matplotlib.get_backend().lower() != "agg"
+        ):
+            matplotlib.use("Agg")
         from matplotlib import pyplot as plt
     except ImportError as error:
         raise VisualizationDependencyError(
@@ -44,14 +49,14 @@ class MatplotlibFieldRenderer:
             raise ValueError("MatplotlibFieldRenderer expects a 2D field.")
 
         figure, axes = plt.subplots(figsize=(7, 5), constrained_layout=True)
-        image, cmap, colorbar_label = _render_payload(
+        image, cmap, colorbar_label, color_limits = _render_payload(
             data,
             view=view,
             gamma=gamma,
         )
         plot = axes.imshow(image, aspect="auto", origin="lower", cmap=cmap)
-        if view == "phase":
-            plot.set_clim(-np.pi, np.pi)
+        if color_limits is not None:
+            plot.set_clim(*color_limits)
         axes.set_title(_format_title(frame, view=view, gamma=gamma))
         x_label, y_label = _axis_labels(frame)
         axes.set_xlabel(x_label)
@@ -67,12 +72,23 @@ def _render_payload(
     *,
     view: RenderView,
     gamma: float,
-) -> tuple[np.ndarray, str, str]:
+) -> tuple[np.ndarray, str, str, tuple[float, float] | None]:
     if view == "real":
-        return np.real(data), "viridis", "value"
+        real_data = np.real(data)
+        data_min = float(np.min(real_data))
+        data_max = float(np.max(real_data))
+        if data_min < 0.0 < data_max:
+            limit = max(abs(data_min), abs(data_max))
+            return real_data, "RdBu_r", "value", (-limit, limit)
+        return real_data, "viridis", "value", None
     if view == "magnitude":
-        return apply_gamma(magnitude(data), gamma), "viridis", "magnitude"
-    return phase(data), "twilight", "phase [rad]"
+        return (
+            apply_gamma(magnitude(data), gamma),
+            "viridis",
+            "magnitude",
+            None,
+        )
+    return phase(data), "twilight", "phase [rad]", (-np.pi, np.pi)
 
 
 def _format_title(frame: TraceFrame, *, view: RenderView, gamma: float) -> str:
