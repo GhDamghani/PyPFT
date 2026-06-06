@@ -5,6 +5,7 @@ from pypft.visualization.arrays import (
     phase,
     squeeze_single_sample,
 )
+from pypft.visualization.comparison import save_field_comparison
 from pypft.visualization.matplotlib_backend import MatplotlibFieldRenderer
 from pypft.visualization.models import (
     ComplexView,
@@ -24,6 +25,7 @@ __all__ = [
     "magnitude",
     "normalize_complex_view",
     "phase",
+    "save_field_comparison",
     "save_field_figures",
     "save_trace_figures",
     "squeeze_single_sample",

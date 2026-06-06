@@ -10,10 +10,12 @@ from rich.table import Table
 from pypft.core.exceptions import PyPFTError
 from pypft.workflows import (
     TransformWorkflowRequest,
+    compare_field_files,
     inspect_trace_source,
     render_field_file,
     render_trace_source,
     run_transform_workflow,
+    validate_roundtrip,
 )
 
 
@@ -36,9 +38,11 @@ app = typer.Typer(no_args_is_help=True)
 transform_app = typer.Typer(no_args_is_help=True)
 visualize_app = typer.Typer(no_args_is_help=True)
 inspect_app = typer.Typer(no_args_is_help=True)
+validate_app = typer.Typer(no_args_is_help=True)
 app.add_typer(transform_app, name="transform")
 app.add_typer(visualize_app, name="visualize")
 app.add_typer(inspect_app, name="inspect")
+app.add_typer(validate_app, name="validate")
 
 _console = Console(stderr=True)
 
@@ -339,5 +343,160 @@ def inspect_trace(
     _console.print(frames)
 
 
-__all__ = ["app"]
+@validate_app.command("compare")
+def validate_compare(
+    reference_path: Path = typer.Argument(
+        ...,
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+    ),
+    candidate_path: Path = typer.Argument(
+        ...,
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        resolve_path=True,
+    ),
+    field_kind: FieldKindOption = typer.Option(
+        FieldKindOption.field,
+        "--field-kind",
+    ),
+    gamma: float = typer.Option(1.0, "--gamma"),
+    complex_view: ComplexViewOption = typer.Option(
+        ComplexViewOption.both,
+        "--complex-view",
+    ),
+    atol: float = typer.Option(1e-10, "--atol"),
+    rtol: float = typer.Option(1e-10, "--rtol"),
+) -> None:
+    try:
+        result = compare_field_files(
+            reference_path,
+            candidate_path,
+            output_dir,
+            field_kind=field_kind.value,
+            gamma=gamma,
+            complex_view=complex_view.value,
+            atol=atol,
+            rtol=rtol,
+        )
+    except (PyPFTError, ValueError) as error:
+        _console.print(f"[bold red]Error:[/bold red] {error}")
+        raise typer.Exit(code=1) from error
 
+    _print_validation_summary(
+        label="Comparison report",
+        report_path=result.report_path,
+        figure_paths=result.figure_paths,
+        metrics=result.metrics,
+        extra_rows=(
+            ("Reference", str(reference_path)),
+            ("Candidate", str(candidate_path)),
+            ("Output directory", str(output_dir)),
+        ),
+    )
+
+
+@validate_app.command("roundtrip")
+def validate_roundtrip_command(
+    input_path: Path = typer.Argument(
+        ...,
+        exists=True,
+        dir_okay=False,
+        readable=True,
+        resolve_path=True,
+    ),
+    metadata_path: Path | None = typer.Option(
+        None,
+        "--metadata",
+        dir_okay=False,
+        resolve_path=True,
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        file_okay=False,
+        resolve_path=True,
+    ),
+    gamma: float = typer.Option(1.0, "--gamma"),
+    complex_view: ComplexViewOption = typer.Option(
+        ComplexViewOption.both,
+        "--complex-view",
+    ),
+    atol: float = typer.Option(1e-10, "--atol"),
+    rtol: float = typer.Option(1e-10, "--rtol"),
+    backend: str | None = typer.Option(None, "--backend"),
+    dht_implementation: str | None = typer.Option(
+        None,
+        "--dht-implementation",
+    ),
+) -> None:
+    try:
+        result = validate_roundtrip(
+            input_path,
+            output_dir,
+            metadata_path=metadata_path,
+            gamma=gamma,
+            complex_view=complex_view.value,
+            atol=atol,
+            rtol=rtol,
+            backend=backend,
+            dht_implementation=dht_implementation,
+        )
+    except (PyPFTError, ValueError) as error:
+        _console.print(f"[bold red]Error:[/bold red] {error}")
+        raise typer.Exit(code=1) from error
+
+    _print_validation_summary(
+        label="Roundtrip report",
+        report_path=result.report_path,
+        figure_paths=result.figure_paths,
+        metrics=result.metrics,
+        extra_rows=(
+            ("Input", str(input_path)),
+            ("Forward array", str(result.forward_path)),
+            ("Reconstruction", str(result.reconstruction_path)),
+            ("Output directory", str(output_dir)),
+        ),
+    )
+
+
+def _print_validation_summary(
+    *,
+    label: str,
+    report_path: Path,
+    figure_paths: tuple[Path, ...],
+    metrics,
+    extra_rows: tuple[tuple[str, str], ...],
+) -> None:
+    summary = Table(show_header=False, box=None)
+    for key, value in extra_rows:
+        summary.add_row(key, value)
+    summary.add_row(label, str(report_path))
+    summary.add_row("Saved figures", str(len(figure_paths)))
+    summary.add_row(
+        "Status",
+        "pass" if metrics.passes_tolerance else "fail",
+    )
+    summary.add_row("Max abs error", f"{metrics.max_abs_error:.6g}")
+    summary.add_row("RMSE", f"{metrics.rmse:.6g}")
+    summary.add_row(
+        "Relative L2 error",
+        f"{metrics.relative_l2_error:.6g}",
+    )
+    summary.add_row(
+        "Tolerance",
+        f"atol={metrics.atol:.3g}, rtol={metrics.rtol:.3g}",
+    )
+    _console.print(summary)
+
+
+__all__ = ["app"]
