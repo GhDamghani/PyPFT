@@ -5,10 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from pypft import PyPFT
-from pypft.visualization.matplotlib_backend import (
-    _axis_labels,
-    _render_payload,
-)
+from pypft.visualization._matplotlib_helpers import axis_labels, render_payload
 from pypft.visualization import (
     FieldRenderSpec,
     apply_gamma,
@@ -45,7 +42,7 @@ def test_frequency_samples_axis_labels_use_frequency_domain_terms(
 ) -> None:
     frame = PyPFT().forward_with_trace(sample_image).trace.final_frame
 
-    assert _axis_labels(frame) == (
+    assert axis_labels(frame) == (
         "angular frequency index",
         "radial frequency index",
     )
@@ -54,7 +51,7 @@ def test_frequency_samples_axis_labels_use_frequency_domain_terms(
 def test_render_payload_uses_diverging_cmap_for_signed_real_data() -> None:
     data = np.array([[-2.0, -0.5], [1.0, 3.0]], dtype=np.float64)
 
-    rendered, cmap, label, color_limits = _render_payload(
+    rendered, cmap, label, color_limits = render_payload(
         data,
         view="real",
         gamma=1.0,

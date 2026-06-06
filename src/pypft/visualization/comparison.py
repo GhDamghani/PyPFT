@@ -6,12 +6,12 @@ from typing import Any
 import numpy as np
 
 from pypft.io.artifacts import build_field_figure_path
-from pypft.visualization.arrays import magnitude, phase, squeeze_single_sample
-from pypft.visualization.matplotlib_backend import (
-    _axis_labels,
-    _load_matplotlib,
-    _render_payload,
+from pypft.visualization._matplotlib_helpers import (
+    axis_labels,
+    load_matplotlib,
+    render_payload,
 )
+from pypft.visualization.arrays import magnitude, phase, squeeze_single_sample
 from pypft.visualization.models import ComplexView, FieldRenderSpec, RenderView
 
 
@@ -92,7 +92,7 @@ def _save_comparison_figure(
     reference_label: str,
     candidate_label: str,
 ) -> None:
-    plt = _load_matplotlib()
+    plt = load_matplotlib()
     figure, axes = plt.subplots(
         1,
         3,
@@ -100,12 +100,12 @@ def _save_comparison_figure(
         constrained_layout=True,
     )
     panels = (
-        (reference_label, *_render_payload(reference, view=view, gamma=gamma)),
-        (candidate_label, *_render_payload(candidate, view=view, gamma=gamma)),
+        (reference_label, *render_payload(reference, view=view, gamma=gamma)),
+        (candidate_label, *render_payload(candidate, view=view, gamma=gamma)),
         ("Difference", *_difference_payload(reference, candidate, view=view)),
     )
 
-    x_label, y_label = _axis_labels(_FieldKindProxy(field_kind=field_kind))
+    x_label, y_label = axis_labels(_FieldKindProxy(field_kind=field_kind))
     for axes_item, (title, image, cmap, colorbar_label, color_limits) in zip(
         axes,
         panels,

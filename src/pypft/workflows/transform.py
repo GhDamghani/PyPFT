@@ -54,7 +54,7 @@ def run_transform_workflow(
     traced = _run_traced_transform(pft, values, direction=request.direction)
 
     artifacts = prepare_transform_artifacts(request.output_dir)
-    save_array(artifacts.output_array_path, _output_array(traced.output))
+    save_array(artifacts.output_array_path, traced.output)
     stage_array_paths = _save_stage_arrays(
         traced.trace,
         artifacts.stage_array_dir,
@@ -209,10 +209,6 @@ def _serialize_trace(
         "direction": trace.direction,
         "frames": frames,
     }
-
-
-def _output_array(values: Any):
-    return values
 
 
 def _optional_path(path: Path | None, *, root: Path) -> str | None:

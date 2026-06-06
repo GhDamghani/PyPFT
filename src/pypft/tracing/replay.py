@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, TypeAlias
 
 import numpy as np
 
@@ -10,11 +11,13 @@ from pypft.core.exceptions import MetadataValidationError
 from pypft.io.artifacts import resolve_artifact_path
 from pypft.tracing.models import TransformDirection
 
+ReplayFrameDirection: TypeAlias = TransformDirection | Literal["unknown"]
+
 
 @dataclass(frozen=True, slots=True)
 class ReplayFrame:
     stage: str
-    direction: TransformDirection
+    direction: ReplayFrameDirection
     field_kind: str
     values: np.ndarray
     grid: dict[str, object]

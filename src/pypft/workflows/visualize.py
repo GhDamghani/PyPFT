@@ -56,6 +56,13 @@ class TraceInspection:
 
 
 def replay_trace_from_manifest(manifest_path: Path) -> TransformTrace:
+    """Re-run a transform from a saved manifest.
+
+    This replay uses the current input file referenced by the manifest, so the
+    caller should treat the result as valid only when that file still exists
+    and has not changed since the original run.
+    """
+
     manifest = load_transform_run_manifest(manifest_path)
     input_path = manifest.resolve_input_path(manifest_path=manifest_path)
     values = load_array(input_path)
@@ -133,6 +140,7 @@ def render_field_file(
     output_dir: Path,
     *,
     field_kind: str,
+    direction: str = "unknown",
     gamma: float,
     complex_view: str,
 ) -> tuple[Path, ...]:
@@ -144,7 +152,7 @@ def render_field_file(
 
     frame = ReplayFrame(
         stage=field_kind,
-        direction="forward",
+        direction=direction,
         field_kind=field_kind,
         values=values,
         grid={},

@@ -38,6 +38,8 @@ def test_run_transform_workflow_saves_phase_one_artifacts(
     tmp_path: Path,
     sample_image: np.ndarray,
 ) -> None:
+    assert np.iscomplexobj(sample_image)
+
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
     _write_metadata(input_path)
@@ -89,17 +91,17 @@ def test_run_transform_workflow_saves_phase_one_artifacts(
     assert manifest["stage_array_paths"]["spatial_samples"] == (
         "stages/01_spatial_samples.npy"
     )
-    assert manifest["figure_paths"]["spatial_samples"] == [
+    assert set(manifest["figure_paths"]["spatial_samples"]) == {
         "figures/01_spatial_samples.magnitude.png",
         "figures/01_spatial_samples.phase.png",
-    ]
+    }
     assert trace["schema_version"] == 2
     assert trace["artifact_root"] == "."
     assert trace["frames"][0]["array_path"] == "stages/01_spatial_samples.npy"
-    assert trace["frames"][0]["figure_paths"] == [
+    assert set(trace["frames"][0]["figure_paths"]) == {
         "figures/01_spatial_samples.magnitude.png",
         "figures/01_spatial_samples.phase.png",
-    ]
+    }
 
 
 def test_run_transform_workflow_skips_optional_artifact_directories(

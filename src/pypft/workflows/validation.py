@@ -124,7 +124,15 @@ def validate_roundtrip(
     backend: str | None = None,
     dht_implementation: str | None = None,
 ) -> RoundtripValidationResult:
+    """Validate a forward-then-backward roundtrip from a spatial input.
+
+    This workflow currently models spatial -> frequency -> spatial roundtrips
+    only. Frequency-domain roundtrips are not yet exposed here.
+    """
+
     values = _load_2d_array(input_path, label="roundtrip")
+    # Roundtrip validation currently assumes a spatial-domain input and the
+    # corresponding forward -> backward execution order.
     metadata, metadata_source = load_transform_metadata(
         input_path,
         expected_domain="spatial",
@@ -214,14 +222,14 @@ def _save_comparison_figures(
     return save_field_comparison(
         ReplayFrame(
             stage=reference_stage,
-            direction="forward",
+            direction="unknown",
             field_kind=field_kind,
             values=reference,
             grid={},
         ),
         ReplayFrame(
             stage=candidate_stage,
-            direction="forward",
+            direction="unknown",
             field_kind=field_kind,
             values=candidate,
             grid={},
@@ -263,6 +271,12 @@ def _compute_metrics(
     atol: float,
     rtol: float,
 ) -> FieldComparisonMetrics:
+    """Compute comparison metrics using Frobenius norms.
+
+    ``np.linalg.norm`` handles complex-valued fields correctly here, so the
+    relative $L_2$ metric applies to both real and complex arrays.
+    """
+
     difference = candidate - reference
     abs_difference = np.abs(difference)
     reference_l2_norm = float(np.linalg.norm(reference))

@@ -34,6 +34,12 @@ class FieldKindOption(str, Enum):
     frequency_samples = "frequency_samples"
 
 
+class FieldDirectionOption(str, Enum):
+    unknown = "unknown"
+    forward = "forward"
+    backward = "backward"
+
+
 app = typer.Typer(no_args_is_help=True)
 transform_app = typer.Typer(no_args_is_help=True)
 visualize_app = typer.Typer(no_args_is_help=True)
@@ -208,6 +214,10 @@ def visualize_field(
         FieldKindOption.field,
         "--field-kind",
     ),
+    direction: FieldDirectionOption = typer.Option(
+        FieldDirectionOption.unknown,
+        "--direction",
+    ),
     gamma: float = typer.Option(1.0, "--gamma"),
     complex_view: ComplexViewOption = typer.Option(
         ComplexViewOption.both,
@@ -219,6 +229,7 @@ def visualize_field(
             input_path,
             output_dir,
             field_kind=field_kind.value,
+            direction=direction.value,
             gamma=gamma,
             complex_view=complex_view.value,
         )
@@ -439,6 +450,8 @@ def validate_roundtrip_command(
         "--dht-implementation",
     ),
 ) -> None:
+    """Validate a spatial-domain input with a forward -> backward roundtrip."""
+
     try:
         result = validate_roundtrip(
             input_path,
