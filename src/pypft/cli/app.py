@@ -9,6 +9,7 @@ from rich.table import Table
 
 from pypft.core.exceptions import PyPFTError
 from pypft.workflows import (
+    FieldComparisonMetrics,
     TransformWorkflowRequest,
     compare_field_files,
     inspect_trace_source,
@@ -259,10 +260,21 @@ def visualize_trace(
         file_okay=False,
         resolve_path=True,
     ),
-    gamma: float | None = typer.Option(None, "--gamma"),
+    gamma: float | None = typer.Option(
+        None,
+        "--gamma",
+        help=(
+            "Override the gamma stored in the trace manifest. Defaults "
+            "to the manifest value when present."
+        ),
+    ),
     complex_view: ComplexViewOption | None = typer.Option(
         None,
         "--complex-view",
+        help=(
+            "Override the complex view stored in the trace manifest. "
+            "Defaults to the manifest value when present."
+        ),
     ),
 ) -> None:
     try:
@@ -414,6 +426,8 @@ def validate_compare(
             ("Output directory", str(output_dir)),
         ),
     )
+    if not result.metrics.passes_tolerance:
+        raise typer.Exit(code=1)
 
 
 @validate_app.command("roundtrip")
@@ -480,6 +494,8 @@ def validate_roundtrip_command(
             ("Output directory", str(output_dir)),
         ),
     )
+    if not result.metrics.passes_tolerance:
+        raise typer.Exit(code=1)
 
 
 def _print_validation_summary(
@@ -487,7 +503,7 @@ def _print_validation_summary(
     label: str,
     report_path: Path,
     figure_paths: tuple[Path, ...],
-    metrics,
+    metrics: FieldComparisonMetrics,
     extra_rows: tuple[tuple[str, str], ...],
 ) -> None:
     summary = Table(show_header=False, box=None)

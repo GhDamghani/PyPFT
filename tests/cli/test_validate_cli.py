@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 
 import numpy as np
 from typer.testing import CliRunner
 
-from pypft.cli.app import app
+from pypft.cli.app import app, visualize_trace
 
 
 def test_validate_roundtrip_cli_writes_report_and_figures(
@@ -72,7 +73,22 @@ def test_validate_compare_cli_writes_real_comparison_plot(
         ],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 1, result.output
     assert (output_dir / "comparison-report.json").exists()
     assert len(list(output_dir.glob("*.png"))) == 1
     assert "fail" in result.output
+
+
+def test_validate_roundtrip_cli_help_documents_manifest_fallbacks() -> None:
+    signature = inspect.signature(visualize_trace)
+    gamma_option = signature.parameters["gamma"].default
+    complex_view_option = signature.parameters["complex_view"].default
+
+    assert "Override the gamma stored in the trace manifest" in (
+        gamma_option.help
+    )
+    assert "Defaults to the manifest value" in gamma_option.help
+    assert "Override the complex view stored in the trace manifest" in (
+        complex_view_option.help
+    )
+    assert "Defaults to the manifest value" in complex_view_option.help

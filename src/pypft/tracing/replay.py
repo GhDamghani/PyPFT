@@ -175,7 +175,9 @@ def load_saved_trace(path: Path) -> ReplayTrace:
     for frame in document.frames:
         if frame.array_path is None:
             raise MetadataValidationError(
-                "Saved trace replay requires frame array_path strings."
+                "Cannot replay trace: stage array was not saved during the "
+                "original run. Re-run with --save-stage-arrays to enable "
+                "trace replay."
             )
 
         resolved_array_path = resolve_artifact_path(

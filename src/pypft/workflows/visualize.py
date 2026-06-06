@@ -217,6 +217,8 @@ def _inspection_frames(trace_document) -> tuple[TraceInspectionFrame, ...]:
 
 
 def _detect_trace_source_kind(source_path: Path) -> TraceSourceKind:
+    # TODO: replace this schema heuristic with an explicit document_type field
+    # in both manifest and trace JSON payloads.
     try:
         payload = json.loads(source_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:

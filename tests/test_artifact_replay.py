@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from pypft.io import load_transform_run_manifest
+from pypft.core.exceptions import MetadataValidationError
 from pypft.tracing import load_saved_trace
 from pypft.visualization import FieldRenderSpec, save_trace_figures
 from pypft.workflows import TransformWorkflowRequest, run_transform_workflow
@@ -63,3 +65,39 @@ def test_saved_trace_can_be_loaded_and_rendered(
     assert len(rendered["frequency_samples"]) == 2
     for path in rendered["frequency_samples"]:
         assert path.exists()
+
+
+def test_saved_trace_requires_stage_arrays_for_replay(
+    tmp_path: Path,
+    sample_image: np.ndarray,
+) -> None:
+    input_path = tmp_path / "input.npy"
+    np.save(input_path, sample_image)
+    input_path.with_suffix(".pypft.json").write_text(
+        json.dumps(
+            {
+                "domain": "spatial",
+                "spatial_grid": {"radial_size": 3, "angular_size": 4},
+                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = run_transform_workflow(
+        TransformWorkflowRequest(
+            direction="forward",
+            input_path=input_path,
+            output_dir=tmp_path / "artifacts",
+            gamma=0.5,
+            complex_view="both",
+            save_all_views=False,
+            save_stage_arrays=False,
+        )
+    )
+
+    with pytest.raises(
+        MetadataValidationError,
+        match="Re-run with --save-stage-arrays to enable trace replay",
+    ):
+        load_saved_trace(result.trace_path)
