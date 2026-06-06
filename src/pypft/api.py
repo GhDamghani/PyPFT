@@ -21,6 +21,7 @@ from pypft.operators import (
     ForwardPFTPlan,
     RadialDHT,
 )
+from pypft.tracing import CollectingTraceSink, TracedTransformResult
 
 
 class PyPFT:
@@ -99,6 +100,31 @@ class PyPFT:
             had_batch_axis=normalized.had_batch_axis,
         )
 
+    def forward_with_trace(self, image: Any) -> TracedTransformResult:
+        normalized = normalize_transform_input(
+            image,
+            enable_batching=self._config.enable_batching,
+            backend=self._backend,
+        )
+        spatial_grid = self._resolve_spatial_grid(normalized.values.shape[-2:])
+        frequency_grid = self._resolve_frequency_grid(
+            normalized.values.shape[-2:]
+        )
+        trace_sink = CollectingTraceSink(direction="forward")
+        transformed = self._forward_plan.execute(
+            SpatialSamples(data=normalized.values, grid=spatial_grid),
+            frequency_grid=frequency_grid,
+            trace_sink=trace_sink,
+        )
+        return TracedTransformResult(
+            output=restore_output_shape(
+                transformed.asarray(),
+                had_batch_axis=normalized.had_batch_axis,
+            ),
+            trace=trace_sink.build(),
+            had_batch_axis=normalized.had_batch_axis,
+        )
+
     def backward(self, image: Any):
         normalized = normalize_transform_input(
             image,
@@ -115,6 +141,31 @@ class PyPFT:
         )
         return restore_output_shape(
             transformed.asarray(),
+            had_batch_axis=normalized.had_batch_axis,
+        )
+
+    def backward_with_trace(self, image: Any) -> TracedTransformResult:
+        normalized = normalize_transform_input(
+            image,
+            enable_batching=self._config.enable_batching,
+            backend=self._backend,
+        )
+        frequency_grid = self._resolve_frequency_grid(
+            normalized.values.shape[-2:]
+        )
+        spatial_grid = self._resolve_spatial_grid(normalized.values.shape[-2:])
+        trace_sink = CollectingTraceSink(direction="backward")
+        transformed = self._backward_plan.execute(
+            FrequencySamples(data=normalized.values, grid=frequency_grid),
+            spatial_grid=spatial_grid,
+            trace_sink=trace_sink,
+        )
+        return TracedTransformResult(
+            output=restore_output_shape(
+                transformed.asarray(),
+                had_batch_axis=normalized.had_batch_axis,
+            ),
+            trace=trace_sink.build(),
             had_batch_axis=normalized.had_batch_axis,
         )
 

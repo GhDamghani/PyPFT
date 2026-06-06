@@ -6,6 +6,7 @@ from pypft.dht.registry import (
     create_dht_implementation,
 )
 from pypft.grids.polar import PolarFrequencyGrid, PolarSpatialGrid
+from pypft.tracing import TraceFrame, TracedTransformResult, TransformTrace
 
 __all__ = [
     "DEFAULT_CONVENTIONS",
@@ -13,7 +14,10 @@ __all__ = [
     "PolarSpatialGrid",
     "PyPFT",
     "PyPFTConfig",
+    "TraceFrame",
+    "TracedTransformResult",
     "TransformConventions",
+    "TransformTrace",
     "available_dht_implementations",
     "create_dht_implementation",
 ]

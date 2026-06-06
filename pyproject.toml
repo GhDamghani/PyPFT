@@ -26,11 +26,14 @@ dependencies = [
   "numba>=0.61",
   "numpy>=2.1",
   "scipy>=1.16",
+  "rich>=13.9",
+  "typer>=0.16",
 ]
 
 [project.optional-dependencies]
 dev = [
   "build>=1.2",
+  "matplotlib>=3.10",
   "mypy>=1.16",
   "pytest>=8.3",
   "pytest-cov>=6.0",
@@ -46,6 +49,12 @@ bench = [
 gpu = [
   "cupy-cuda12x>=13.0",
 ]
+viz = [
+  "matplotlib>=3.10",
+]
+
+[project.scripts]
+pypft = "pypft.cli.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/GhDamghani/PyPFT"
