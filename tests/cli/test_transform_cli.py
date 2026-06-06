@@ -34,8 +34,6 @@ def test_transform_forward_cli_saves_all_requested_artifacts(
             str(output_dir),
             "--gamma",
             "0.5",
-            "--complex-view",
-            "both",
             "--save-all-views",
             "--save-stage-arrays",
         ],

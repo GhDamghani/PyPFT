@@ -14,8 +14,12 @@ from pypft.io import (
     save_array,
     write_json,
 )
-from pypft.tracing import TraceFrame, TracedTransformResult, TransformTrace
-from pypft.visualization import FieldRenderSpec, save_trace_figures
+from pypft.tracing import TracedTransformResult, TransformTrace
+from pypft.visualization import (
+    FieldRenderSpec,
+    save_trace_figures,
+    squeeze_single_sample,
+)
 from pypft.workflows.requests import TransformWorkflowRequest
 from pypft.workflows.results import TransformWorkflowResult
 
@@ -131,7 +135,7 @@ def _save_stage_arrays(
     saved: dict[str, Path] = {}
     for index, frame in enumerate(trace.frames, start=1):
         path = output_dir / f"{index:02d}_{frame.stage}.npy"
-        save_array(path, _frame_array(frame))
+        save_array(path, squeeze_single_sample(frame.asarray(copy=False)))
         saved[frame.stage] = path
     return saved
 
@@ -144,7 +148,7 @@ def _serialize_trace(
 ) -> dict[str, object]:
     frames = []
     for index, frame in enumerate(trace.frames, start=1):
-        array = _frame_array(frame)
+        array = squeeze_single_sample(frame.asarray(copy=False))
         frames.append(
             {
                 "index": index,
@@ -168,13 +172,6 @@ def _serialize_trace(
         "direction": trace.direction,
         "frames": frames,
     }
-
-
-def _frame_array(frame: TraceFrame):
-    array = frame.asarray(copy=False)
-    if getattr(array, "ndim", None) == 3 and array.shape[0] == 1:
-        return array[0]
-    return array
 
 
 def _output_array(values: Any):

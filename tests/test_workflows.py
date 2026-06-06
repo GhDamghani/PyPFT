@@ -8,6 +8,17 @@ import numpy as np
 from pypft.workflows import TransformWorkflowRequest, run_transform_workflow
 
 
+def test_transform_workflow_request_normalizes_angular_alias() -> None:
+    request = TransformWorkflowRequest(
+        direction="forward",
+        input_path=Path("input.npy"),
+        output_dir=Path("artifacts"),
+        complex_view="angular",
+    )
+
+    assert request.complex_view == "phase"
+
+
 def test_run_transform_workflow_saves_phase_one_artifacts(
     tmp_path: Path,
     sample_image: np.ndarray,

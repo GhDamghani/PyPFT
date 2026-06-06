@@ -90,7 +90,7 @@ def _axis_labels(frame: TraceFrame) -> tuple[str, str]:
         return ("angular order", "radial index")
     if frame.field_kind == "radial_spectrum":
         return ("angular order", "radial frequency index")
-    return ("angular index", "radial frequency index")
+    return ("angular frequency index", "radial frequency index")
 
 
 __all__ = ["MatplotlibFieldRenderer"]

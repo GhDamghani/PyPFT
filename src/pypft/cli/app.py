@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from pypft.cli.commands import build_transform_request, validate_complex_view
 from pypft.core.exceptions import PyPFTError
-from pypft.workflows import run_transform_workflow
+from pypft.workflows import TransformWorkflowRequest, run_transform_workflow
+
+
+class ComplexViewOption(str, Enum):
+    magnitude = "magnitude"
+    phase = "phase"
+    angular = "angular"
+    both = "both"
 
 app = typer.Typer(no_args_is_help=True)
 transform_app = typer.Typer(no_args_is_help=True)
@@ -39,10 +46,9 @@ def transform_forward(
         resolve_path=True,
     ),
     gamma: float = typer.Option(1.0, "--gamma"),
-    complex_view: str = typer.Option(
-        "both",
+    complex_view: ComplexViewOption = typer.Option(
+        ComplexViewOption.both,
         "--complex-view",
-        callback=lambda value: validate_complex_view(value),
     ),
     save_all_views: bool = typer.Option(False, "--save-all-views"),
     save_stage_arrays: bool = typer.Option(False, "--save-stage-arrays"),
@@ -88,10 +94,9 @@ def transform_backward(
         resolve_path=True,
     ),
     gamma: float = typer.Option(1.0, "--gamma"),
-    complex_view: str = typer.Option(
-        "both",
+    complex_view: ComplexViewOption = typer.Option(
+        ComplexViewOption.both,
         "--complex-view",
-        callback=lambda value: validate_complex_view(value),
     ),
     save_all_views: bool = typer.Option(False, "--save-all-views"),
     save_stage_arrays: bool = typer.Option(False, "--save-stage-arrays"),
@@ -122,20 +127,20 @@ def _run_transform_command(
     metadata_path: Path | None,
     output_dir: Path,
     gamma: float,
-    complex_view: str,
+    complex_view: ComplexViewOption,
     save_all_views: bool,
     save_stage_arrays: bool,
     backend: str | None,
     dht_implementation: str | None,
 ) -> None:
     try:
-        request = build_transform_request(
+        request = TransformWorkflowRequest(
             direction=direction,
             input_path=input_path,
             metadata_path=metadata_path,
             output_dir=output_dir,
             gamma=gamma,
-            complex_view=complex_view,
+            complex_view=complex_view.value,
             save_all_views=save_all_views,
             save_stage_arrays=save_stage_arrays,
             backend=backend,

@@ -34,9 +34,17 @@ def phase(values: ComplexArray) -> np.ndarray:
 def apply_gamma(values: np.ndarray, gamma: float) -> np.ndarray:
     if gamma <= 0.0:
         raise ValueError("Gamma must be positive.")
-    if gamma == 1.0:
-        return values
-    return np.power(np.clip(values, 0.0, None), gamma)
+
+    clipped = np.clip(np.asarray(values, dtype=np.float64), 0.0, None)
+    if clipped.size == 0:
+        return clipped
+
+    max_val = float(np.max(clipped))
+    if max_val == 0.0:
+        return clipped
+
+    normalized = clipped / (max_val + np.finfo(float).eps)
+    return np.power(normalized, gamma)
 
 
 __all__ = [
