@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PyPFT"
-version = "0.0.9"
+version = "0.1.0"
 description = "Polar Fourier transform toolkit with a modular PyPFT facade."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
@@ -23,38 +23,11 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics",
 ]
 dependencies = [
-  "numba>=0.61",
-  "numpy>=2.1",
-  "scipy>=1.16",
-  "rich>=13.9",
-  "typer>=0.16",
+  "matplotlib>=3.11.0",
+  "numba>=0.65.1",
+  "numpy>=2.4.6",
+  "scipy>=1.17.1",
 ]
-
-[project.optional-dependencies]
-dev = [
-  "build>=1.2",
-  "matplotlib>=3.10",
-  "mypy>=1.16",
-  "pytest>=8.3",
-  "pytest-cov>=6.0",
-  "ruff>=0.11",
-]
-docs = [
-  "furo>=2024.8.6",
-  "sphinx>=8.0",
-]
-bench = [
-  "pytest-benchmark>=5.1",
-]
-gpu = [
-  "cupy-cuda12x>=13.0",
-]
-viz = [
-  "matplotlib>=3.10",
-]
-
-[project.scripts]
-pypft = "pypft.cli.__main__:main"
 
 [project.urls]
 Homepage = "https://github.com/GhDamghani/PyPFT"
@@ -62,25 +35,10 @@ Documentation = "https://github.com/GhDamghani/PyPFT"
 Issues = "https://github.com/GhDamghani/PyPFT/issues"
 Source = "https://github.com/GhDamghani/PyPFT"
 
-
-[tool.pytest.ini_options]
-addopts = "-ra"
-testpaths = ["tests"]
-markers = [
-  "gpu: tests requiring the optional CuPy GPU backend",
-]
-
-[tool.mypy]
-python_version = "3.14"
-strict = true
-packages = ["pypft"]
-warn_unused_configs = true
-
-[tool.ruff]
-target-version = "py314"
-line-length = 88
-
 [dependency-groups]
 dev = [
+    "furo>=2025.12.19",
     "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "sphinx>=9.1.0",
 ]
