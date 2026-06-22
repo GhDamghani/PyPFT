@@ -77,7 +77,11 @@ def test_validate_roundtrip_cli_requires_output_dir(
 ) -> None:
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
-    _write_metadata(input_path.with_suffix(".pypft.json"), domain="spatial")
+    _write_metadata(
+        input_path.with_suffix(".pypft.json"),
+        domain="spatial",
+        shape=sample_image.shape,
+    )
 
     result = CliRunner().invoke(
         app,
@@ -87,13 +91,25 @@ def test_validate_roundtrip_cli_requires_output_dir(
     assert result.exit_code == 2
 
 
-def _write_metadata(path: Path, *, domain: str) -> None:
+def _write_metadata(
+    path: Path,
+    *,
+    domain: str,
+    shape: tuple[int, int] = (3, 4),
+) -> None:
+    radial_size, angular_size = shape
     path.write_text(
         json.dumps(
             {
                 "domain": domain,
-                "spatial_grid": {"radial_size": 3, "angular_size": 4},
-                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+                "spatial_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
+                "frequency_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
             }
         ),
         encoding="utf-8",

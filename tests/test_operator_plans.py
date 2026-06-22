@@ -113,7 +113,7 @@ def test_backward_plan_supports_batches(sample_batch: np.ndarray) -> None:
 
 
 def test_pipeline_round_trip_preserves_spatial_samples(
-    sample_image: np.ndarray,
+    roundtrip_image: np.ndarray,
 ) -> None:
     dht = NaiveDHTImplementation()
     forward_plan = ForwardPFTPlan(
@@ -127,9 +127,11 @@ def test_pipeline_round_trip_preserves_spatial_samples(
         angular_reconstruction=AngularIDFT(transform=AngularIFFT()),
     )
 
-    spatial_grid = PolarSpatialGrid.infer_from_shape(sample_image.shape)
-    frequency_grid = PolarFrequencyGrid.infer_from_shape(sample_image.shape)
-    spatial = SpatialSamples(data=sample_image, grid=spatial_grid)
+    spatial_grid = PolarSpatialGrid.infer_from_shape(roundtrip_image.shape)
+    frequency_grid = PolarFrequencyGrid.infer_from_shape(
+        roundtrip_image.shape
+    )
+    spatial = SpatialSamples(data=roundtrip_image, grid=spatial_grid)
 
     transformed = forward_plan.execute(
         spatial,
@@ -142,7 +144,7 @@ def test_pipeline_round_trip_preserves_spatial_samples(
 
     assert isinstance(transformed, FrequencySamples)
     assert isinstance(reconstructed, SpatialSamples)
-    np.testing.assert_allclose(reconstructed.asarray(), sample_image)
+    np.testing.assert_allclose(reconstructed.asarray(), roundtrip_image)
 
 
 def test_forward_plan_matches_analytic_gaussian_for_radial_input() -> None:

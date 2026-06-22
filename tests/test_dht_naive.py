@@ -127,7 +127,10 @@ def test_naive_dht_supports_two_dimensional_inputs(
 ) -> None:
     implementation = NaiveDHTImplementation()
     source_grid = PolarFrequencyGrid.infer_from_shape(sample_image.shape)
-    target_grid = PolarSpatialGrid(radial_size=4, angular_size=4)
+    target_grid = PolarSpatialGrid(
+        radial_size=4,
+        angular_size=sample_image.shape[1],
+    )
 
     transformed = implementation.apply(
         sample_image,
@@ -136,7 +139,7 @@ def test_naive_dht_supports_two_dimensional_inputs(
         direction="backward",
     )
 
-    assert transformed.shape == (4, 4)
+    assert transformed.shape == (4, sample_image.shape[1])
 
 
 def test_apply_inverse_dht_batch_matches_per_image_output(

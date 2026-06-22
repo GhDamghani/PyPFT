@@ -10,16 +10,23 @@ from pypft.workflows import compare_field_files, validate_roundtrip
 
 def test_validate_roundtrip_writes_report_and_comparison_figures(
     tmp_path: Path,
-    sample_image: np.ndarray,
+    roundtrip_image: np.ndarray,
 ) -> None:
     input_path = tmp_path / "input.npy"
-    np.save(input_path, sample_image)
+    np.save(input_path, roundtrip_image)
+    radial_size, angular_size = roundtrip_image.shape
     input_path.with_suffix(".pypft.json").write_text(
         json.dumps(
             {
                 "domain": "spatial",
-                "spatial_grid": {"radial_size": 3, "angular_size": 4},
-                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+                "spatial_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
+                "frequency_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
             }
         ),
         encoding="utf-8",

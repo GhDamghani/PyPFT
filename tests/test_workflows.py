@@ -10,13 +10,25 @@ from pypft.core.exceptions import InputShapeError
 from pypft.workflows import TransformWorkflowRequest, run_transform_workflow
 
 
-def _write_metadata(input_path: Path, *, domain: str = "spatial") -> None:
+def _write_metadata(
+    input_path: Path,
+    *,
+    domain: str = "spatial",
+    shape: tuple[int, int],
+) -> None:
+    radial_size, angular_size = shape
     input_path.with_suffix(".pypft.json").write_text(
         json.dumps(
             {
                 "domain": domain,
-                "spatial_grid": {"radial_size": 3, "angular_size": 4},
-                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+                "spatial_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
+                "frequency_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
             }
         ),
         encoding="utf-8",
@@ -42,7 +54,7 @@ def test_run_transform_workflow_saves_phase_one_artifacts(
 
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
-    _write_metadata(input_path)
+    _write_metadata(input_path, shape=sample_image.shape)
 
     result = run_transform_workflow(
         TransformWorkflowRequest(
@@ -110,7 +122,7 @@ def test_run_transform_workflow_skips_optional_artifact_directories(
 ) -> None:
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
-    _write_metadata(input_path)
+    _write_metadata(input_path, shape=sample_image.shape)
 
     artifacts_dir = tmp_path / "artifacts"
     result = run_transform_workflow(

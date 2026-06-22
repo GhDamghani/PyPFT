@@ -19,12 +19,19 @@ def test_saved_trace_can_be_loaded_and_rendered(
 ) -> None:
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
+    radial_size, angular_size = sample_image.shape
     input_path.with_suffix(".pypft.json").write_text(
         json.dumps(
             {
                 "domain": "spatial",
-                "spatial_grid": {"radial_size": 3, "angular_size": 4},
-                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+                "spatial_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
+                "frequency_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
             }
         ),
         encoding="utf-8",
@@ -73,12 +80,19 @@ def test_saved_trace_requires_stage_arrays_for_replay(
 ) -> None:
     input_path = tmp_path / "input.npy"
     np.save(input_path, sample_image)
+    radial_size, angular_size = sample_image.shape
     input_path.with_suffix(".pypft.json").write_text(
         json.dumps(
             {
                 "domain": "spatial",
-                "spatial_grid": {"radial_size": 3, "angular_size": 4},
-                "frequency_grid": {"radial_size": 3, "angular_size": 4},
+                "spatial_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
+                "frequency_grid": {
+                    "radial_size": radial_size,
+                    "angular_size": angular_size,
+                },
             }
         ),
         encoding="utf-8",

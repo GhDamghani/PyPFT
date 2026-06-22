@@ -24,7 +24,7 @@ def test_single_image_is_promoted_to_batch(sample_image: np.ndarray) -> None:
         backend=CPUBackend(),
     )
 
-    assert normalized.values.shape == (1, 3, 4)
+    assert normalized.values.shape == (1, *sample_image.shape)
     assert normalized.values.dtype == np.complex128
     assert normalized.had_batch_axis is False
 
