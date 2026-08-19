@@ -54,6 +54,8 @@ dev = [
     "vulture>=2.16",
     "wheel>=0.47.0",
     "pyright>=1.1.411",
+    "opencv-python-headless>=4.10",
+    "pytest-benchmark>=5.1.0",
 ]
 
 [tool.setuptools]
@@ -76,3 +78,6 @@ max-line-length = 88
 [tool.vulture]
 exclude = ["*/tests/*"]
 min_confidence = 80
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
