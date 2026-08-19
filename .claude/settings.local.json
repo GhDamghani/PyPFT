@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run flake8 *)",
+      "Bash(uv run pyright *)",
+      "Bash(uv run vulture *)",
+      "Bash(uv run black *)",
+      "Bash(uv run isort *)"
+    ]
+  }
+}
