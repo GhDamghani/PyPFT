@@ -1,0 +1,215 @@
+# PyPFT
+
+Polar Fourier Transform for Reconstruction of Polar MR images in Python using Numpy
+
+Assuming you have raw kspace data in polar coordinates $F\left( {\rho ,\varphi } \right)$, if you want to reconstruct the image in the spatial domain with polar coordinates $f\left( {r,\theta } \right)$, you can follow these steps:
+
+$F\left( {\rho ,\varphi } \right)\mathop  \leftrightarrow \limits^{FF{T_\varphi }} {F_n}\left( \rho  \right)\mathop  \leftrightarrow \limits^{{H_n}} {f_n}\left( r \right)\mathop  \leftrightarrow \limits^{IFF{T_\theta }} f\left( {r,\theta } \right)$
+
+Meaning that you need to take two FFTs and one Hankel Transform. FFT is already implemented in `numpy.fft.fft`. However, hankel transform is not implemented. Also, in general, there is no package to handle this type of data natively in Python. This package serves as a toolkit to reconstruct polar MR images using PFT and handle the images after that.
+
+Based on:
+
+    Golshani, S., & Nasiraei‐Moghaddam, A. (2017). Efficient radial tagging CMR exam: A coherent k‐space reading and image reconstruction approach. Magnetic resonance in medicine, 77(4), 1459-1472. https://doi.org/10.1002/mrm.26219
+
+## Developer Guide
+
+### Installing
+
+- Make sure you have [`uv`](https://docs.astral.sh/uv/) installed.
+
+- Clone the repository.
+
+- Run this command:
+
+  ```powershell
+  uv sync
+  ```
+
+- Install the recommended VS Code extensions.
+
+**Important note**: Before start working on a branch, always run `uv sync` first to make sure your environment is update to the `pyproject.toml`.
+
+<!-- This is for the linter to accept the inline HTML for GitHub-Flavored Markdown -->
+
+<!-- markdownlint-disable MD033 -->
+
+<details>
+<summary>Notes on developer dependencies and recommended extensions</summary>
+
+#### Dev Dependencies
+
+- `black`: Python formatter.
+- `cython`: Optimizing static compiler.
+- `flake8-rst-docstrings`: Docstring reStructuredText (RST) validator for flake8.
+- `ipdb`: IPython version of the `pdb` debugger.
+- `ipython`: Enhanced interactive Python shell.
+- `isort`: Sorts Python imports
+- `matplotlib`: Visualization tool. Useful for quick debugging related to signals.
+- `notebook`: notebook environment for interactive computing. Could also be useful later for example scripts.
+- `pyment`: Generate/convert automatically the docstrings from code signature. Useful to make sure all docstrings are reST, and no method is left without a docstring.
+- `pytest`: Unit testing environment.
+  - `pytest-cov`: adds coverages stats.
+  - `pytest-vulture`: Finds dead code.
+- `setuptools`: Python build backend.
+- `tqdm`: CLI Progress-bar.
+- `wheel`: Required for wheel files - for packaging.
+
+#### Extension recommendations
+
+- Python `ms-python.python`: Python language support.
+- Black Formatter `ms-python.black-formatter`: Black formatter.
+- Flake8 `ms-python.flake8`: Linting support.
+- Pylance `ms-python.vscode-pylance`: Language server.
+- Python Debugger `ms-python.debugpy`: Debugger.
+- Python Indent `KevinRose.vsc-python-indent`: Correct Python indentation.
+- Code Spell Checker `streetsidesoftware.code-spell-checker`: Spellchecker.
+- isort `ms-python.isort`: Sorts Python Imports.
+- autoDocstring - Python Docstring Generator `njpwerner.autodocstring`: Make template for docstring (adjusted to reST).
+- Cython VSCode `ktnrg45.vscode-cython`: Cython support.
+- Markdown Table Prettifier `darkriszty.markdown-table-prettify`: Transforms markdown tables to be more readable.
+- GitHub Markdown Preview `bierner.github-markdown-preview`: Preview Markdown files based on GitHub-Flavored Markdown.
+- Rewrap Revived `dnut.rewrap-revived`: Hard word wrapping for comments and other text.
+
+</details>
+<!-- markdownlint-enable MD033 -->
+
+### Development Convention
+
+#### Errors and Warnings
+
+All errors should be handled with Exceptions. This means that when calling a method that could raise an exception, you should use `try` statements with `except` clauses. If the generic exceptions are not enough to handle them, you should make new exceptions by [inheriting](https://docs.python.org/3/library/exceptions.html#inheriting-from-built-in-exceptions) from their generic type. For instance, if a function validates the value of two variables `val1` and `val2`, and the software should behave differently, Inherit `ValueError` to make two new exceptions `Val1ValueError(ValueError)` and `Val2ValueError(ValueError)` and use them.
+
+Also, use `warnings` for warnings.
+
+<!-- markdownlint-disable MD033-->
+
+<details>
+<summary>Expand to see an example implementation</summary>
+
+```python
+import warnings
+
+
+class Val1ValueError(ValueError):
+    """Raised when val1 fails validation."""
+
+    def __init__(self, message="val1 is invalid"):
+        super().__init__(f"{message}")
+
+
+class Val2ValueError(ValueError):
+    """Raised when val2 fails validation."""
+
+    def __init__(self, message="val2 is invalid"):
+        super().__init__(f"{message}")
+
+
+def validate(val1: int, val2: int) -> None:
+    if val1 < 0:
+        raise Val1ValueError(f"val1 must be non-negative, got {val1!r}")
+    if val2 == 0:
+        raise Val2ValueError(f"val2 must not be zero, got {val2!r}")
+    if val1 > 1000:
+        warnings.warn(f"val1={val1} is unusually large", stacklevel=2)
+
+
+def process(val1: int, val2: int) -> float:
+    DEFAULT_VAL1 = 5
+    try:
+        validate(val1, val2)
+    except Val1ValueError as e:
+        warnings.warn(
+            f"val1={val1} is an invalid value, substituting with {DEFAULT_VAL1}",
+            stacklevel=2,
+        )
+        val1 = DEFAULT_VAL1
+    except Val2ValueError as e:
+        raise Val2ValueError(
+            f"Cannot process values because val2 is invalid: {e}"
+        ) from e
+    return val1 / val2
+
+
+# Usage
+
+# Emits a UserWarning (val1 too large), still works
+process(2000, 5)
+
+# Emits a UserWarning (val1 is invalid), but since there is default fallback, it still
+# works.
+process(-1, 5)
+
+# Raises Val2ValueError
+process(10, 0)
+```
+
+</details>
+<!-- markdownlint-enable MD033 -->
+
+#### Annotations and Validators
+
+All function signatures must use type annotations, and validate their input. Usage of validators for function outputs is recommended.
+
+Validators for all types (**except locally-defined types**) are located in `src/artinis_poly6/lib/utils/validators.py`. Validators for locally-defined types are **Defined in their own class**. Read the file docstring for more information.
+
+### Styling Conventions
+
+The style conventions of this project is based on [PEP 8](https://peps.python.org/pep-0008/). However, there is one exception:
+
+- Maximum Line Length: It's `90` instead of `79`, as recommended by [Black](https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#line-length). It's also not forced on comments, docstrings, and strings. However, we should try to break them. The "Rewrap Revived" extension is helpful for comments and docstrings.
+
+#### Documentation Strings
+
+We follow [PEP 287](https://peps.python.org/pep-0287/) and write in [reStructuredText markup](https://docutils.sourceforge.io/rst.html).
+
+Recommended extensions are helpful to make sure we adhere to these conventions.
+
+#### Spellings
+
+Use `streetsidesoftware.code-spell-checker` for spellchecking. It's set to American English.
+
+#### Code sectioning with comments
+
+Use `# ` followed by the sectioning-character, filling the line length to max. <!-- markdownlint-disable-line MD001 MD038 -->
+
+- Section: `=`
+- Subsection: `-`
+- Indented section: `*`
+- Indented subsection: `.`
+
+Example:
+
+```python
+# ========================================================================================
+# Section
+# ========================================================================================
+
+    # ************************************************************************************
+    # Indented section
+    # ************************************************************************************
+
+    # ....................................................................................
+    # Indented subsection
+    # ....................................................................................
+
+
+# ----------------------------------------------------------------------------------------
+# Subsection
+# ----------------------------------------------------------------------------------------
+
+    # ************************************************************************************
+    # Indented section
+    # ************************************************************************************
+
+    # ....................................................................................
+    # Indented subsection
+    # ....................................................................................
+```
+
+There are VS Code snippets define for it in `.vscode\helpers.code-snippets`. Their shortcut (prefix) are as followed:
+
+- Section: `@ section`
+- Subsection: `@ subsection`
+- Indented section: `@ isection`
+- Indented subsection: `@ isubsection`
