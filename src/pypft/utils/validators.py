@@ -92,6 +92,18 @@ class IntValidator:
         if not isinstance(value, int):
             raise TypeError(f"value must be {int.__name__}, got {type(value).__name__}")
 
+    @staticmethod
+    def value_is_non_negative(value: int) -> None:
+        """Value-validator to check if an int is non-negative.
+
+        :param value: The value to be validated.
+        :type value: int
+        :raises ValueError: If the value is negative.
+
+        """
+        if value < 0:
+            raise ValueError(f"value must be non-negative, got {value}")
+
 
 # ========================================================================================
 # numbers.Real: float
@@ -114,6 +126,18 @@ class FloatValidator:
             raise TypeError(
                 f"value must be {float.__name__}, got {type(value).__name__}"
             )
+
+    @staticmethod
+    def value_is_positive(value: float) -> None:
+        """Value-validator to check if a float is positive.
+
+        :param value: The value to be validated.
+        :type value: float
+        :raises ValueError: If the value is not strictly positive.
+
+        """
+        if value <= 0:
+            raise ValueError(f"value must be positive, got {value}")
 
 
 # ========================================================================================
@@ -282,3 +306,15 @@ class NumpyValidator:
             raise TypeError(
                 f"value must be {np.ndarray.__name__}, got {type(value).__name__}"
             )
+
+    @staticmethod
+    def value_is_1d(value: np.ndarray) -> None:
+        """Value-validator to check if a numpy.ndarray is one-dimensional.
+
+        :param value: The value to be validated.
+        :type value: np.ndarray
+        :raises ValueError: If the value does not have exactly one dimension.
+
+        """
+        if value.ndim != 1:
+            raise ValueError(f"value must be 1-D, got {value.ndim}-D")
