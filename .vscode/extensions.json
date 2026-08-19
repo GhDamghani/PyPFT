@@ -1,0 +1,16 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "ms-python.flake8",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "KevinRose.vsc-python-indent",
+        "streetsidesoftware.code-spell-checker",
+        "ms-python.isort",
+        "njpwerner.autodocstring",
+        "darkriszty.markdown-table-prettify",
+        "bierner.github-markdown-preview",
+        "dnut.rewrap-revived"
+    ]
+}

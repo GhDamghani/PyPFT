@@ -1,0 +1,86 @@
+{
+    "Python section divider (top-level, 90 chars)": {
+        "scope": "python, cython",
+        "prefix": "@ section",
+        "description": "Section divider at module/top level — exactly 90 chars wide",
+        "body": [
+            "# ========================================================================================",
+            "# ${1:Section}",
+            "# ========================================================================================",
+            "$0"
+        ]
+    },
+    "Python section divider (indented 4 spaces, 90 chars)": {
+        "scope": "python",
+        "prefix": "@ isection",
+        "description": "Section divider inside a class (4-space indent) — exactly 90 chars wide",
+        "body": [
+            "# ************************************************************************************",
+            "# ${1:Section}",
+            "# ************************************************************************************",
+            "$0"
+        ]
+    },
+    "Python subsection divider (top-level, 90 chars)": {
+        "scope": "python",
+        "prefix": "@ subsection",
+        "description": "Subsection divider at module/top level — exactly 90 chars wide",
+        "body": [
+            "# ----------------------------------------------------------------------------------------",
+            "# ${1:Subsection}",
+            "# ----------------------------------------------------------------------------------------",
+            "$0"
+        ]
+    },
+    "Python subsection divider (indented 4 spaces, 90 chars)": {
+        "scope": "python",
+        "prefix": "@ isubsection",
+        "description": "Subsection divider inside a class (4-space indent) — exactly 90 chars wide",
+        "body": [
+            "# ....................................................................................",
+            "# ${1:Subsection}",
+            "# ....................................................................................",
+            "$0"
+        ]
+    },
+    "Validator: type-validator classmethod (v-type)": {
+        "scope": "python, cython",
+        "prefix": "v-type",
+        "description": "Scaffolds a type-validator @classmethod with RST docstring, isinstance check, and TypeError raise",
+        "body": [
+            "@classmethod",
+            "def type_is_${1:typename}(cls, value: ${1:typename}) -> None:",
+            "    \"\"\"",
+            "    Type-validator for ${1:typename}.",
+            "",
+            "    :param value: The value to be validated.",
+            "    :type value: ${1:typename}",
+            "    :raises TypeError: If the value is not ${2:a} ${1:typename}.",
+            "    \"\"\"",
+            "    if not isinstance(value, ${1:typename}):",
+            "        raise TypeError(",
+            "            f\"value must be {${1:typename}.__name__}, got {type(value).__name__}\"",
+            "        )",
+            "$0"
+        ]
+    },
+    "Validator: value-validator classmethod (v-value)": {
+        "scope": "python, cython",
+        "prefix": "v-value",
+        "description": "Scaffolds a value-validator @classmethod with RST docstring and ValueError raise",
+        "body": [
+            "@classmethod",
+            "def value_${1:condition}(cls, value: ${2:type}) -> None:",
+            "    \"\"\"",
+            "    Value-validator to check if ${3:description}.",
+            "",
+            "    :param value: The value to be validated.",
+            "    :type value: ${2:type}",
+            "    :raises ValueError: If the value does not satisfy the condition.",
+            "    \"\"\"",
+            "    if not ${4:condition}:",
+            "        raise ValueError(f\"${5:message}\")",
+            "$0"
+        ]
+    }
+}

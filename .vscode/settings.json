@@ -1,14 +1,50 @@
 {
-    "editor.rulers": [80],
-    "cSpell.words": [
-        "allclose",
-        "idft",
-        "IFFT",
-        "pypft"
-    ],
-    "python.testing.pytestArgs": [
-        "tests"
-    ],
+    "files.autoSave": "afterDelay",
+    "files.trimTrailingWhitespace": true,
+    "editor.renderWhitespace": "trailing",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 4,
+    "editor.wordWrap": "off",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.rulers": [
+            90
+        ],
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    "python.terminal.launchArgs": [
+        "-m",
+        "IPython",
+        "--no-autoindent"
+    ],
+    "flake8.importStrategy": "fromEnvironment",
+    "flake8.args": [
+        "--select=RST"
+    ],
+    "workbench.editor.empty.hint": "hidden",
+    "files.exclude": {
+        "**/__pycache__/": true,
+        "**/.pytest_cache/": true,
+    },
+    "search.exclude": {
+        "**/__pycache__/": true,
+        "**/.pytest_cache/": true,
+    },
+    "cSpell.ignorePaths": [
+        "uv.lock",
+        "tests",
+        ".vscode/settings.json",
+    ],
+    "autoDocstring.docstringFormat": "sphinx",
+    "autoDocstring.guessTypes": true, // Infer types from PEP 484 hints, defaults, var names
+    "autoDocstring.includeExtendedSummary": true, // Add extended summary section
+    "autoDocstring.startOnNewLine": true, // New line before summary
+    "autoDocstring.generateDocstringOnEnter": true, // Auto-generate on Enter after """
+    "autoDocstring.quoteStyle": "\"\"\"",
+    "rewrap.wrappingColumn": 90
 }
