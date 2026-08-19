@@ -66,7 +66,6 @@ Based on:
 - Code Spell Checker `streetsidesoftware.code-spell-checker`: Spellchecker.
 - isort `ms-python.isort`: Sorts Python Imports.
 - autoDocstring - Python Docstring Generator `njpwerner.autodocstring`: Make template for docstring (adjusted to reST).
-- Cython VSCode `ktnrg45.vscode-cython`: Cython support.
 - Markdown Table Prettifier `darkriszty.markdown-table-prettify`: Transforms markdown tables to be more readable.
 - GitHub Markdown Preview `bierner.github-markdown-preview`: Preview Markdown files based on GitHub-Flavored Markdown.
 - Rewrap Revived `dnut.rewrap-revived`: Hard word wrapping for comments and other text.
@@ -75,6 +74,10 @@ Based on:
 <!-- markdownlint-enable MD033 -->
 
 ### Development Convention
+
+#### Constant Extraction
+
+Practice extracting constant as much as possible. If it is only on the module-level, put it at the top of module. If not, find a right level of sharing and put it there.
 
 #### Errors and Warnings
 
