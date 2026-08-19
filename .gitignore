@@ -1,5 +1,4 @@
 /.local_files
-/.github/prompts
 .venv/
 __pycache__/
 .pytest_cache/
