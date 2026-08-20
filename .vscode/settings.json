@@ -46,5 +46,8 @@
     "autoDocstring.startOnNewLine": true, // New line before summary
     "autoDocstring.generateDocstringOnEnter": true, // Auto-generate on Enter after """
     "autoDocstring.quoteStyle": "\"\"\"",
-    "rewrap.wrappingColumn": 88
+    "rewrap.wrappingColumn": 88,
+    "cSpell.words": [
+        "pypft"
+    ]
 }
