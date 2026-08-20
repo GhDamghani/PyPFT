@@ -12,13 +12,23 @@ from scipy.special import jv
 from pypft.dht import _IMPLEMENTATIONS
 
 from .conftest import ATOL, DHT_ORDERS, RTOL, SIGNAL_SIZE
+from .tolerance import dht_tolerance
 
 
 def test_kernel_is_self_inverse(implementation, order):
-    """Y^{nN} Y^{nN} = I (baddour2019.md, Eq. 41), even though Y is not symmetric."""
+    """Y^{nN} Y^{nN} = I (baddour2019.md, Eq. 41), even though Y is not symmetric.
+
+    This is the regression test for develop_plan.md's §3.1 divergence: the
+    residual grows with ``order`` (§3.2), so it is bounded by the
+    ``dht_tolerance`` model rather than a flat tolerance -- a flat bound would
+    either hide a regression like the deleted ``RecurrenceBesselDHT``'s (too
+    loose) or reject the numerically-correct kernel above order ~24 (too
+    tight).
+    """
     kernel, _ = _IMPLEMENTATIONS[implementation]._bessel_kernel(order, SIGNAL_SIZE)
     identity = kernel @ kernel
-    np.testing.assert_allclose(identity, np.eye(SIGNAL_SIZE), rtol=RTOL, atol=ATOL)
+    tol = dht_tolerance(order, SIGNAL_SIZE)
+    np.testing.assert_allclose(identity, np.eye(SIGNAL_SIZE), rtol=tol, atol=tol)
 
 
 @pytest.mark.parametrize("n", DHT_ORDERS, ids=lambda n: f"n={n}")
@@ -31,13 +41,17 @@ def test_kernel_self_inverse_small_n_looser_tolerance(implementation, n):
 
 
 def test_kernel_application_is_self_inverse(implementation, order):
-    """Applying the abstract kernel twice returns the original vector."""
+    """Applying the abstract kernel twice returns the original vector.
+
+    Order-sensitive for the same reason as ``test_kernel_is_self_inverse``.
+    """
     rng = np.random.default_rng(0)
     vector = rng.standard_normal(SIGNAL_SIZE)
     impl = _IMPLEMENTATIONS[implementation]
     kernel, _ = impl._bessel_kernel(order, SIGNAL_SIZE)
     twice = impl._apply(kernel, impl._apply(kernel, vector))
-    np.testing.assert_allclose(twice, vector, rtol=RTOL, atol=ATOL)
+    tol = dht_tolerance(order, SIGNAL_SIZE)
+    np.testing.assert_allclose(twice, vector, rtol=tol, atol=tol)
 
 
 def test_kronecker_delta_transform_pair(implementation, order):
@@ -69,15 +83,20 @@ def test_weighted_parseval_is_preserved(implementation, order):
 
     lhs = np.sum(transformed_p * transformed_q * weight)
     rhs = np.sum(p * q * weight)
-    np.testing.assert_allclose(lhs, rhs, rtol=RTOL, atol=ATOL)
+    tol = dht_tolerance(order, SIGNAL_SIZE)
+    np.testing.assert_allclose(lhs, rhs, rtol=tol, atol=tol)
 
 
 def test_forward_inverse_round_trip_is_exact_up_to_tolerance(implementation, order):
-    """The physical (R-scaled) forward/inverse transform round-trips exactly."""
+    """The physical (R-scaled) forward/inverse transform round-trips exactly.
+
+    Order-sensitive for the same reason as ``test_kernel_is_self_inverse``.
+    """
     rng = np.random.default_rng(2)
     f = rng.standard_normal(SIGNAL_SIZE)
     impl = _IMPLEMENTATIONS[implementation]
     R = 1.0
     F = impl.forward(f, order, R)
     reconstructed = impl.inverse(F, order, R)
-    np.testing.assert_allclose(reconstructed, f, rtol=RTOL, atol=ATOL)
+    tol = dht_tolerance(order, SIGNAL_SIZE)
+    np.testing.assert_allclose(reconstructed, f, rtol=tol, atol=tol)

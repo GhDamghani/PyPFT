@@ -10,7 +10,8 @@ import numpy as np
 
 from pypft.dht import DHTImplementation, hankel_transform, inverse_hankel_transform
 
-from .conftest import ALL_IMPLEMENTATIONS, ATOL, RTOL
+from .conftest import ALL_IMPLEMENTATIONS, ATOL, RTOL, SIGNAL_SIZE
+from .tolerance import dht_tolerance
 
 _R = 1.0
 
@@ -18,11 +19,16 @@ _R = 1.0
 def test_forward_inverse_round_trip_on_lena_profiles(
     implementation, order, lena_radial_profiles
 ):
-    """``inverse(forward(f)) ~= f`` for every lena-derived radial profile."""
+    """``inverse(forward(f)) ~= f`` for every lena-derived radial profile.
+
+    Order-sensitive for the same reason as
+    ``tests.dht.test_kernel_properties.test_kernel_is_self_inverse``.
+    """
+    tol = dht_tolerance(order, SIGNAL_SIZE)
     for f in lena_radial_profiles:
         F = hankel_transform(f, order, _R, implementation)
         reconstructed = inverse_hankel_transform(F, order, _R, implementation)
-        np.testing.assert_allclose(reconstructed, f, rtol=RTOL, atol=ATOL)
+        np.testing.assert_allclose(reconstructed, f, rtol=tol, atol=tol)
 
 
 def test_implementations_agree_on_lena_profiles(order, lena_radial_profiles):
