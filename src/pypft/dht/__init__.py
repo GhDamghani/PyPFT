@@ -23,7 +23,6 @@ from pypft.utils.validators import (
 from ._base import BaseDHT
 from ._cached import CachedBesselDHT
 from ._naive import NaiveDHT
-from ._recurrence import RecurrenceBesselDHT
 from ._vectorized import VectorizedDHT
 
 
@@ -32,26 +31,28 @@ class DHTImplementation(Enum):
 
     NAIVE = auto()
     CACHED_BESSEL = auto()
-    RECURRENCE_BESSEL = auto()
     VECTORIZED = auto()
 
 
 _IMPLEMENTATIONS: dict[DHTImplementation, type[BaseDHT]] = {
     DHTImplementation.NAIVE: NaiveDHT,
     DHTImplementation.CACHED_BESSEL: CachedBesselDHT,
-    DHTImplementation.RECURRENCE_BESSEL: RecurrenceBesselDHT,
     DHTImplementation.VECTORIZED: VectorizedDHT,
 }
 
-DEFAULT_IMPLEMENTATION: DHTImplementation = DHTImplementation.RECURRENCE_BESSEL
+DEFAULT_IMPLEMENTATION: DHTImplementation = DHTImplementation.CACHED_BESSEL
 """The implementation used when ``implementation`` is not given explicitly.
 
-Hardcoded to the fastest implementation found by
+Hardcoded to the fastest *numerically sound* implementation found by
 ``.local_files/benchmarks/run_dht_benchmarks.py``: for repeated forward calls at a
 fixed order/size (the realistic usage pattern, e.g. many radial lines sharing one
-discretization), ``RECURRENCE_BESSEL`` and ``CACHED_BESSEL`` are statistically
-tied and ~3000x faster than ``NAIVE``, while ``VECTORIZED``'s ``numba`` thread
-overhead loses to plain BLAS matmul at the benchmarked sizes.
+discretization), ``CACHED_BESSEL`` is ~3000x faster than ``NAIVE``. The
+previously-default ``RECURRENCE_BESSEL`` matched that speed but was removed: its
+upward Bessel-order recurrence is exponentially unstable once the order exceeds
+the argument, which the kernel does by construction, so it silently diverged
+above order ~12 (measured ``max|Y @ Y - I|`` reaching ``2.1e+16`` by order 47).
+``VECTORIZED`` remains slower than plain BLAS matmul at the benchmarked sizes,
+now inheriting ``CACHED_BESSEL``'s kernel instead.
 """
 
 

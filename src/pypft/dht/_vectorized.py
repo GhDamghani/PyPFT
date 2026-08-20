@@ -1,15 +1,15 @@
 """DHT implementation with a parallelized kernel-application step.
 
-Inherits ``pypft.dht._recurrence.RecurrenceBesselDHT``'s optimized Bessel kernel
-unchanged and overrides only ``_apply`` (the "computing the transformation with
-the Bessel values provided" axis), using ``numba``-parallelized loops instead of
+Inherits ``pypft.dht._cached.CachedBesselDHT``'s cached Bessel kernel unchanged
+and overrides only ``_apply`` (the "computing the transformation with the
+Bessel values provided" axis), using ``numba``-parallelized loops instead of
 relying on NumPy/BLAS's own internal parallelism.
 """
 
 import numpy as np
 from numba import njit, prange
 
-from ._recurrence import RecurrenceBesselDHT
+from ._cached import CachedBesselDHT
 
 
 @njit(parallel=True, cache=True)
@@ -37,8 +37,8 @@ def _matmat_parallel(kernel: np.ndarray, matrix: np.ndarray) -> np.ndarray:
     return result
 
 
-class VectorizedDHT(RecurrenceBesselDHT):
-    """DHT applying its (recurrence-built, cached) kernel via parallel loops."""
+class VectorizedDHT(CachedBesselDHT):
+    """DHT applying its (naive-built, cached) kernel via parallel loops."""
 
     @staticmethod
     def _apply(kernel: np.ndarray, vector: np.ndarray) -> np.ndarray:

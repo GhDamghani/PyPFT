@@ -11,7 +11,6 @@ import pytest
 
 from pypft.dht import _IMPLEMENTATIONS, DHTImplementation
 from pypft.dht._naive import NaiveDHT
-from pypft.dht._recurrence import _build_recurrence_kernel
 
 KERNEL_ORDER = 0
 KERNEL_SIZE = 128
@@ -23,10 +22,9 @@ FORWARD_R = 1.0
 APPLY_BATCH = 64
 
 
-@pytest.mark.parametrize("build", [NaiveDHT._bessel_kernel, _build_recurrence_kernel])
-def test_bench_kernel_build(benchmark, build):
-    """Axis (a): building the (uncached) kernel from scratch, direct vs. recurrence."""
-    benchmark(build, KERNEL_ORDER, KERNEL_SIZE)
+def test_bench_kernel_build(benchmark):
+    """Axis (a): building the (uncached) kernel from scratch."""
+    benchmark(NaiveDHT._bessel_kernel, KERNEL_ORDER, KERNEL_SIZE)
 
 
 @pytest.mark.parametrize("implementation", list(DHTImplementation))

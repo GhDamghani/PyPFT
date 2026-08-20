@@ -13,8 +13,14 @@ import numpy as np
 
 from ._naive import NaiveDHT
 
+#: Maximum number of distinct ``(n, size)`` kernels kept alive at once. Each
+#: kernel is a ``(size, size)`` ``complex128`` array (~17 MB at ``size=1024``,
+#: per the plan's memory estimate), so an unbounded cache risks unbounded
+#: growth across a long-running process cycling through many orders/sizes.
+KERNEL_CACHE_MAXSIZE = 128
 
-@lru_cache(maxsize=None)
+
+@lru_cache(maxsize=KERNEL_CACHE_MAXSIZE)
 def _cached_naive_kernel(n: int, size: int) -> tuple[np.ndarray, np.ndarray]:
     """Cache ``NaiveDHT._bessel_kernel`` by ``(n, size)``.
 
