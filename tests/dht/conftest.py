@@ -23,15 +23,21 @@ SAMPLES_PATH = Path(__file__).resolve().parents[1] / "samples" / "lena.tif"
 SIGNAL_SIZE = 64
 
 #: Orders exercised across the parametrized test suite: 0 (the common case,
-#: with a closed-form self-reciprocal Gaussian check) and two arbitrary
-#: nonzero orders, since the implementation supports any non-negative order.
-DHT_ORDERS = (0, 1, 4)
+#: with a closed-form self-reciprocal Gaussian check), a few small arbitrary
+#: nonzero orders, and high orders (16, 32, 64) that specifically exercise the
+#: order-dependent kernel degradation of develop_plan.md's §3.1/§3.2 -- the
+#: gap that let ``RecurrenceBesselDHT`` diverge unnoticed. Order-sensitive
+#: assertions must use ``tests.dht.tolerance.dht_tolerance`` instead of the
+#: flat RTOL/ATOL below once orders this high are involved.
+DHT_ORDERS = (0, 1, 4, 16, 32, 64)
 
 ALL_IMPLEMENTATIONS = tuple(DHTImplementation)
 
 #: Tolerance for SIGNAL_SIZE = 64 (> 30), matching baddour2019.md's own reported
 #: ~1e-7 orthogonality error in that regime (Eq. 37 discussion), with a ~10x
-#: margin observed empirically to hold up through order n=4.
+#: margin observed empirically to hold up through order n=4. Only valid for
+#: order-insensitive assertions -- see ``tests.dht.tolerance`` for orders
+#: above ~12, where this flat bound is measurably too tight (§3.2).
 RTOL = 1e-6
 ATOL = 1e-6
 
