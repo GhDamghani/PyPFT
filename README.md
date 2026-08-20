@@ -160,7 +160,7 @@ Validators for all types (**except locally-defined types**) are located in `src/
 
 The style conventions of this project is based on [PEP 8](https://peps.python.org/pep-0008/). However, there is one exception:
 
-- Maximum Line Length: It's `90` instead of `79`, as recommended by [Black](https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#line-length). It's also not forced on comments, docstrings, and strings. However, we should try to break them. The "Rewrap Revived" extension is helpful for comments and docstrings.
+- Maximum Line Length: It's `88` instead of `79`, as recommended by [Black](https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#line-length). It's also not forced on comments, docstrings, and strings. However, we should try to break them. The "Rewrap Revived" extension is helpful for comments and docstrings.
 
 #### Documentation Strings
 

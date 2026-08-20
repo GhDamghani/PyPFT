@@ -28,18 +28,39 @@ exclusively** (`requires-python = ">=3.14,<3.15"`).
 - Build the package: `uv build`
 - Add/upgrade a dependency (don't hand-edit version pins): `uv add "<pkg>>=X.Y.Z"` or
   `uv add --group dev "<pkg>>=X.Y.Z"`, then `uv lock` / `uv sync`.
-- Format/lint/type-check (all configured in `pyproject.toml`, no wrapper script exists):
-  `uv run black src`, `uv run isort src`, `uv run flake8 src`, `uv run pyright`, `uv run vulture src`
+- Format/lint/type-check: `uv run black src tests benchmarks`, `uv run isort src tests benchmarks`,
+  `uv run flake8 src` (only `src` is linted — `--extend-select=D1` in `pyproject.toml` enforces
+  missing-docstring checks via `flake8-docstrings`), `uv run pyright`, `uv run vulture src`.
+- Run the whole quality gate at once (what CI runs): `./scripts/Invoke-QualityGate.ps1` — pytest, black
+  `--check`, isort `--check-only`, flake8, pyright, vulture, `uv build`, in that order, stopping at the
+  first failure. `./scripts/Test-Notebooks.ps1` runs `uv run pytest --nbmake notebooks/` separately and
+  treats "no notebooks collected yet" (pytest exit code 5) as a pass, not a failure — real notebook content
+  starts arriving later in the project's roadmap.
 - Benchmark the DHT implementations: `uv run python benchmarks/run_dht_benchmarks.py` — not part of
   `uv run pytest` (it lives outside `testpaths`), since it's dev tooling, not a correctness check. Writes
   its report to the gitignored `.local_files/benchmarks/results/`, since reports are generated artifacts.
+- `pytest.ini_options` sets `filterwarnings = ["error"]` — any `warnings.warn` in `src/` needs a matching
+  `pytest.warns` test, or the suite fails.
 
 `pyproject.toml`'s `[project]` table must keep `dependencies = [...]` before `[project.urls]` — TOML
 otherwise attaches a bare `dependencies` key to whichever table header precedes it (this previously broke
 the build: `numba`/`scipy` silently vanished from the resolved lock and `uv sync` failed with a setuptools
 `project.urls.dependencies` validation error).
 
+## CI
+
+`.github/workflows/ci.yml` runs on every pull request and on push to `main`, across a
+`windows-latest`/`ubuntu-latest`/`macos-latest` matrix (`shell: pwsh` throughout): `astral-sh/setup-uv`,
+`uv sync`, then `scripts/Invoke-QualityGate.ps1` and `scripts/Test-Notebooks.ps1`. No inline shell logic
+lives in the YAML — both scripts are meant to be run locally too, so a red CI leg is always reproducible
+with one local command. `CHANGELOG.md` follows Keep a Changelog, with changes accumulating under
+`## [Unreleased]` until a release.
+
 ## Architecture: the validators module
+
+`src/pypft/utils/` is a real (typed) package, not an implicit namespace package — it has an
+`__init__.py`. `src/pypft/py.typed` marks the whole distribution as typed (PEP 561); both are declared in
+`[tool.setuptools.package-data]` so `uv build` includes `py.typed` in the wheel.
 
 `src/pypft/utils/validators.py` is the shared validation module, and its module docstring is the
 authoritative spec for how validation is done project-wide — read it before adding a new validator. Key
@@ -110,9 +131,8 @@ changing any of the kernel math. Key points:
   Google/NumPy style — see any method in `validators.py` for the pattern. Avoid Sphinx cross-reference
   roles (`:class:`/`:func:`/`:meth:`/`:data:`) — flake8's RST checker doesn't recognize them; use plain
   double-backtick literals (`` ``Name`` ``) instead, per the existing files.
-- **Line length**: `pyproject.toml`'s `[tool.black]`/`[tool.flake8]` enforce 88 chars — note `README.md`
-  and `.vscode/settings.json` (editor rulers, `rewrap.wrappingColumn`) both say 90; treat the actually
-  configured values in `pyproject.toml` as authoritative for tooling.
+- **Line length**: 88 chars everywhere — `pyproject.toml`'s `[tool.black]`/`[tool.flake8]`, `README.md`,
+  and `.vscode/settings.json` (editor rulers, `rewrap.wrappingColumn`) all agree.
 - **Code-sectioning comments**: `# ` + repeated character to fill the line width — `=` for a top-level
   section, `-` for a subsection, `*`/`.` for the same one indent level in. Snippets: `@ section`,
   `@ subsection`, `@ isection`, `@ isubsection` in `.vscode/helpers.code-snippets`.
@@ -122,6 +142,12 @@ changing any of the kernel math. Key points:
 `benchmarks/` (tracked) holds `bench_dht.py` (pytest-benchmark test functions comparing the DHT
 implementations) and `run_dht_benchmarks.py` (runs them and exports a sorted Markdown report); see the DHT
 architecture section above for how its results drove `DEFAULT_IMPLEMENTATION`.
+
+## Notebooks
+
+`notebooks/` is tracked and executed in CI via `nbmake` (see the CI section above), as one incremental
+tutorial sequence where each notebook assumes only its predecessors. It is currently empty — tutorial
+content lands alongside the features it demonstrates.
 
 ## Local, gitignored data
 
