@@ -71,7 +71,7 @@ def test_weighted_parseval_is_preserved(implementation, order):
     rhs = np.sum(p * q * weight)
     np.testing.assert_allclose(lhs, rhs, rtol=RTOL, atol=ATOL)
 
- 
+
 def test_forward_inverse_round_trip_is_exact_up_to_tolerance(implementation, order):
     """The physical (R-scaled) forward/inverse transform round-trips exactly."""
     rng = np.random.default_rng(2)

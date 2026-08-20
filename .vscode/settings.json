@@ -9,7 +9,7 @@
     "[python]": {
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.rulers": [
-            90
+            88
         ],
         "editor.codeActionsOnSave": {
             "source.organizeImports": "explicit"
@@ -46,5 +46,5 @@
     "autoDocstring.startOnNewLine": true, // New line before summary
     "autoDocstring.generateDocstringOnEnter": true, // Auto-generate on Enter after """
     "autoDocstring.quoteStyle": "\"\"\"",
-    "rewrap.wrappingColumn": 90
+    "rewrap.wrappingColumn": 88
 }
