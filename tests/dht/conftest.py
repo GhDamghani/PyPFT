@@ -40,6 +40,7 @@ ATOL = 1e-6
 def lena_image() -> np.ndarray:
     """The lena test image as a 2-D ``float64`` grayscale array."""
     image = cv2.imread(str(SAMPLES_PATH), cv2.IMREAD_GRAYSCALE)
+    assert image is not None, f"failed to read {SAMPLES_PATH}"
     return image.astype(np.float64)
 
 
