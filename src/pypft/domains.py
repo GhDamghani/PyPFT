@@ -108,9 +108,7 @@ class BaseSignal:
         NumpyValidator.value_is_2d(value=self.values)
         _type_is_polar_grid(value=self.grid)
         reference = np.empty((self.grid.n_radial, self.grid.n_angular))
-        NumpyValidator.value1_shape_matches_value2(
-            value1=self.values, value2=reference
-        )
+        NumpyValidator.value1_shape_matches_value2(value1=self.values, value2=reference)
 
     def to(self, domain: Domain) -> "BaseSignal":
         """Walk ``_CHAIN`` from this signal's own domain to ``domain``.

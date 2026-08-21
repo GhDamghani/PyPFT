@@ -124,7 +124,9 @@ def _validate_transform_inputs(
     NumpyValidator.type_is_ndarray(value=signal)
     NumpyValidator.value_is_at_least_1d(value=signal)
     EnumValidator.type_is_enum(value=implementation)
-    EnumValidator.value_is_enum_member(value=implementation, enum_class=DFTImplementation)
+    EnumValidator.value_is_enum_member(
+        value=implementation, enum_class=DFTImplementation
+    )
     IntValidator.type_is_int(value=axis)
     NumpyValidator.value_has_axis(value=signal, axis=axis)
 

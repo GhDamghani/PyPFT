@@ -86,7 +86,9 @@ def _validate_transform_inputs(
     FloatValidator.type_is_float(value=R)
     FloatValidator.value_is_positive(value=R)
     EnumValidator.type_is_enum(value=implementation)
-    EnumValidator.value_is_enum_member(value=implementation, enum_class=DHTImplementation)
+    EnumValidator.value_is_enum_member(
+        value=implementation, enum_class=DHTImplementation
+    )
     IntValidator.type_is_int(value=axis)
     NumpyValidator.value_has_axis(value=signal, axis=axis)
 
@@ -191,5 +193,7 @@ def sample_points(
     FloatValidator.type_is_float(value=R)
     FloatValidator.value_is_positive(value=R)
     EnumValidator.type_is_enum(value=implementation)
-    EnumValidator.value_is_enum_member(value=implementation, enum_class=DHTImplementation)
+    EnumValidator.value_is_enum_member(
+        value=implementation, enum_class=DHTImplementation
+    )
     return _IMPLEMENTATIONS[implementation].sample_points(n=n, size=size, R=R)
