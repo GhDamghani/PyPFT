@@ -26,6 +26,7 @@ dependencies = [
   "matplotlib>=3.11.0",
   "numba>=0.65.1",
   "numpy>=2.4.6",
+  "opencv-python-headless>=4.10",
   "scipy>=1.17.1",
 ]
 
@@ -54,7 +55,6 @@ dev = [
     "vulture>=2.16",
     "wheel>=0.47.0",
     "pyright>=1.1.411",
-    "opencv-python-headless>=4.10",
     "pytest-benchmark>=5.1.0",
     "nbmake>=1.5.4",
     "sphinx>=8.1.3",
