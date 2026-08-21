@@ -123,9 +123,7 @@ class BaseDHT:
         return r, rho
 
     @classmethod
-    def forward(
-        cls, f: np.ndarray, n: int, R: float, *, axis: int = -1
-    ) -> np.ndarray:
+    def forward(cls, f: np.ndarray, n: int, R: float, *, axis: int = -1) -> np.ndarray:
         """Compute the physical, ``R``-scaled forward discrete Hankel transform.
 
         :param f: The space-domain samples ``f(r_nk)``, sampled at the points
@@ -147,9 +145,7 @@ class BaseDHT:
         return (R**2 / j_nN) * cls._apply_along_axis(kernel, f, axis)
 
     @classmethod
-    def inverse(
-        cls, F: np.ndarray, n: int, R: float, *, axis: int = -1
-    ) -> np.ndarray:
+    def inverse(cls, F: np.ndarray, n: int, R: float, *, axis: int = -1) -> np.ndarray:
         """Compute the physical, ``R``-scaled inverse discrete Hankel transform.
 
         :param F: The frequency-domain samples ``F(rho_nk)``, along ``axis`` of
