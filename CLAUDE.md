@@ -15,10 +15,12 @@ So far: `src/pypft/dht/` (the
 discrete Hankel transform, three strategy implementations), `src/pypft/dft/` (the angular discrete Fourier
 transform, two strategy implementations), `src/pypft/utils/validators.py` (shared input validation),
 `src/pypft/axes.py` (the axis vocabulary and centered-angular convention), `src/pypft/geometry.py` (the
-Cartesian↔polar image bridge), `src/pypft/references.py` (citation machinery), and a Sphinx docs skeleton
-(`docs/`) with the first two tutorial notebooks. There is still no `PolarGrid`, the actual PFT/IPFT
-pipeline, domain objects, visualization, or a CLI. Do not assume any prior architecture, module, or API
-still exists — check the current file tree before referencing paths from git history.
+Cartesian↔polar image bridge), `src/pypft/grid.py` (`PolarGrid`, the transform's own order-dependent
+sampling grid, plus the production `sample_cartesian` sampler and the `check_adequacy`/
+`check_nyquist_adequacy` warnings), `src/pypft/references.py` (citation machinery), and a Sphinx docs
+skeleton (`docs/`) with three tutorial notebooks. There is still no actual PFT/IPFT pipeline, domain
+objects, visualization, or a CLI. Do not assume any prior architecture, module, or API still exists —
+check the current file tree before referencing paths from git history.
 
 ## Environment and commands
 
@@ -69,11 +71,15 @@ with one local command. `CHANGELOG.md` follows Keep a Changelog, with changes ac
 ## Architecture: the package facade
 
 `src/pypft/__init__.py` re-exports the public surface from each submodule (`Axis`, `DEFAULT_BATCH_AXIS`,
-the DHT API, the geometry functions, `Reference`/`cite`/`bibliography`), listed in `__all__` — this is what
-keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module. `pypft.dft` is
-deliberately **not** re-exported here: it is internal plumbing between the geometry/axes layer and the DHT
-(no notebook of its own — see the Notebooks section), reachable as `pypft.dft.angular_dft` and documented
-via `docs/api.rst`, the same way `pypft.utils.validators` is public but un-re-exported.
+the DHT API, the geometry functions, the grid API — `PolarGrid`, `LimitKind`, `sample_cartesian`,
+`check_adequacy`, `check_nyquist_adequacy` — and `Reference`/`cite`/`bibliography`), listed in `__all__` —
+this is what keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module.
+`pypft.dft` is deliberately **not** re-exported here: it is internal plumbing between the geometry/axes
+layer and the DHT (no notebook of its own — see the Notebooks section), reachable as
+`pypft.dft.angular_dft` and documented via `docs/api.rst`, the same way `pypft.utils.validators` is public
+but un-re-exported. `pypft.grid`'s two warning classes (`AdequacyWarning`, `NyquistWarning`) are likewise
+reachable via `pypft.grid.*` but not re-exported at the top level, since filtering on them is an
+opt-in developer action rather than everyday API surface.
 
 ## Architecture: the validators module
 
@@ -88,7 +94,10 @@ points:
 - One class per type, named `<Type>Validator` (e.g. `IntValidator`, `PathValidator`), holding
   `@staticmethod`s. Validators for locally-defined (in-package) types live on the class where that type is
   defined, to avoid circular imports — not in this shared module (e.g. `DHTImplementation`'s enum
-  membership is validated in `src/pypft/dht/__init__.py`, not here).
+  membership is validated in `src/pypft/dht/__init__.py`, not here; `PolarGrid`'s own type-validator,
+  `_type_is_polar_grid`, likewise lives in `src/pypft/grid.py`). `NumpyValidator` also has
+  `value_is_2d`/`value_is_finite` (added for `pypft.grid.sample_cartesian`'s image argument), alongside the
+  pre-existing `value_is_1d`/`value_is_at_least_1d`.
 - Methods are named `type_is_<typename>` (type-validators, raise `TypeError`) or
   `value_<is|has|should|...>_<condition>` (value-validators, raise `ValueError`, or an `OSError` subclass
   for filesystem-state checks like "path writable").
@@ -133,8 +142,8 @@ current consumers.
 resample an ordinary image onto, and back off of, a **uniform** polar grid. This is explicitly *not* the
 discrete Hankel transform's own sampling grid (which is order-dependent and non-uniform, per Baddour's
 `r_nk`) — these two functions exist because `warpPolar` is the natural first illustration of what "polar"
-means for an image, not because their output feeds the transform. A real, order-dependent sampler
-(`pypft.grid.sample_cartesian`) is future work.
+means for an image, not because their output feeds the transform. The real, order-dependent sampler is
+`pypft.grid.sample_cartesian` (see the sampling-grid section below).
 
 Two deliberate conversions happen at this boundary, each undone by the opposite function:
 
@@ -150,6 +159,42 @@ rotating from the positive-`x` axis towards the positive-`y` axis (downward on s
 direction — counter-clockwise in image coordinates, but clockwise as the image is drawn. `+pi/2` and
 `-pi/2` are tested as separate cases because a symmetric test set can't see this sign convention if it's
 ever inverted by accident.
+
+## Architecture: the sampling grid (`src/pypft/grid.py`)
+
+`PolarGrid` is the discrete Hankel transform's *actual* sampling grid — order-dependent and
+non-uniform, unlike `pypft.geometry`'s uniform illustration grid. It is a frozen, hashable dataclass
+(`n_radial`, `n_angular`, `R`, `limit_kind`); every array-valued attribute (`r`, `rho`, `theta`, `psi`,
+`harmonics`, `parity`) is a `@property` recomputed from those four fields on access rather than cached on
+the instance, since the underlying `pypft.dht.sample_points` call is already memoized by its own
+`(order, size)` kernel cache. Key points:
+
+- **Row `i`'s Bessel order is `abs(harmonics(n_angular)[i])`.** `PolarGrid.r`/`.rho` loop over
+  `pypft.dft.harmonics(n_angular)` and call `pypft.dht.sample_points` once per row — the "key cross-check"
+  this reuses is that `grid.r` at the harmonic-0 row is bit-identical to `sample_points(0, n_radial, R)[0]`,
+  since it is the exact same call. `theta`/`psi` are the single 1-D array
+  `harmonics(n_angular) * (2 * pi / n_angular)`, shared by both domains.
+- **`LimitKind.SPACE_LIMITED` vs. `BAND_LIMITED`** (PeerJ CS Part II, Eqs. 14-17) are the same
+  Bessel-zero ratios with `r`/`rho` swapped and `R` reinterpreted as the band limit `Wr` — implemented as
+  exactly that: `PolarGrid.r`/`.rho` pick one of `sample_points`'s two outputs for `SPACE_LIMITED` and the
+  other for `BAND_LIMITED`, rather than a second formula.
+- **`check_adequacy(grid)`** warns (`AdequacyWarning`, never raises) when `n_radial` is too small for
+  `n_angular`, using a log-log least-squares fit of this package's own measured forward-Gaussian-oracle
+  error to `(n_angular, n_radial)` (nine points, residual under 0.6 dB) — *not* a formula from either
+  paper. The warning threshold (`-60` dB predicted average error) is chosen to match the eventual PFT
+  pipeline's own forward-accuracy acceptance gate, so the two stay consistent.
+- **`check_nyquist_adequacy(grid, band_limit)`** warns (`NyquistWarning`) using PeerJ CS Part II's Eq. 21
+  directly (`j_(0, N1) >= band_limit * R`, checked via `scipy.special.jn_zeros`) — the order-0 zero is the
+  binding constraint since it is the smallest across every harmonic order the transform uses. Only
+  `LimitKind.SPACE_LIMITED` is supported; band-limited grids raise `NotImplementedError` rather than
+  silently checking the wrong condition.
+- **`sample_cartesian(image, grid)`** is the production sampler: one `cv2.remap` call at `grid.r`/
+  `grid.theta`, using the same angle convention as `pypft.geometry` (measured directly on image
+  coordinates, no `y`-flip). `cv2.remap`'s `INTER_LINEAR` interpolates on a fixed-point, 1/32-pixel
+  sub-pixel grid rather than at full `float64` precision — `tests/test_grid.py`'s tolerance for this
+  function matches `tests/test_geometry.py`'s own round-trip tolerance for the same reason.
+- Grid construction is deliberately a **single implementation**, no `DHTImplementation`-style strategy
+  pattern or benchmark — there is nothing here to pick a fastest strategy between.
 
 ## Architecture: citations (`src/pypft/references.py`)
 
@@ -279,12 +324,15 @@ in a row. `docs/jupyter_execute/` is gitignored either way, so deleting it (alon
 ## Notebooks
 
 `notebooks/` is tracked and executed in CI via `nbmake` (see the CI section above), as one incremental
-tutorial sequence where each notebook assumes only its predecessors: `00_installation_and_quickstart.ipynb`
-and `01_polar_and_cartesian_images.ipynb` exist so far. Internal-plumbing phases (the DHT's N-D
-generalization, the angular DFT subsystem) deliberately get no notebook of their own — their gate is that
-every *existing* notebook still executes, since a notebook per internal subsystem would duplicate the API
-reference without teaching a workflow. See "Architecture: citations" above for the citation discipline
-notebooks must follow when they state a mathematical result.
+tutorial sequence where each notebook assumes only its predecessors: `00_installation_and_quickstart.ipynb`,
+`01_polar_and_cartesian_images.ipynb`, and `02_sampling_grids.ipynb` (the `PolarGrid` sampling grid: why it
+is non-uniform, the central gap that never fully closes, the angular-vs-radial resolution trade-off via
+`check_adequacy`, and the Nyquist condition via `check_nyquist_adequacy`) exist so far. Internal-plumbing
+work (the DHT's N-D generalization, the angular DFT subsystem) deliberately gets no notebook of its own —
+their gate is that every *existing* notebook still executes, since a notebook per internal subsystem
+would duplicate the API reference without teaching a workflow. See "Architecture: citations" above for
+the citation discipline notebooks must follow when they state a mathematical result — `02_sampling_grids`
+is the first notebook to actually cite anything (`YaoBaddour2020`).
 
 ## Conventions (from `README.md`)
 
