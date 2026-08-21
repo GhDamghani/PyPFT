@@ -35,9 +35,7 @@ _SHAPE_AXIS_CASES = [
 ]
 
 
-@pytest.mark.parametrize(
-    "shape,axis", _SHAPE_AXIS_CASES, ids=lambda v: str(v)
-)
+@pytest.mark.parametrize("shape,axis", _SHAPE_AXIS_CASES, ids=lambda v: str(v))
 def test_apply_along_axis_matches_reference(implementation, shape, axis):
     """``_apply_along_axis`` matches ``numpy.apply_along_axis`` at every rank/axis."""
     impl = _IMPLEMENTATIONS[implementation]
@@ -106,6 +104,4 @@ def test_hankel_transform_axis_matches_looping_over_other_axes(implementation):
 
     for i in range(batch.shape[1]):
         expected = hankel_transform(batch[:, i], _ORDER, _R, implementation)
-        np.testing.assert_allclose(
-            batched[:, i], expected, rtol=1e-10, atol=1e-10
-        )
+        np.testing.assert_allclose(batched[:, i], expected, rtol=1e-10, atol=1e-10)

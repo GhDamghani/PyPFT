@@ -334,7 +334,9 @@ class NumpyValidator:
 
         """
         if value.ndim < 1:
-            raise ValueError(f"value must have at least 1 dimension, got {value.ndim}-D")
+            raise ValueError(
+                f"value must have at least 1 dimension, got {value.ndim}-D"
+            )
 
     @staticmethod
     def value_has_axis(value: np.ndarray, axis: int) -> None:
@@ -349,9 +351,7 @@ class NumpyValidator:
 
         """
         if not (-value.ndim <= axis < value.ndim):
-            raise ValueError(
-                f"axis {axis} is out of bounds for {value.ndim}-D value"
-            )
+            raise ValueError(f"axis {axis} is out of bounds for {value.ndim}-D value")
 
     @staticmethod
     def value1_axis_length_matches_value2(
