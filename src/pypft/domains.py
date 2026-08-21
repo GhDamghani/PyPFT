@@ -27,11 +27,11 @@ from typing import ClassVar
 
 import numpy as np
 
-from pypft.axes import Axis
+from pypft.axes import DEFAULT_BATCH_AXIS, Axis
 from pypft.dft import angular_dft, inverse_angular_dft
-from pypft.grid import PolarGrid, _type_is_polar_grid
-from pypft.transform import Direction, scaled_hankel
-from pypft.utils.validators import EnumValidator, NumpyValidator
+from pypft.grid import PolarGrid
+from pypft.transform import Direction, _validate_pft_input, scaled_hankel
+from pypft.utils.validators import EnumValidator
 
 # ======================================================================================
 # The domain chain
@@ -87,28 +87,31 @@ class BaseSignal:
     on a hand-written chain, not just a runtime one. ``to`` is the dynamic
     counterpart, walking ``_CHAIN`` to an arbitrary target domain.
 
-    :param values: The signal's samples, on ``grid``'s ``(n_radial, n_angular)``
-        layout (``pypft.axes.Axis``).
+    :param values: The signal's samples, on ``grid``'s ``(n_radial, n_angular[,
+        batch])`` layout (``pypft.axes.Axis``).
     :type values: np.ndarray
     :param grid: The sampling grid ``values`` is defined on.
     :type grid: pypft.grid.PolarGrid
+    :param batch_axis: The axis of ``values`` holding the batch dimension, only
+        meaningful for a 3-D ``values`` -- PyPFT's own layout always places it
+        last, so the only accepted value is ``pypft.axes.DEFAULT_BATCH_AXIS``.
+    :type batch_axis: int
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``values`` is not 2-D or its shape does not match
-        ``grid``.
+    :raises ValueError: If ``values`` is not 2-D or 3-D, or its shape does not
+        match ``grid``/``batch_axis``.
 
     """
 
     values: np.ndarray
     grid: PolarGrid
     domain: ClassVar[Domain]
+    batch_axis: int = DEFAULT_BATCH_AXIS
 
     def __post_init__(self) -> None:
-        """Validate ``values``/``grid`` once, right after construction."""
-        NumpyValidator.type_is_ndarray(value=self.values)
-        NumpyValidator.value_is_2d(value=self.values)
-        _type_is_polar_grid(value=self.grid)
-        reference = np.empty((self.grid.n_radial, self.grid.n_angular))
-        NumpyValidator.value1_shape_matches_value2(value1=self.values, value2=reference)
+        """Validate ``values``/``grid``/``batch_axis``, right after construction."""
+        _validate_pft_input(
+            values=self.values, grid=self.grid, batch_axis=self.batch_axis
+        )
 
     def to(self, domain: Domain) -> "BaseSignal":
         """Walk ``_CHAIN`` from this signal's own domain to ``domain``.
@@ -151,7 +154,9 @@ class SpacePolarSignal(BaseSignal):
 
         """
         values = angular_dft(x=self.values, axis=Axis.ANGULAR)
-        return SpaceHarmonicSignal(values=values, grid=self.grid)
+        return SpaceHarmonicSignal(
+            values=values, grid=self.grid, batch_axis=self.batch_axis
+        )
 
 
 @dataclass(frozen=True)
@@ -168,7 +173,9 @@ class SpaceHarmonicSignal(BaseSignal):
 
         """
         values = inverse_angular_dft(X=self.values, axis=Axis.ANGULAR)
-        return SpacePolarSignal(values=values, grid=self.grid)
+        return SpacePolarSignal(
+            values=values, grid=self.grid, batch_axis=self.batch_axis
+        )
 
     def to_frequency(self) -> "FrequencyHarmonicSignal":
         """Apply the scaled forward Hankel transform, moving to the frequency domain.
@@ -182,8 +189,11 @@ class SpaceHarmonicSignal(BaseSignal):
             grid=self.grid,
             direction=Direction.FORWARD,
             axis=Axis.RADIAL,
+            angular_axis=Axis.ANGULAR,
         )
-        return FrequencyHarmonicSignal(values=values, grid=self.grid)
+        return FrequencyHarmonicSignal(
+            values=values, grid=self.grid, batch_axis=self.batch_axis
+        )
 
 
 @dataclass(frozen=True)
@@ -204,8 +214,11 @@ class FrequencyHarmonicSignal(BaseSignal):
             grid=self.grid,
             direction=Direction.INVERSE,
             axis=Axis.RADIAL,
+            angular_axis=Axis.ANGULAR,
         )
-        return SpaceHarmonicSignal(values=values, grid=self.grid)
+        return SpaceHarmonicSignal(
+            values=values, grid=self.grid, batch_axis=self.batch_axis
+        )
 
     def to_angles(self) -> "FrequencyPolarSignal":
         """Apply the angular IDFT, moving to the frequency domain's angle axis.
@@ -215,7 +228,9 @@ class FrequencyHarmonicSignal(BaseSignal):
 
         """
         values = inverse_angular_dft(X=self.values, axis=Axis.ANGULAR)
-        return FrequencyPolarSignal(values=values, grid=self.grid)
+        return FrequencyPolarSignal(
+            values=values, grid=self.grid, batch_axis=self.batch_axis
+        )
 
 
 @dataclass(frozen=True)
@@ -232,4 +247,6 @@ class FrequencyPolarSignal(BaseSignal):
 
         """
         values = angular_dft(x=self.values, axis=Axis.ANGULAR)
-        return FrequencyHarmonicSignal(values=values, grid=self.grid)
+        return FrequencyHarmonicSignal(
+            values=values, grid=self.grid, batch_axis=self.batch_axis
+        )
