@@ -39,12 +39,12 @@ _SHAPE_AXIS_CASES = [
 def test_apply_along_axis_matches_reference(implementation, shape, axis):
     """``_apply_along_axis`` matches ``numpy.apply_along_axis`` at every rank/axis."""
     impl = _IMPLEMENTATIONS[implementation]
-    kernel, _ = NaiveDHT._bessel_kernel(_ORDER, SIGNAL_SIZE)
+    kernel, _ = NaiveDHT._bessel_kernel(n=_ORDER, size=SIGNAL_SIZE)
     rng = np.random.default_rng(0)
     values = rng.standard_normal(shape)
 
-    actual = impl._apply_along_axis(kernel, values, axis)
-    expected = np.apply_along_axis(lambda v: kernel @ v, axis, values)
+    actual = impl._apply_along_axis(kernel=kernel, values=values, axis=axis)
+    expected = np.apply_along_axis(func1d=lambda v: kernel @ v, axis=axis, arr=values)
 
     np.testing.assert_allclose(actual, expected, rtol=1e-8, atol=1e-10)
 
@@ -52,7 +52,7 @@ def test_apply_along_axis_matches_reference(implementation, shape, axis):
 def test_apply_along_axis_is_bit_identical_on_1d_and_2d(implementation):
     """No behavior change for the 1-D/2-D shapes the suite already exercised."""
     impl = _IMPLEMENTATIONS[implementation]
-    kernel, _ = NaiveDHT._bessel_kernel(_ORDER, SIGNAL_SIZE)
+    kernel, _ = NaiveDHT._bessel_kernel(n=_ORDER, size=SIGNAL_SIZE)
     rng = np.random.default_rng(1)
 
     vector = rng.standard_normal(SIGNAL_SIZE)
@@ -71,7 +71,7 @@ def test_apply_along_axis_is_bit_identical_on_1d_and_2d(implementation):
 def test_positive_and_negative_axis_indices_agree(implementation):
     """``axis=1`` and the equivalent ``axis=-2`` produce the same result."""
     impl = _IMPLEMENTATIONS[implementation]
-    kernel, _ = NaiveDHT._bessel_kernel(_ORDER, SIGNAL_SIZE)
+    kernel, _ = NaiveDHT._bessel_kernel(n=_ORDER, size=SIGNAL_SIZE)
     rng = np.random.default_rng(2)
     values = rng.standard_normal((3, SIGNAL_SIZE, 4))
 
@@ -84,7 +84,7 @@ def test_positive_and_negative_axis_indices_agree(implementation):
 def test_apply_along_axis_preserves_complex_dtype(implementation):
     """A complex input stays complex through an N-D, non-default-axis application."""
     impl = _IMPLEMENTATIONS[implementation]
-    kernel, _ = NaiveDHT._bessel_kernel(_ORDER, SIGNAL_SIZE)
+    kernel, _ = NaiveDHT._bessel_kernel(n=_ORDER, size=SIGNAL_SIZE)
     rng = np.random.default_rng(3)
     values = rng.standard_normal((3, SIGNAL_SIZE, 4)) + 1j * rng.standard_normal(
         (3, SIGNAL_SIZE, 4)

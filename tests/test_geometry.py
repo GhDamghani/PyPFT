@@ -54,8 +54,10 @@ def test_polar_to_cartesian_approximately_inverts_cartesian_to_polar():
     sigma = _IMAGE_SIZE / 6.4
     image = np.exp(-(r**2) / (2 * sigma**2))
 
-    polar = cartesian_to_polar(image, _N_RADIAL, _N_ANGULAR)
-    reconstructed = polar_to_cartesian(polar, _IMAGE_SIZE, _IMAGE_SIZE)
+    polar = cartesian_to_polar(image=image, n_radial=_N_RADIAL, n_angular=_N_ANGULAR)
+    reconstructed = polar_to_cartesian(
+        polar=polar, height=_IMAGE_SIZE, width=_IMAGE_SIZE
+    )
 
     max_radius = _IMAGE_SIZE / 2.0
     disk = r < 0.9 * max_radius
@@ -86,7 +88,7 @@ def test_angular_origin_wedge_lands_at_the_predicted_centered_index(label, phi0)
     )
     image = wedge.astype(np.float64)
 
-    polar = cartesian_to_polar(image, _N_RADIAL, _N_ANGULAR)
+    polar = cartesian_to_polar(image=image, n_radial=_N_RADIAL, n_angular=_N_ANGULAR)
     angular_energy = polar.sum(axis=0)
     measured_index = int(np.argmax(angular_energy))
 

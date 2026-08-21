@@ -103,7 +103,9 @@ def harmonics(n_angular: int) -> np.ndarray:
     """
     IntValidator.type_is_int(value=n_angular)
     IntValidator.value_is_positive(value=n_angular)
-    return np.arange(start=-(n_angular // 2), stop=n_angular - n_angular // 2)
+    # np.arange's typed overloads only match positional start/stop -- pyright
+    # rejects the keyword form even though it works at runtime.
+    return np.arange(-(n_angular // 2), n_angular - n_angular // 2)
 
 
 def _validate_transform_inputs(

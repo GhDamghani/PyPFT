@@ -50,23 +50,23 @@ def _forward_oracle_error_db(n_angular, implementation):
     :rtype: tuple[float, float]
 
     """
-    harms = harmonics(n_angular)
+    harms = harmonics(n_angular=n_angular)
     r = np.empty((n_angular, _SIZE))
     rho = np.empty((n_angular, _SIZE))
     for i, n in enumerate(harms):
-        zeros = jn_zeros(abs(int(n)), _SIZE + 1)  # order-dependent radial grid
+        zeros = jn_zeros(n=abs(int(n)), nt=_SIZE + 1)  # order-dependent radial grid
         r[i, :] = zeros[:-1] / zeros[-1] * _R
         rho[i, :] = zeros[:-1] / _R
 
     f = np.exp(-(r**2))
-    fnk = angular_dft(f, implementation, axis=0)
+    fnk = angular_dft(x=f, implementation=implementation, axis=0)
     Fnl = np.empty_like(fnk)
     for i, n in enumerate(harms):
         n = int(n)
         sign = (-1.0) ** abs(n) if n < 0 else 1.0  # negative-order relation
-        dht = CachedBesselDHT.forward(fnk[i, :], abs(n), _R)
+        dht = CachedBesselDHT.forward(f=fnk[i, :], n=abs(n), R=_R)
         Fnl[i, :] = sign * dht * (2 * np.pi) * (1j ** (-n))  # per-harmonic scale
-    F = inverse_angular_dft(Fnl, implementation, axis=0)
+    F = inverse_angular_dft(X=Fnl, implementation=implementation, axis=0)
 
     expected = np.pi * np.exp(-(rho**2) / 4)  # the analytic Hankel-transform oracle
     err_db = 20 * np.log10(np.abs(expected - F) / np.max(np.abs(F)))
@@ -78,7 +78,9 @@ def test_angular_dft_composes_with_dht_to_match_the_published_pft_error(
     n_angular, expected_avg, expected_max, implementation
 ):
     """The DFT+DHT+IDFT chain matches Yao & Baddour Part II's own figures."""
-    avg_db, max_db = _forward_oracle_error_db(n_angular, implementation)
+    avg_db, max_db = _forward_oracle_error_db(
+        n_angular=n_angular, implementation=implementation
+    )
     assert avg_db == pytest.approx(expected_avg, abs=0.1)
     assert max_db == pytest.approx(expected_max, abs=0.1)
 
@@ -91,8 +93,8 @@ def test_even_n_angular_error_interleaves_between_its_odd_neighbours(implementat
     this interleaved ordering rather than smoothly continuing the trend its
     odd neighbours set.
     """
-    avg_15, _ = _forward_oracle_error_db(15, implementation)
-    avg_16, _ = _forward_oracle_error_db(16, implementation)
-    avg_17, _ = _forward_oracle_error_db(17, implementation)
+    avg_15, _ = _forward_oracle_error_db(n_angular=15, implementation=implementation)
+    avg_16, _ = _forward_oracle_error_db(n_angular=16, implementation=implementation)
+    avg_17, _ = _forward_oracle_error_db(n_angular=17, implementation=implementation)
 
     assert avg_15 < avg_16 < avg_17

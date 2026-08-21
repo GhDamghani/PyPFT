@@ -45,7 +45,7 @@ ATOL = 1e-6
 @pytest.fixture(scope="session")
 def lena_image() -> np.ndarray:
     """The lena test image as a 2-D ``float64`` grayscale array."""
-    image = cv2.imread(str(SAMPLES_PATH), cv2.IMREAD_GRAYSCALE)
+    image = cv2.imread(filename=str(SAMPLES_PATH), flags=cv2.IMREAD_GRAYSCALE)
     assert image is not None, f"failed to read {SAMPLES_PATH}"
     return image.astype(np.float64)
 
@@ -69,11 +69,11 @@ def lena_radial_profiles(lena_image: np.ndarray) -> list[np.ndarray]:
     max_radius = min(height, width) / 2
     num_angles = 16
     polar = cv2.warpPolar(
-        lena_image,
-        (SIGNAL_SIZE, num_angles),
-        center,
-        max_radius,
-        cv2.WARP_POLAR_LINEAR,
+        src=lena_image,
+        dsize=(SIGNAL_SIZE, num_angles),
+        center=center,
+        maxRadius=max_radius,
+        flags=cv2.WARP_POLAR_LINEAR,
     )
     profiles = [polar[i, :] for i in range(0, num_angles, 4)]
     profiles.append(polar.mean(axis=0))

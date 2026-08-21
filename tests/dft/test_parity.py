@@ -21,13 +21,13 @@ from pypft.dft import AngularParity, angular_dft, angular_parity, harmonics
 )
 def test_angular_parity_classifies_correctly(n_angular, expected):
     """``angular_parity`` reports the sample count's parity, not a judgment."""
-    assert angular_parity(n_angular) == expected
+    assert angular_parity(n_angular=n_angular) == expected
 
 
 @pytest.mark.parametrize("n_angular", [15, 16])
 def test_harmonics_has_length_n_angular_and_holds_index_minus_half_size(n_angular):
     """``harmonics`` matches ``pypft.axes``'s centering convention exactly."""
-    harms = harmonics(n_angular)
+    harms = harmonics(n_angular=n_angular)
     assert harms.shape == (n_angular,)
     assert harms[0] == -(n_angular // 2)
     assert harms[-1] == n_angular - n_angular // 2 - 1
@@ -35,13 +35,13 @@ def test_harmonics_has_length_n_angular_and_holds_index_minus_half_size(n_angula
 
 def test_odd_n_angular_harmonic_range_is_symmetric():
     """Odd sizes give every harmonic a ``-n``/``+n`` partner."""
-    harms = set(int(n) for n in harmonics(15))
+    harms = set(int(n) for n in harmonics(n_angular=15))
     assert harms == {-n for n in harms}
 
 
 def test_even_n_angular_nyquist_harmonic_has_no_positive_partner():
     """Even sizes leave ``-n_angular // 2`` without a ``+n_angular // 2`` partner."""
-    harms = set(int(n) for n in harmonics(16))
+    harms = set(int(n) for n in harmonics(n_angular=16))
     nyquist = -8
     assert nyquist in harms
     assert -nyquist not in harms
@@ -58,10 +58,10 @@ def test_conjugate_symmetry_holds_except_at_the_even_nyquist_harmonic(implementa
     for n_angular in (15, 16):
         rng = np.random.default_rng(3)
         x = rng.standard_normal(n_angular)  # real-valued, no imaginary part
-        harms = harmonics(n_angular)
+        harms = harmonics(n_angular=n_angular)
         harm_to_index = {int(n): i for i, n in enumerate(harms)}
 
-        result = angular_dft(x, implementation)
+        result = angular_dft(x=x, implementation=implementation)
 
         skipped_unpaired = 0
         for n, i in harm_to_index.items():

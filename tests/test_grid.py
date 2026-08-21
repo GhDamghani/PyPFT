@@ -40,11 +40,11 @@ def _manual_space_limited_r_rho(
     ``scipy.special.jn_zeros`` -- so this is an external oracle, not a
     reimplementation of the code under test.
     """
-    harms = harmonics(n_angular)
+    harms = harmonics(n_angular=n_angular)
     r = np.empty((n_angular, n_radial))
     rho = np.empty((n_angular, n_radial))
     for row, p in enumerate(harms):
-        zeros = jn_zeros(int(abs(p)), n_radial + 1)
+        zeros = jn_zeros(n=int(abs(p)), nt=n_radial + 1)
         j_pn1 = zeros[-1]
         j_pk = zeros[:-1]
         r[row, :] = j_pk / j_pn1 * R
@@ -55,8 +55,10 @@ def _manual_space_limited_r_rho(
 @pytest.mark.parametrize("n_angular", [15, 16])
 def test_r_and_rho_match_the_appendix_formulas(n_angular):
     """``PolarGrid.r``/``.rho`` match the appendix's A-2/A-4 formulas."""
-    grid = PolarGrid(_N_RADIAL, n_angular, _R)
-    expected_r, expected_rho = _manual_space_limited_r_rho(n_angular, _N_RADIAL, _R)
+    grid = PolarGrid(n_radial=_N_RADIAL, n_angular=n_angular, R=_R)
+    expected_r, expected_rho = _manual_space_limited_r_rho(
+        n_angular=n_angular, n_radial=_N_RADIAL, R=_R
+    )
     # A tight allclose, not exact equality: the appendix's own r = j/jN*R and this
     # test's r = j/jN*R associate the multiply/divide in the same order but through a
     # different call path, which floating-point arithmetic is not guaranteed to
@@ -67,17 +69,21 @@ def test_r_and_rho_match_the_appendix_formulas(n_angular):
 
 def test_r_at_harmonic_zero_matches_dht_sample_points_exactly():
     """The key cross-check: harmonic 0's row is ``pypft.dht.sample_points``'s own r."""
-    grid = PolarGrid(_N_RADIAL, 15, _R)
+    grid = PolarGrid(n_radial=_N_RADIAL, n_angular=15, R=_R)
     zero_row = int(np.where(grid.harmonics == 0)[0][0])
-    expected_r, expected_rho = sample_points(0, _N_RADIAL, _R)
+    expected_r, expected_rho = sample_points(n=0, size=_N_RADIAL, R=_R)
     np.testing.assert_array_equal(grid.r[zero_row, :], expected_r)
     np.testing.assert_array_equal(grid.rho[zero_row, :], expected_rho)
 
 
 def test_band_limited_swaps_r_and_rho_relative_to_space_limited():
     """A band-limited grid's ``r``/``rho`` are the space-limited grid's, swapped."""
-    space = PolarGrid(_N_RADIAL, 15, _R, LimitKind.SPACE_LIMITED)
-    band = PolarGrid(_N_RADIAL, 15, _R, LimitKind.BAND_LIMITED)
+    space = PolarGrid(
+        n_radial=_N_RADIAL, n_angular=15, R=_R, limit_kind=LimitKind.SPACE_LIMITED
+    )
+    band = PolarGrid(
+        n_radial=_N_RADIAL, n_angular=15, R=_R, limit_kind=LimitKind.BAND_LIMITED
+    )
     np.testing.assert_array_equal(band.r, space.rho)
     np.testing.assert_array_equal(band.rho, space.r)
 
@@ -85,7 +91,7 @@ def test_band_limited_swaps_r_and_rho_relative_to_space_limited():
 @pytest.mark.parametrize("n_angular", [15, 16])
 def test_theta_and_psi_are_identical_and_centered(n_angular):
     """``theta``/``psi`` agree and place harmonic 0 at angle 0."""
-    grid = PolarGrid(_N_RADIAL, n_angular, _R)
+    grid = PolarGrid(n_radial=_N_RADIAL, n_angular=n_angular, R=_R)
     np.testing.assert_array_equal(grid.theta, grid.psi)
     zero_row = int(np.where(grid.harmonics == 0)[0][0])
     assert grid.theta[zero_row] == pytest.approx(0.0)
@@ -94,16 +100,16 @@ def test_theta_and_psi_are_identical_and_centered(n_angular):
 
 def test_polar_grid_is_frozen():
     """Fields cannot be reassigned after construction."""
-    grid = PolarGrid(_N_RADIAL, 15, _R)
+    grid = PolarGrid(n_radial=_N_RADIAL, n_angular=15, R=_R)
     with pytest.raises(dataclasses.FrozenInstanceError):
         grid.R = 1.0  # type: ignore[misc]
 
 
 def test_polar_grid_is_hashable_and_usable_as_a_dict_key():
     """Equal grids hash equal, so a grid can key a cache the way ``(n, size)`` does."""
-    grid_a = PolarGrid(_N_RADIAL, 15, _R)
-    grid_b = PolarGrid(_N_RADIAL, 15, _R)
-    grid_c = PolarGrid(_N_RADIAL, 16, _R)
+    grid_a = PolarGrid(n_radial=_N_RADIAL, n_angular=15, R=_R)
+    grid_b = PolarGrid(n_radial=_N_RADIAL, n_angular=15, R=_R)
+    grid_c = PolarGrid(n_radial=_N_RADIAL, n_angular=16, R=_R)
     assert grid_a == grid_b
     assert hash(grid_a) == hash(grid_b)
     cache = {grid_a: "cached"}
@@ -130,31 +136,39 @@ def test_polar_grid_rejects_wrong_field_types(field, value):
 
 def test_check_adequacy_is_silent_for_a_grid_matching_the_pft_forward_gate():
     """No warning for ``N2=15, N1=383`` -- the forward gate's own parameters."""
-    check_adequacy(PolarGrid(383, 15, _R))  # filterwarnings=error catches any warning
+    check_adequacy(
+        grid=PolarGrid(n_radial=383, n_angular=15, R=_R)
+    )  # filterwarnings=error catches any warning
 
 
 def test_check_adequacy_warns_for_a_grid_with_positive_measured_e_max():
     """Warns for ``N2=64, N1=383``, the combination measured to give positive E_max."""
     with pytest.warns(AdequacyWarning, match="n_radial"):
-        check_adequacy(PolarGrid(383, 64, _R))
+        check_adequacy(grid=PolarGrid(n_radial=383, n_angular=64, R=_R))
 
 
 def test_check_nyquist_adequacy_is_silent_within_the_oracle_band_limit():
     """No warning at the paper's own ``Wr=30`` band limit for ``N1=383, R=40``."""
-    check_nyquist_adequacy(PolarGrid(383, 15, _R), 30.0)
+    check_nyquist_adequacy(
+        grid=PolarGrid(n_radial=383, n_angular=15, R=_R), band_limit=30.0
+    )
 
 
 def test_check_nyquist_adequacy_warns_when_n_radial_is_too_small():
     """Warns when ``band_limit`` is far larger than ``N1`` can support."""
     with pytest.warns(NyquistWarning, match="Nyquist"):
-        check_nyquist_adequacy(PolarGrid(383, 15, _R), 1000.0)
+        check_nyquist_adequacy(
+            grid=PolarGrid(n_radial=383, n_angular=15, R=_R), band_limit=1000.0
+        )
 
 
 def test_check_nyquist_adequacy_rejects_band_limited_grids():
     """The Nyquist helper only handles the space-limited case."""
-    grid = PolarGrid(383, 15, _R, LimitKind.BAND_LIMITED)
+    grid = PolarGrid(
+        n_radial=383, n_angular=15, R=_R, limit_kind=LimitKind.BAND_LIMITED
+    )
     with pytest.raises(NotImplementedError):
-        check_nyquist_adequacy(grid, 30.0)
+        check_nyquist_adequacy(grid=grid, band_limit=30.0)
 
 
 def _pixel_offsets(size: int) -> tuple[np.ndarray, np.ndarray]:
@@ -180,8 +194,10 @@ def test_sample_cartesian_reproduces_a_plane_function_at_the_grid_points():
     dx, dy = _pixel_offsets(image_size)
     image = dx + 2.0 * dy
 
-    grid = PolarGrid(50, 15, R=40.0)  # R << image_size / 2: stays inside the image
-    sampled = sample_cartesian(image, grid)
+    grid = PolarGrid(
+        n_radial=50, n_angular=15, R=40.0
+    )  # R << image_size / 2: stays inside the image
+    sampled = sample_cartesian(image=image, grid=grid)
 
     expected = grid.r * np.cos(grid.theta)[:, np.newaxis] + 2.0 * (
         grid.r * np.sin(grid.theta)[:, np.newaxis]
