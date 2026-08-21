@@ -121,6 +121,25 @@ F = pypft.forward_pft(f, grid)        # the frequency-domain samples F(rho, phi)
 f_reconstructed = pypft.inverse_pft(F, grid)
 ```
 
+### Typed domains and legal moves
+
+`pypft.forward_pft`/`pypft.inverse_pft` remain the array-in, array-out primitive.
+`pypft.Domain`/`pypft.BaseSignal` add a *typed* way to name where a polar array sits
+along that same chain -- `SPACE_POLAR --DFT--> SPACE_HARMONIC --DHT-->
+FREQUENCY_HARMONIC --IDFT--> FREQUENCY_POLAR` -- and to walk between those points one
+verified step at a time. Each of the four `BaseSignal` subclasses (one per `Domain`
+member) knows only the step methods to its own neighbours in the chain, so an illegal,
+non-adjacent step is a `pyright` error on a hand-written chain, not just a runtime one:
+
+```python
+grid = pypft.PolarGrid(n_radial=382, n_angular=15, R=40.0)
+f = np.exp(-(grid.r.T**2))
+
+signal = pypft.SpacePolarSignal(f, grid)
+by_hand = signal.to_harmonics().to_frequency().to_angles()  # matches forward_pft(f, grid)
+walked = signal.to(pypft.Domain.FREQUENCY_POLAR)             # the same walk, dynamically
+```
+
 ### Citing a result
 
 `pypft.Reference`/`pypft.cite`/`pypft.bibliography` render the scientific
@@ -133,8 +152,8 @@ pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
 
 See `notebooks/00_installation_and_quickstart.ipynb`,
 `notebooks/01_polar_and_cartesian_images.ipynb`,
-`notebooks/02_sampling_grids.ipynb`, and `notebooks/03_pft_and_ipft.ipynb`
-for the full walkthrough.
+`notebooks/02_sampling_grids.ipynb`, `notebooks/03_pft_and_ipft.ipynb`, and
+`notebooks/05_domains.ipynb` for the full walkthrough.
 
 ## Developer Guide
 

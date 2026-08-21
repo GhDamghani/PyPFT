@@ -18,8 +18,9 @@ transform, two strategy implementations), `src/pypft/utils/validators.py` (share
 Cartesian↔polar image bridge), `src/pypft/grid.py` (`PolarGrid`, the transform's own order-dependent
 sampling grid, plus the production `sample_cartesian` sampler and the `check_adequacy`/
 `check_nyquist_adequacy` warnings), `src/pypft/references.py` (citation machinery), `src/pypft/transform.py`
-(`forward_pft`/`inverse_pft`, the full PFT/IPFT pipeline, and the `scaled_hankel` step underlying both), and
-a Sphinx docs skeleton (`docs/`) with four tutorial notebooks. There are still no domain objects,
+(`forward_pft`/`inverse_pft`, the full PFT/IPFT pipeline, and the `scaled_hankel` step underlying both),
+`src/pypft/domains.py` (`Domain` and the four `BaseSignal` subclasses, a typed shell over the PFT chain),
+and a Sphinx docs skeleton (`docs/`) with five tutorial notebooks. There are still no batching,
 visualization, or a CLI. Do not assume any prior architecture, module, or API still exists — check the
 current file tree before referencing paths from git history.
 
@@ -72,10 +73,10 @@ with one local command. `CHANGELOG.md` follows Keep a Changelog, with changes ac
 ## Architecture: the package facade
 
 `src/pypft/__init__.py` re-exports the public surface from each submodule (`Axis`, `DEFAULT_BATCH_AXIS`,
-the DHT API, the geometry functions, the grid API — `PolarGrid`, `LimitKind`, `sample_cartesian`,
-`check_adequacy`, `check_nyquist_adequacy` — `Reference`/`cite`/`bibliography`, and `forward_pft`/
-`inverse_pft`), listed in `__all__` — this is what keeps `flake8`'s unused-import check (`F401`) satisfied
-for a pure re-export module. `pypft.dft` is deliberately **not** re-exported here: it is internal plumbing
+the DHT API, the domains API — `Domain`, `BaseSignal`, and its four subclasses — the geometry functions,
+the grid API — `PolarGrid`, `LimitKind`, `sample_cartesian`, `check_adequacy`, `check_nyquist_adequacy` —
+`Reference`/`cite`/`bibliography`, and `forward_pft`/`inverse_pft`), listed in `__all__` — this is what
+keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module. `pypft.dft` is deliberately **not** re-exported here: it is internal plumbing
 between the geometry/axes layer and the DHT (no notebook of its own — see the Notebooks section), reachable
 as `pypft.dft.angular_dft` and documented via `docs/api.rst`, the same way `pypft.utils.validators` is
 public but un-re-exported. `pypft.grid`'s two warning classes (`AdequacyWarning`, `NyquistWarning`) and
@@ -236,6 +237,39 @@ is introduced here, only composition. Key points:
   Shepp-Logan phantom (`shepp_logan_phantom`, no binary test asset) used for a qualitative round-trip check,
   since the Gaussian oracle alone is circularly symmetric and would not catch every axis mix-up.
 
+## Architecture: typed domain objects (`src/pypft/domains.py`)
+
+A typed, optional shell over the already-verified `forward_pft`/`inverse_pft` chain — it introduces no
+new numerics, only a way to name where a polar array sits along that chain and to walk between those
+points one verified step at a time. Array-in/array-out (`pypft.transform`) stays the primitive; nothing
+in `pypft.transform`/`pypft.grid` requires wrapping a signal in one of these classes.
+
+- **`Domain(Enum)`** has exactly four members on one ordered path, `_CHAIN`: `SPACE_POLAR ->
+  SPACE_HARMONIC -> FREQUENCY_HARMONIC -> FREQUENCY_POLAR`. Word 1 of a member's name (`SPACE`/
+  `FREQUENCY`) is the radial coordinate, changed only by the DHT (edge 1 of `_CHAIN`); word 2 (`POLAR`/
+  `HARMONIC`) is the angular coordinate, changed only by the angular DFT/IDFT (edges 0 and 2). Because
+  this is a path graph with no branches, a transition is legal exactly when it moves one step along
+  `_CHAIN` — there is deliberately **no separate `_LEGAL_MOVES` table**, which would just encode that
+  same adjacency a second time.
+- **`BaseSignal`** is a frozen dataclass carrying `values`/`grid` plus a `domain: ClassVar[Domain]` fixed
+  per subclass; `__post_init__` validates `values`'s type and its shape against `grid`, reusing the same
+  pattern as `pypft.transform`'s own `_validate_pft_input`.
+- **Four subclasses, one per `Domain` member** (`SpacePolarSignal`, `SpaceHarmonicSignal`,
+  `FrequencyHarmonicSignal`, `FrequencyPolarSignal`), each defining only the step methods to its own
+  neighbours in `_CHAIN`: `to_harmonics`/`to_angles` for the angular DFT/IDFT edges, `to_frequency`/
+  `to_space` for the DHT edge. A step method's own implementation is a thin wrapper around
+  `pypft.dft.angular_dft`/`inverse_angular_dft` or `pypft.transform.scaled_hankel` — exactly the calls
+  `forward_pft`/`inverse_pft` themselves make, so a hand-written chain of step calls matches those
+  functions bit-for-bit. Calling a step method a subclass does not define (e.g.
+  `SpaceHarmonicSignal.to_harmonics`, which only `SpacePolarSignal` has) is therefore a `pyright` error on
+  a hand-written chain, not just a runtime `AttributeError`.
+- **`BaseSignal.to(domain)`** is the dynamic counterpart: a short loop indexing into `_CHAIN` plus the
+  parallel `_STEP_TOWARD`/`_STEP_BACKWARD` tuples (which method advances/retreats across each of the
+  chain's three edges), calling the matching named step method via `getattr` until `domain` is reached.
+  It validates its own argument is a real `Domain` member (`EnumValidator`), which is the only way a call
+  to `to` can fail — every pair of `Domain` members is reachable along the path graph, so there is no
+  notion of an "illegal" domain pair once the argument itself is valid.
+
 ## Architecture: citations (`src/pypft/references.py`)
 
 `Reference(Enum)` holds one member per cited scientific source (each an `_Entry` with a `key`, an `inline`
@@ -367,14 +401,16 @@ in a row. `docs/jupyter_execute/` is gitignored either way, so deleting it (alon
 tutorial sequence where each notebook assumes only its predecessors: `00_installation_and_quickstart.ipynb`,
 `01_polar_and_cartesian_images.ipynb`, `02_sampling_grids.ipynb` (the `PolarGrid` sampling grid: why it
 is non-uniform, the central gap that never fully closes, the angular-vs-radial resolution trade-off via
-`check_adequacy`, and the Nyquist condition via `check_nyquist_adequacy`), and `03_pft_and_ipft.ipynb` (the
+`check_adequacy`, and the Nyquist condition via `check_nyquist_adequacy`), `03_pft_and_ipft.ipynb` (the
 full `forward_pft`/`inverse_pft` chain against the Gaussian oracle, ending with the dB-error map reproducing
-Yao & Baddour Part II's own published figure) exist so far. Internal-plumbing work (the DHT's N-D
-generalization, the angular DFT subsystem) deliberately gets no notebook of its own — their gate is that
-every *existing* notebook still executes, since a notebook per internal subsystem would duplicate the API
-reference without teaching a workflow. See "Architecture: citations" above for the citation discipline
-notebooks must follow when they state a mathematical result — `02_sampling_grids` is the first notebook to
-actually cite anything (`YaoBaddour2020`).
+Yao & Baddour Part II's own published figure), and `05_domains.ipynb` (`Domain`/`BaseSignal`: walking the
+PFT's chain by hand one verified step at a time vs. dynamically via `to`, and the hand-written illegal-step
+`pyright`/`AttributeError` pair) exist so far. Internal-plumbing work (the DHT's N-D generalization, the
+angular DFT subsystem) deliberately gets no notebook of its own — their gate is that every *existing*
+notebook still executes, since a notebook per internal subsystem would duplicate the API reference without
+teaching a workflow. See "Architecture: citations" above for the citation discipline notebooks must follow
+when they state a mathematical result — `02_sampling_grids` is the first notebook to actually cite anything
+(`YaoBaddour2020`); `05_domains` introduces no new numerics, so it cites nothing.
 
 ## Conventions (from `README.md`)
 

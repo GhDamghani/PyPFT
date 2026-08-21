@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `pypft.domains`: `Domain`, `BaseSignal`, and its four subclasses
+  (`SpacePolarSignal`, `SpaceHarmonicSignal`, `FrequencyHarmonicSignal`,
+  `FrequencyPolarSignal`) -- a typed, thin shell over `forward_pft`/
+  `inverse_pft` that names where a polar array sits along the PFT's domain
+  chain and walks between those points one verified step at a time, either
+  by hand (destination-named methods, so an illegal step is a `pyright`
+  error) or dynamically (`BaseSignal.to`).
+- `notebooks/05_domains.ipynb`: the typed-domains tutorial.
 - `pypft.forward_pft`/`pypft.inverse_pft`: the full polar Fourier transform
   (PFT) / inverse PFT (IPFT) pipeline, chaining the angular DFT/IDFT with a
   per-harmonic, `R`-scaled discrete Hankel transform on a `pypft.PolarGrid`.
