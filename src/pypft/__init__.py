@@ -8,18 +8,30 @@ from .dht import (
     sample_points,
 )
 from .geometry import cartesian_to_polar, polar_to_cartesian
+from .grid import (
+    LimitKind,
+    PolarGrid,
+    check_adequacy,
+    check_nyquist_adequacy,
+    sample_cartesian,
+)
 from .references import Reference, bibliography, cite
 
 __all__ = [
     "Axis",
     "DEFAULT_BATCH_AXIS",
     "DHTImplementation",
+    "LimitKind",
+    "PolarGrid",
     "Reference",
     "bibliography",
     "cartesian_to_polar",
+    "check_adequacy",
+    "check_nyquist_adequacy",
     "cite",
     "hankel_transform",
     "inverse_hankel_transform",
     "polar_to_cartesian",
+    "sample_cartesian",
     "sample_points",
 ]
