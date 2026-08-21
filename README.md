@@ -133,8 +133,8 @@ pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
 
 See `notebooks/00_installation_and_quickstart.ipynb`,
 `notebooks/01_polar_and_cartesian_images.ipynb`,
-`notebooks/02_sampling_grids.ipynb`, and `notebooks/03_pft_and_ipft.ipynb`
-for the full walkthrough.
+`notebooks/02_sampling_grids.ipynb`, `notebooks/03_pft_and_ipft.ipynb`, and
+`notebooks/04_transform_properties.ipynb` for the full walkthrough.
 
 ## Developer Guide
 
