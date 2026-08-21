@@ -1,68 +1,80 @@
 # cython: language_level=3
-"""
-RULES:
-    - Validators only validate the input arguments. They never mutate or replace them.
-    - Validators are stateless methods.
-    - Validators are designed to be composable. They can be combined to create more
-        complex validation rules. For example, a validator for a list of integers can be
-        composed of a type-validator for lists and a type-validator for integers.
-    - Validators assume that the values have been type-validated, unless the validator
-        is a type-validator itself. This is to avoid redundant type-checking and improve
-        performance.
-    - Validators raise ``TypeError`` for type violations, ``ValueError`` for value
-        violations, and OS-level subclasses of ``OSError`` (e.g. ``PermissionError``,
-        ``FileNotFoundError``) for filesystem state violations where a more specific OS
-        exception is more appropriate than a generic ``ValueError``.
-    - To avoid circular imports, validators for local library types are defined in the
-      same class as they are defined.
+"""Shared validation module: the design rules and conventions for every validator.
 
-CONVENTIONS:
-    - Each validator is a standalone class named ``<Type>Validator`` (e.g.
-        ``IntValidator``, ``PathValidator``). Import the specific class you need.
-    - The order of classes and methods across the validator classes is inspired by the order of
-        imports according to PEP8:
-        - Simple types: built-in, standard library, ant then third-party libraries. Local
-            types should be defined in the same class as the type definitions. The order
-            of built-in types follows the standard type hierarchy laid out in the Python
-            documentation:
-                https://docs.python.org/3/reference/datamodel.html#the-standard-type-hierarchy
+Rules
+-----
 
-        - Composite types: If a composite type is validated, the composite type
-            is listed in its collection types, after the simple-type validators. For
-            example, ``tuple[int, ...]`` is listed in ``tuple`` because it is the type of
-            the collection.
+- Validators only validate the input arguments. They never mutate or replace
+  them.
+- Validators are stateless methods.
+- Validators are designed to be composable. They can be combined to create
+  more complex validation rules. For example, a validator for a list of
+  integers can be composed of a type-validator for lists and a
+  type-validator for integers.
+- Validators assume that the values have been type-validated, unless the
+  validator is a type-validator itself. This is to avoid redundant
+  type-checking and improve performance.
+- Validators raise ``TypeError`` for type violations, ``ValueError`` for
+  value violations, and OS-level subclasses of ``OSError`` (e.g.
+  ``PermissionError``, ``FileNotFoundError``) for filesystem state
+  violations where a more specific OS exception is more appropriate than a
+  generic ``ValueError``.
+- To avoid circular imports, validators for local library types are defined
+  in the same class as they are defined.
 
-        - Validators with multiple input arguments: They should be treated similarly
-            to inherited types and listed under the lowest type in the hierarchy. For
-            example, ``value1_should_contain_value2(value1: list, value2: int)`` is listed
-            under ``list`` because it is the lowest type of composition in the type
-            hierarchy.
-    - The order of validators in a class, as briefly discussed in the previous point, is:
-      - Main outline:
-        - Type validators
-        - Value validators
-        - Other validators
-      - Within each validator category:
-        - Simple-type
-        - Composite-type
-      - Within each type category:
-        - Single-input
-        - Multiple-input
-    - Validators follow these name patterns:
-      - Type validators: ``type_<'is'>_<typename>(value: <type>)``
-      - Value validators: ``value_<'is' | 'has' | 'should' | ...>_<condition>(value: <type>)``
-      - If composite type: use ``<simple_type>_<subtype>`` for <typename> and update <type>
-        to the composite type. For example, ``type_is_tuple_int(value: tuple[int, ...])``.
-      - If multiple input arguments: use ``value1``, ``value2``, etc. for the input arguments
-        and update <condition> to reflect the relationship between the values. For example,
-        ``value1_is_greater_than_value2(value1: int, value2: int)``.
+Conventions
+-----------
 
-DEVELOPMENT:
-    VS Code snippets in ``.vscode/helpers.code-snippets``:
-        - ``v-type`` — scaffolds a type-validator ``@classmethod`` with the standard
-            RST docstring, ``isinstance`` validator, and ``TypeError`` raise.
-        - ``v-value`` — scaffolds a value-validator ``@classmethod`` with the
-            standard RST docstring and ``ValueError`` raise.
+- Each validator is a standalone class named ``<Type>Validator`` (e.g.
+  ``IntValidator``, ``PathValidator``). Import the specific class you need.
+- The order of classes and methods across the validator classes is inspired
+  by the order of imports according to PEP 8:
+
+  - Simple types: built-in, standard library, and then third-party
+    libraries. Local types should be defined in the same class as the type
+    definitions. The order of built-in types follows the standard type
+    hierarchy laid out in the Python documentation:
+    https://docs.python.org/3/reference/datamodel.html#the-standard-type-hierarchy
+  - Composite types: if a composite type is validated, the composite type
+    is listed in its collection type's class, after the simple-type
+    validators. For example, ``tuple[int, ...]`` is listed in ``tuple``
+    because it is the type of the collection.
+  - Validators with multiple input arguments: they should be treated
+    similarly to inherited types and listed under the lowest type in the
+    hierarchy. For example, ``value1_should_contain_value2(value1: list,
+    value2: int)`` is listed under ``list`` because it is the lowest type
+    of composition in the type hierarchy.
+
+- The order of validators in a class, as briefly discussed in the previous
+  point, is:
+
+  - Main outline: type validators, then value validators, then other
+    validators.
+  - Within each validator category: simple-type before composite-type.
+  - Within each type category: single-input before multiple-input.
+
+- Validators follow these name patterns:
+
+  - Type validators: ``type_<'is'>_<typename>(value: <type>)``.
+  - Value validators: ``value_<'is' | 'has' | 'should' | ...>_<condition>
+    (value: <type>)``.
+  - If composite type: use ``<simple_type>_<subtype>`` for ``<typename>``
+    and update ``<type>`` to the composite type. For example,
+    ``type_is_tuple_int(value: tuple[int, ...])``.
+  - If multiple input arguments: use ``value1``, ``value2``, etc. for the
+    input arguments and update ``<condition>`` to reflect the relationship
+    between the values. For example, ``value1_is_greater_than_value2
+    (value1: int, value2: int)``.
+
+Development
+-----------
+
+VS Code snippets in ``.vscode/helpers.code-snippets``:
+
+- ``v-type`` -- scaffolds a type-validator ``@classmethod`` with the
+  standard RST docstring, ``isinstance`` validator, and ``TypeError`` raise.
+- ``v-value`` -- scaffolds a value-validator ``@classmethod`` with the
+  standard RST docstring and ``ValueError`` raise.
 """  # noqa: RST
 
 import os
@@ -103,6 +115,18 @@ class IntValidator:
         """
         if value < 0:
             raise ValueError(f"value must be non-negative, got {value}")
+
+    @staticmethod
+    def value_is_positive(value: int) -> None:
+        """Value-validator to check if an int is strictly positive.
+
+        :param value: The value to be validated.
+        :type value: int
+        :raises ValueError: If the value is not strictly positive.
+
+        """
+        if value <= 0:
+            raise ValueError(f"value must be positive, got {value}")
 
 
 # ========================================================================================
@@ -334,7 +358,9 @@ class NumpyValidator:
 
         """
         if value.ndim < 1:
-            raise ValueError(f"value must have at least 1 dimension, got {value.ndim}-D")
+            raise ValueError(
+                f"value must have at least 1 dimension, got {value.ndim}-D"
+            )
 
     @staticmethod
     def value_has_axis(value: np.ndarray, axis: int) -> None:
@@ -349,9 +375,7 @@ class NumpyValidator:
 
         """
         if not (-value.ndim <= axis < value.ndim):
-            raise ValueError(
-                f"axis {axis} is out of bounds for {value.ndim}-D value"
-            )
+            raise ValueError(f"axis {axis} is out of bounds for {value.ndim}-D value")
 
     @staticmethod
     def value1_axis_length_matches_value2(
