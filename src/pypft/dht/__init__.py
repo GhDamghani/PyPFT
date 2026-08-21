@@ -57,7 +57,11 @@ now inheriting ``CACHED_BESSEL``'s kernel instead.
 
 
 def _validate_transform_inputs(
-    signal: np.ndarray, n: int, R: float, implementation: DHTImplementation
+    signal: np.ndarray,
+    n: int,
+    R: float,
+    implementation: DHTImplementation,
+    axis: int,
 ) -> None:
     """Validate the shared arguments of the forward/inverse DHT entry points.
 
@@ -69,18 +73,22 @@ def _validate_transform_inputs(
     :type R: float
     :param implementation: The DHT implementation strategy to use.
     :type implementation: DHTImplementation
+    :param axis: The axis of ``signal`` holding the length-``size`` samples.
+    :type axis: int
     :raises TypeError: If any argument has the wrong type.
     :raises ValueError: If any argument has an invalid value.
 
     """
     NumpyValidator.type_is_ndarray(signal)
-    NumpyValidator.value_is_1d(signal)
+    NumpyValidator.value_is_at_least_1d(signal)
     IntValidator.type_is_int(n)
     IntValidator.value_is_non_negative(n)
     FloatValidator.type_is_float(R)
     FloatValidator.value_is_positive(R)
     EnumValidator.type_is_enum(implementation)
     EnumValidator.value_is_enum_member(implementation, DHTImplementation)
+    IntValidator.type_is_int(axis)
+    NumpyValidator.value_has_axis(signal, axis)
 
 
 def hankel_transform(
@@ -88,11 +96,14 @@ def hankel_transform(
     n: int,
     R: float,
     implementation: DHTImplementation = DEFAULT_IMPLEMENTATION,
+    *,
+    axis: int = -1,
 ) -> np.ndarray:
     """Compute the forward discrete Hankel transform of order ``n``.
 
     :param f: The space-domain samples ``f(r_nk)``, sampled at the points
-        returned by ``pypft.dht._base.BaseDHT.sample_points``.
+        returned by ``pypft.dht._base.BaseDHT.sample_points``, along ``axis``
+        of an otherwise arbitrary-rank array.
     :type f: np.ndarray
     :param n: The order of the discrete Hankel transform.
     :type n: int
@@ -100,14 +111,18 @@ def hankel_transform(
     :type R: float
     :param implementation: The DHT implementation strategy to use.
     :type implementation: DHTImplementation
+    :param axis: The axis of ``f`` holding the length-``size`` samples.
+        Keyword-only and last so every pre-existing 4-positional-argument call
+        site is unaffected.
+    :type axis: int
     :returns: The frequency-domain samples ``F(rho_nk)``.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
     :raises ValueError: If any argument has an invalid value.
 
     """
-    _validate_transform_inputs(f, n, R, implementation)
-    return _IMPLEMENTATIONS[implementation].forward(f, n, R)
+    _validate_transform_inputs(f, n, R, implementation, axis)
+    return _IMPLEMENTATIONS[implementation].forward(f, n, R, axis=axis)
 
 
 def inverse_hankel_transform(
@@ -115,10 +130,13 @@ def inverse_hankel_transform(
     n: int,
     R: float,
     implementation: DHTImplementation = DEFAULT_IMPLEMENTATION,
+    *,
+    axis: int = -1,
 ) -> np.ndarray:
     """Compute the inverse discrete Hankel transform of order ``n``.
 
-    :param F: The frequency-domain samples ``F(rho_nk)``.
+    :param F: The frequency-domain samples ``F(rho_nk)``, along ``axis`` of an
+        otherwise arbitrary-rank array.
     :type F: np.ndarray
     :param n: The order of the discrete Hankel transform.
     :type n: int
@@ -126,14 +144,18 @@ def inverse_hankel_transform(
     :type R: float
     :param implementation: The DHT implementation strategy to use.
     :type implementation: DHTImplementation
+    :param axis: The axis of ``F`` holding the length-``size`` samples.
+        Keyword-only and last so every pre-existing 4-positional-argument call
+        site is unaffected.
+    :type axis: int
     :returns: The space-domain samples ``f(r_nk)``.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
     :raises ValueError: If any argument has an invalid value.
 
     """
-    _validate_transform_inputs(F, n, R, implementation)
-    return _IMPLEMENTATIONS[implementation].inverse(F, n, R)
+    _validate_transform_inputs(F, n, R, implementation, axis)
+    return _IMPLEMENTATIONS[implementation].inverse(F, n, R, axis=axis)
 
 
 def sample_points(

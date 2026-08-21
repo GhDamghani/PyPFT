@@ -318,3 +318,62 @@ class NumpyValidator:
         """
         if value.ndim != 1:
             raise ValueError(f"value must be 1-D, got {value.ndim}-D")
+
+    @staticmethod
+    def value_is_at_least_1d(value: np.ndarray) -> None:
+        """Value-validator to check if a numpy.ndarray has at least one dimension.
+
+        Unlike ``value_is_1d``, this accepts arrays of any rank ``>= 1`` -- used by
+        entry points that operate along a single named axis of an otherwise
+        arbitrary-rank array (e.g. ``pypft.dht.hankel_transform``'s ``axis``
+        argument), rather than requiring the whole array to be a bare vector.
+
+        :param value: The value to be validated.
+        :type value: np.ndarray
+        :raises ValueError: If the value is 0-D (a scalar array).
+
+        """
+        if value.ndim < 1:
+            raise ValueError(f"value must have at least 1 dimension, got {value.ndim}-D")
+
+    @staticmethod
+    def value_has_axis(value: np.ndarray, axis: int) -> None:
+        """Value-validator to check if ``axis`` is a valid axis index for ``value``.
+
+        :param value: The array ``axis`` is meant to index into.
+        :type value: np.ndarray
+        :param axis: The axis index to validate, ``numpy``-style (negative
+            indices count from the end).
+        :type axis: int
+        :raises ValueError: If ``axis`` is out of bounds for ``value.ndim``.
+
+        """
+        if not (-value.ndim <= axis < value.ndim):
+            raise ValueError(
+                f"axis {axis} is out of bounds for {value.ndim}-D value"
+            )
+
+    @staticmethod
+    def value1_axis_length_matches_value2(
+        value1: np.ndarray, axis1: int, value2: np.ndarray, axis2: int
+    ) -> None:
+        """Value-validator to check two arrays agree in length along given axes.
+
+        :param value1: The first array.
+        :type value1: np.ndarray
+        :param axis1: The axis of ``value1`` to compare.
+        :type axis1: int
+        :param value2: The second array.
+        :type value2: np.ndarray
+        :param axis2: The axis of ``value2`` to compare.
+        :type axis2: int
+        :raises ValueError: If ``value1.shape[axis1] != value2.shape[axis2]``.
+
+        """
+        length1 = value1.shape[axis1]
+        length2 = value2.shape[axis2]
+        if length1 != length2:
+            raise ValueError(
+                f"value1 has length {length1} along axis {axis1}, but value2 has "
+                f"length {length2} along axis {axis2}"
+            )
