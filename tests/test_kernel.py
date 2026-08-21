@@ -27,12 +27,12 @@ _GRID_CASES = [
 @pytest.mark.parametrize("n_radial,n_angular,R", _GRID_CASES)
 def test_forward_kernel_matrix_reproduces_forward_pft(n_radial, n_angular, R):
     """``kernel_matrix(..., FORWARD) @ f.ravel()`` matches ``forward_pft(f)``."""
-    grid = PolarGrid(n_radial, n_angular, R)
+    grid = PolarGrid(n_radial=n_radial, n_angular=n_angular, R=R)
     rng = np.random.default_rng(0)
     f = rng.standard_normal((n_radial, n_angular))
 
-    expected = forward_pft(f, grid)
-    operator = kernel_matrix(grid, direction=Direction.FORWARD)
+    expected = forward_pft(f=f, grid=grid)
+    operator = kernel_matrix(grid=grid, direction=Direction.FORWARD)
     actual = (operator @ f.ravel()).reshape(n_radial, n_angular)
     np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-10)
 
@@ -40,21 +40,21 @@ def test_forward_kernel_matrix_reproduces_forward_pft(n_radial, n_angular, R):
 @pytest.mark.parametrize("n_radial,n_angular,R", _GRID_CASES)
 def test_inverse_kernel_matrix_reproduces_inverse_pft(n_radial, n_angular, R):
     """``kernel_matrix(..., INVERSE) @ F.ravel()`` matches ``inverse_pft(F)``."""
-    grid = PolarGrid(n_radial, n_angular, R)
+    grid = PolarGrid(n_radial=n_radial, n_angular=n_angular, R=R)
     rng = np.random.default_rng(1)
     F = rng.standard_normal((n_radial, n_angular)) + 1j * rng.standard_normal(
         (n_radial, n_angular)
     )
 
-    expected = inverse_pft(F, grid)
-    operator = kernel_matrix(grid, direction=Direction.INVERSE)
+    expected = inverse_pft(F=F, grid=grid)
+    operator = kernel_matrix(grid=grid, direction=Direction.INVERSE)
     actual = (operator @ F.ravel()).reshape(n_radial, n_angular)
     np.testing.assert_allclose(actual, expected, rtol=1e-10, atol=1e-10)
 
 
 def test_kernel_matrix_rejects_a_non_direction_member():
     """``kernel_matrix`` type-validates its ``direction`` argument."""
-    grid = PolarGrid(8, 5, 3.0)
+    grid = PolarGrid(n_radial=8, n_angular=5, R=3.0)
     bad_direction: Direction = "forward"  # type: ignore[assignment]
     with pytest.raises(TypeError):
-        kernel_matrix(grid, direction=bad_direction)
+        kernel_matrix(grid=grid, direction=bad_direction)

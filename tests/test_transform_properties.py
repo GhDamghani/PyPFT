@@ -81,8 +81,8 @@ def test_pft_kernel_orthogonality_over_frequency_indices():
 
     In matrix form this is exactly ``K_inverse @ K_forward == I``.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     identity = np.eye(forward.shape[0])
     np.testing.assert_allclose(
         inverse @ forward, identity, rtol=_KERNEL_TOL, atol=_KERNEL_TOL
@@ -95,8 +95,8 @@ def test_pft_kernel_orthogonality_over_spatial_indices():
     The mirror image of the frequency-index orthogonality above:
     ``K_forward @ K_inverse == I``.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     identity = np.eye(forward.shape[0])
     np.testing.assert_allclose(
         forward @ inverse, identity, rtol=_KERNEL_TOL, atol=_KERNEL_TOL
@@ -109,8 +109,8 @@ def test_pft_complex_exponential_transforms_to_a_delta():
     ``E^+_{q0,m0;pk}``, viewed as a function of ``(p, k)`` at a fixed
     ``(q0, m0)``, is exactly one column of the inverse kernel matrix.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     index0 = 8
 
     f = inverse[:, index0]
@@ -126,15 +126,20 @@ def test_pft_shift_modulation_rule():
     ``F^{2D}(f^{p0,k0}) == F_{qm} * E^-_{qm;p0k0}``, where ``f^{p0,k0}`` is
     the shift of the vector whose forward transform is ``F``.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     rng = np.random.default_rng(0)
     F = rng.standard_normal(forward.shape[0]) + 1j * rng.standard_normal(
         forward.shape[0]
     )
     index0 = 7
 
-    shifted = _flat_shift(inverse, forward, F, index0)
+    shifted = _flat_shift(
+        apply_operator=inverse,
+        column_operator=forward,
+        transform=F,
+        index0=index0,
+    )
     lhs = forward @ shifted
     rhs = forward[:, index0] * F
     np.testing.assert_allclose(lhs, rhs, rtol=_KERNEL_TOL, atol=_KERNEL_TOL)
@@ -146,8 +151,8 @@ def test_pft_modulation_rule():
     ``f_{pk} = E^+_{q0,m0;pk} * g_{pk}`` transforms to the generalized
     shift, in frequency, of ``g``'s own spectrum.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     rng = np.random.default_rng(1)
     g = rng.standard_normal(forward.shape[0]) + 1j * rng.standard_normal(
         forward.shape[0]
@@ -156,7 +161,12 @@ def test_pft_modulation_rule():
 
     modulated = inverse[:, index0] * g
     lhs = forward @ modulated
-    rhs = _flat_shift(forward, inverse, g, index0)
+    rhs = _flat_shift(
+        apply_operator=forward,
+        column_operator=inverse,
+        transform=g,
+        index0=index0,
+    )
     np.testing.assert_allclose(lhs, rhs, rtol=_KERNEL_TOL, atol=_KERNEL_TOL)
 
 
@@ -166,8 +176,8 @@ def test_pft_convolution_multiplication_rule():
     ``f = h ** g := sum_idx0 h^{shift}_{idx0} * g_{idx0}`` transforms to
     ``H * G`` entrywise; also checks the convolution is commutative.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     size = forward.shape[0]
     rng = np.random.default_rng(2)
     g = rng.standard_normal(size) + 1j * rng.standard_normal(size)
@@ -177,10 +187,30 @@ def test_pft_convolution_multiplication_rule():
 
     zero = np.zeros(size, dtype=complex)
     convolution = sum(
-        (_flat_shift(inverse, forward, H, idx0) * g[idx0] for idx0 in range(size)), zero
+        (
+            _flat_shift(
+                apply_operator=inverse,
+                column_operator=forward,
+                transform=H,
+                index0=idx0,
+            )
+            * g[idx0]
+            for idx0 in range(size)
+        ),
+        start=zero,
     )
     swapped = sum(
-        (_flat_shift(inverse, forward, G, idx0) * h[idx0] for idx0 in range(size)), zero
+        (
+            _flat_shift(
+                apply_operator=inverse,
+                column_operator=forward,
+                transform=G,
+                index0=idx0,
+            )
+            * h[idx0]
+            for idx0 in range(size)
+        ),
+        start=zero,
     )
     np.testing.assert_allclose(convolution, swapped, rtol=_KERNEL_TOL, atol=_KERNEL_TOL)
 
@@ -196,8 +226,8 @@ def test_pft_multiplication_convolution_rule():
     ``sum_idx0 H[idx0] * shift(g, idx0)`` -- the mirror of the convolution
     rule above; also checks this frequency-domain convolution commutes.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     size = forward.shape[0]
     rng = np.random.default_rng(3)
     g = rng.standard_normal(size) + 1j * rng.standard_normal(size)
@@ -209,12 +239,32 @@ def test_pft_multiplication_convolution_rule():
     F = forward @ f
     zero = np.zeros(size, dtype=complex)
     freq_convolution = sum(
-        (H[idx0] * _flat_shift(forward, inverse, g, idx0) for idx0 in range(size)), zero
+        (
+            H[idx0]
+            * _flat_shift(
+                apply_operator=forward,
+                column_operator=inverse,
+                transform=g,
+                index0=idx0,
+            )
+            for idx0 in range(size)
+        ),
+        start=zero,
     )
     np.testing.assert_allclose(F, freq_convolution, rtol=_KERNEL_TOL, atol=_KERNEL_TOL)
 
     swapped = sum(
-        (G[idx0] * _flat_shift(forward, inverse, h, idx0) for idx0 in range(size)), zero
+        (
+            G[idx0]
+            * _flat_shift(
+                apply_operator=forward,
+                column_operator=inverse,
+                transform=h,
+                index0=idx0,
+            )
+            for idx0 in range(size)
+        ),
+        start=zero,
     )
     np.testing.assert_allclose(
         freq_convolution, swapped, rtol=_KERNEL_TOL, atol=_KERNEL_TOL
@@ -233,8 +283,8 @@ def test_pft_generalized_parseval_non_symmetric_kernel():
     ``conj*(G) := K_inverse.T @ conj(inverse(G))`` for a frequency-domain
     ``G``.
     """
-    forward = kernel_matrix(_GRID, direction=Direction.FORWARD)
-    inverse = kernel_matrix(_GRID, direction=Direction.INVERSE)
+    forward = kernel_matrix(grid=_GRID, direction=Direction.FORWARD)
+    inverse = kernel_matrix(grid=_GRID, direction=Direction.INVERSE)
     size = forward.shape[0]
     rng = np.random.default_rng(4)
     g = rng.standard_normal(size) + 1j * rng.standard_normal(size)
@@ -267,8 +317,8 @@ def test_forward_pft_is_linear():
     f2 = rng.standard_normal((_GRID.n_radial, _GRID.n_angular))
     a, b = 2.3, -1.7
 
-    lhs = forward_pft(a * f1 + b * f2, _GRID)
-    rhs = a * forward_pft(f1, _GRID) + b * forward_pft(f2, _GRID)
+    lhs = forward_pft(f=a * f1 + b * f2, grid=_GRID)
+    rhs = a * forward_pft(f=f1, grid=_GRID) + b * forward_pft(f=f2, grid=_GRID)
     np.testing.assert_allclose(lhs, rhs, rtol=1e-10, atol=1e-10)
 
 
@@ -286,14 +336,14 @@ def test_forward_pft_of_a_circularly_symmetric_signal_is_a_bare_hankel_transform
     rng = np.random.default_rng(6)
     radial_profile = rng.standard_normal(_GRID.n_radial)
     f = np.broadcast_to(
-        radial_profile[:, np.newaxis], (_GRID.n_radial, _GRID.n_angular)
+        array=radial_profile[:, np.newaxis], shape=(_GRID.n_radial, _GRID.n_angular)
     )
 
-    F = forward_pft(f, _GRID)
-    expected_column = 2.0 * np.pi * hankel_transform(radial_profile, 0, _GRID.R)
+    F = forward_pft(f=f, grid=_GRID)
+    expected_column = 2.0 * np.pi * hankel_transform(f=radial_profile, n=0, R=_GRID.R)
     np.testing.assert_allclose(
         F,
-        np.broadcast_to(expected_column[:, np.newaxis], F.shape),
+        np.broadcast_to(array=expected_column[:, np.newaxis], shape=F.shape),
         rtol=1e-10,
         atol=1e-10,
     )
@@ -313,11 +363,11 @@ def test_forward_pft_rotation_equivariance():
     F = rng.standard_normal(
         (_GRID.n_radial, _GRID.n_angular)
     ) + 1j * rng.standard_normal((_GRID.n_radial, _GRID.n_angular))
-    f = inverse_pft(F, _GRID)
+    f = inverse_pft(F=F, grid=_GRID)
 
     for shift in range(_GRID.n_angular):
-        lhs = inverse_pft(np.roll(F, shift, axis=Axis.ANGULAR), _GRID)
-        rhs = np.roll(f, shift, axis=Axis.ANGULAR)
+        lhs = inverse_pft(F=np.roll(a=F, shift=shift, axis=Axis.ANGULAR), grid=_GRID)
+        rhs = np.roll(a=f, shift=shift, axis=Axis.ANGULAR)
         np.testing.assert_allclose(lhs, rhs, rtol=1e-9, atol=1e-9)
 
 
@@ -336,10 +386,16 @@ def test_forward_pft_angular_spectrum_has_twisted_conjugate_symmetry():
     """
     rng = np.random.default_rng(8)
     f = rng.standard_normal((_GRID.n_radial, _GRID.n_angular))
-    f_n = angular_dft(f, axis=Axis.ANGULAR)
-    F_n = scaled_hankel(f_n, _GRID, direction=Direction.FORWARD, axis=Axis.RADIAL)
+    f_n = angular_dft(x=f, axis=Axis.ANGULAR)
+    F_n = scaled_hankel(
+        values=f_n,
+        grid=_GRID,
+        direction=Direction.FORWARD,
+        axis=Axis.RADIAL,
+        angular_axis=Axis.ANGULAR,
+    )
 
-    harmonic_orders = harmonics(_GRID.n_angular)
+    harmonic_orders = harmonics(n_angular=_GRID.n_angular)
     for index, n in enumerate(harmonic_orders):
         negative_index = list(harmonic_orders).index(-int(n))
         lhs = F_n[:, negative_index]

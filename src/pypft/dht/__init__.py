@@ -51,8 +51,14 @@ previously-default ``RECURRENCE_BESSEL`` matched that speed but was removed: its
 upward Bessel-order recurrence is exponentially unstable once the order exceeds
 the argument, which the kernel does by construction, so it silently diverged
 above order ~12 (measured ``max|Y @ Y - I|`` reaching ``2.1e+16`` by order 47).
-``VECTORIZED`` remains slower than plain BLAS matmul at the benchmarked sizes,
-now inheriting ``CACHED_BESSEL``'s kernel instead.
+``VECTORIZED`` remains slower than plain BLAS matmul at every benchmarked size,
+including the batched ``(radial, angular, batch)`` regime PyPFT's own transform
+pipeline actually exercises (measured ~9.1ms vs. ``CACHED_BESSEL``'s ~1.7ms and
+even ``NAIVE``'s ~1.6ms at a representative batch size -- see
+``.local_files/benchmarks/results/`` for the numbers), now inheriting
+``CACHED_BESSEL``'s kernel instead. It is kept regardless: a benchmark result
+this poor is a *suggestion* to remove the implementation, raised to the
+developer, not grounds to delete it unilaterally.
 """
 
 

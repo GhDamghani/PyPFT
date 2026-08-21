@@ -17,7 +17,11 @@ from pypft.dft import angular_dft, harmonics
 
 #: ``(n_angular, n0)`` pairs spanning every harmonic of both a odd and an
 #: even angular sample count, including both edges of each harmonic range.
-_CASES = [(n_angular, int(n0)) for n_angular in (15, 16) for n0 in harmonics(n_angular)]
+_CASES = [
+    (n_angular, int(n0))
+    for n_angular in (15, 16)
+    for n0 in harmonics(n_angular=n_angular)
+]
 
 
 @pytest.mark.parametrize("n_angular,n0", _CASES, ids=lambda v: str(v))
@@ -30,7 +34,7 @@ def test_forward_dft_of_a_pure_harmonic_is_a_single_centered_delta(
     theta = -np.pi + b / 2 + p * b
     x = np.exp(1j * n0 * theta)
 
-    result = angular_dft(x, implementation)
+    result = angular_dft(x=x, implementation=implementation)
 
     target_index = n0 + n_angular // 2
     expected = np.zeros(n_angular, dtype=complex)

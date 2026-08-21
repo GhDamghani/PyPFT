@@ -18,13 +18,17 @@ transform, two strategy implementations), `src/pypft/utils/validators.py` (share
 Cartesian↔polar image bridge), `src/pypft/grid.py` (`PolarGrid`, the transform's own order-dependent
 sampling grid, plus the production `sample_cartesian` sampler and the `check_adequacy`/
 `check_nyquist_adequacy` warnings), `src/pypft/references.py` (citation machinery), `src/pypft/transform.py`
-(`forward_pft`/`inverse_pft`, the full PFT/IPFT pipeline, and the `scaled_hankel` step underlying both),
+(`forward_pft`/`inverse_pft`, the full PFT/IPFT pipeline, the `scaled_hankel` step underlying both -- two
+strategy implementations, plus 3-D `(radial, angular, batch)` support on top of the plain 2-D case),
+`src/pypft/domains.py` (`Domain`/`BaseSignal`, the typed legal-move shell over `transform.py`'s numerics),
 `src/pypft/_kernel.py` (a private, from-scratch `O(N**4)` oracle reproducing `forward_pft`/`inverse_pft`,
 used only by `tests/test_kernel.py`), analytical-property test suites for both transforms
 (`tests/dht/test_kernel_properties.py`, `tests/test_transform_properties.py`), and a Sphinx docs skeleton
-(`docs/`) with five tutorial notebooks. There are still no domain objects, visualization, or a CLI. Do not
+(`docs/`) with six tutorial notebooks. There is still no visualization or a CLI. Do not
 assume any prior architecture, module, or API still exists — check the current file tree before referencing
-paths from git history.
+paths from git history. **`CHANGELOG.md` does not exist** (deliberately removed, "streamline project
+documentation") despite the historical Keep-a-Changelog convention some older commits reference — do not
+recreate it without checking with the developer first.
 
 ## Environment and commands
 
@@ -51,10 +55,11 @@ exclusively** (`requires-python = ">=3.14,<3.15"`).
   `--check`, isort `--check-only`, flake8, pyright, vulture, `sphinx-build -W`, `uv build`, in that order,
   stopping at the first failure. `./scripts/Test-Notebooks.ps1` runs `uv run pytest --nbmake notebooks/`
   separately.
-- Benchmark the DHT/DFT implementations: `uv run python benchmarks/run_dht_benchmarks.py` /
-  `uv run python benchmarks/run_dft_benchmarks.py` — neither is part of `uv run pytest` (they live outside
-  `testpaths`), since they're dev tooling, not a correctness check. Both write timestamped Markdown reports
-  to the gitignored `.local_files/benchmarks/results/`.
+- Benchmark the DHT/DFT/PFT-batching implementations: `uv run python benchmarks/run_dht_benchmarks.py` /
+  `uv run python benchmarks/run_dft_benchmarks.py` / `uv run python benchmarks/run_pft_benchmarks.py` —
+  none are part of `uv run pytest` (they live outside `testpaths`), since they're dev tooling, not a
+  correctness check. All three write timestamped Markdown reports to the gitignored
+  `.local_files/benchmarks/results/`.
 - `pytest.ini_options` sets `filterwarnings = ["error"]` — any `warnings.warn` in `src/` needs a matching
   `pytest.warns` test, or the suite fails.
 
@@ -69,8 +74,7 @@ the build: `numba`/`scipy` silently vanished from the resolved lock and `uv sync
 `windows-latest`/`ubuntu-latest`/`macos-latest` matrix (`shell: pwsh` throughout): `astral-sh/setup-uv`,
 `uv sync`, then `scripts/Invoke-QualityGate.ps1` and `scripts/Test-Notebooks.ps1`. No inline shell logic
 lives in the YAML — both scripts are meant to be run locally too, so a red CI leg is always reproducible
-with one local command. `CHANGELOG.md` follows Keep a Changelog, with changes accumulating under
-`## [Unreleased]` until a release.
+with one local command.
 
 ## Architecture: the package facade
 
@@ -105,7 +109,10 @@ points:
   `value_is_2d`/`value_is_finite` (added for `pypft.grid.sample_cartesian`'s image argument), alongside the
   pre-existing `value_is_1d`/`value_is_at_least_1d`, and `value1_shape_matches_value2` (added for
   `pypft.transform.forward_pft`/`inverse_pft`'s whole-array shape check against a `PolarGrid`), alongside
-  the pre-existing single-axis `value1_axis_length_matches_value2`.
+  the pre-existing single-axis `value1_axis_length_matches_value2`. `value_has_ndim_in(value, ndims)`
+  (general-purpose rank check) and `value_is_2d_or_3d` (built on it) were added for the polar layer's
+  optional trailing batch axis — `pypft.transform.scaled_hankel`/`forward_pft`/`inverse_pft` and
+  `pypft.domains.BaseSignal` all accept 2-D or 3-D `values` now, batch axis last.
 - Methods are named `type_is_<typename>` (type-validators, raise `TypeError`) or
   `value_<is|has|should|...>_<condition>` (value-validators, raise `ValueError`, or an `OSError` subclass
   for filesystem-state checks like "path writable").
@@ -212,16 +219,35 @@ direct, verified port of Yao & Baddour's own MATLAB appendix (PeerJ CS Part II, 
 `pypft.dft`'s and `pypft.dht`'s existing, separately-verified public entry points — no new numerical kernel
 is introduced here, only composition. Key points:
 
-- **`forward_pft`/`inverse_pft` follow PyPFT's own `(radial, angular)` axis layout** (`pypft.axes.Axis`),
-  matching `pypft.geometry.cartesian_to_polar`'s convention — **not** `PolarGrid.r`'s/`sample_cartesian`'s
-  own `(angular, radial)` layout (each row of `PolarGrid.r` is one harmonic's own radial samples, the
-  natural shape for *building* the grid, not for storing a transformed image). A `sample_cartesian` result
-  must be transposed before it is passed to `forward_pft`.
-- **`scaled_hankel(values, grid, *, direction, axis)`** is the per-harmonic step underlying both directions:
-  it loops over `grid.harmonics` (one `hankel_transform`/`inverse_hankel_transform` call per harmonic, since
-  each order needs its own kernel) along the axis complementary to `axis`, and is the single place in
-  `src/` that names the radial axis — `forward_pft`/`inverse_pft` always pass `Axis.RADIAL` explicitly
-  rather than relying on `hankel_transform`'s own unrelated `axis=-1` default.
+- **`forward_pft`/`inverse_pft` follow PyPFT's own `(radial, angular[, batch])` axis layout**
+  (`pypft.axes.Axis`), matching `pypft.geometry.cartesian_to_polar`'s convention — **not**
+  `PolarGrid.r`'s/`sample_cartesian`'s own `(angular, radial)` layout (each row of `PolarGrid.r` is one
+  harmonic's own radial samples, the natural shape for *building* the grid, not for storing a transformed
+  image). A `sample_cartesian` result must be transposed before it is passed to `forward_pft`. Both accept
+  an optional trailing batch axis (a 3-D array) on top of the plain 2-D case — costs no new numerical
+  kernel, since the angular DFT/IDFT and the DHT already operate along one named axis of an otherwise
+  arbitrary-rank array. `batch_axis: int = DEFAULT_BATCH_AXIS` is keyword-only on both (`pypft.axes`'s
+  axis-default tiering: only the batch axis is ever defaulted); passing it on a 2-D array, or naming
+  anything other than a 3-D array's last axis, raises `ValueError` — PyPFT's own layout always places the
+  batch axis last, there is no support for putting it anywhere else.
+- **`scaled_hankel(values, grid, *, direction, axis, angular_axis, implementation)`** is the per-harmonic
+  step underlying both directions: it loops over `grid.harmonics` (one Hankel transform per harmonic, since
+  each order needs its own kernel), and is the single place in `src/` that names the radial axis —
+  `forward_pft`/`inverse_pft` always pass `Axis.RADIAL`/`Axis.ANGULAR` explicitly rather than relying on
+  `hankel_transform`'s own unrelated `axis=-1` default. Unlike the 2-D-only original, `angular_axis` is a
+  required argument (not derived as "the other axis") since a 3-D input has more than two axes to choose
+  from. **Two `PFTImplementation` strategies**, dispatched like `DHTImplementation`/`DFTImplementation`:
+  `HARMONIC_LOOP` (one `hankel_transform`/`inverse_hankel_transform` call per harmonic — a trailing batch
+  axis rides along for free via those functions' own N-D support) and `STACKED_KERNEL` (every harmonic's
+  kernel stacked into one `(n_angular, n_radial, n_radial)` array via `CachedBesselDHT._bessel_kernel`
+  directly, applied with a single batched `numpy.matmul` across every harmonic and batch element at once).
+  `DEFAULT_PFT_IMPLEMENTATION` is `STACKED_KERNEL`, picked by `benchmarks/run_pft_benchmarks.py`'s batched
+  `(radial, angular, batch)` scenario (~4.7ms vs. `HARMONIC_LOOP`'s ~5.2-6.2ms at `n_angular=31,
+  n_radial=128, batch=64`) — `HARMONIC_LOOP` stays faster on a single unbatched 2-D call (~2.7ms vs.
+  ~3.6ms), but batching is the scenario this default is chosen for. The kernel stack itself is cached (an
+  `lru_cache` keyed on the hashable `(grid, direction)`, `STACKED_KERNEL_CACHE_MAXSIZE`-bounded, mirroring
+  `CachedBesselDHT`'s own `(n, size)` cache): without it, rebuilding and copying the whole stack on every
+  call made `STACKED_KERNEL` measure *slower* than `HARMONIC_LOOP` even on the batched workload.
 - **Negative orders reuse the positive-order kernel.** `Y^{(-n)N} = (-1)^n Y^{nN}` exactly (the
   denominator's squared Bessel term is unchanged because `J_{n-1}(j_nk) = -J_{n+1}(j_nk)` at a zero of
   `J_n`), so `scaled_hankel` always calls the DHT with `abs(n)` and multiplies the sign in afterwards; the
@@ -238,6 +264,30 @@ is introduced here, only composition. Key points:
 - `tests/fixtures.py` holds the shared Gaussian oracle (`gaussian_f`/`gaussian_F`) and a code-generated
   Shepp-Logan phantom (`shepp_logan_phantom`, no binary test asset) used for a qualitative round-trip check,
   since the Gaussian oracle alone is circularly symmetric and would not catch every axis mix-up.
+
+## Architecture: typed domain objects (`src/pypft/domains.py`)
+
+`Domain(Enum)` names the four points a polar array occupies across the PFT/IPFT chain
+(`SPACE_POLAR`/`SPACE_HARMONIC`/`FREQUENCY_HARMONIC`/`FREQUENCY_POLAR`); word 1 of each member is the
+radial coordinate (changed only by the DHT), word 2 is the angular coordinate (changed only by the angular
+DFT/IDFT). `BaseSignal` (frozen dataclass: `values`, `grid`, `domain: ClassVar[Domain]`, `batch_axis`) and
+its four subclasses (`SpacePolarSignal`, `SpaceHarmonicSignal`, `FrequencyHarmonicSignal`,
+`FrequencyPolarSignal`) are a thin, optional wrapper over `pypft.transform`'s already-verified numerics —
+`values`-in/`values`-out through `forward_pft`/`inverse_pft`/`scaled_hankel`/`angular_dft` remains the
+primitive the numeric path never requires this module for. Key points:
+
+- **One ordered `_CHAIN` tuple, no `_LEGAL_MOVES` table.** The chain is a path graph (no branches, no
+  cycles), so a transition is legal exactly when it moves one step along `_CHAIN` — encoding legality
+  separately would just duplicate it. Each subclass defines only the step methods for its own neighbours
+  (destination-named: `to_harmonics`/`to_angles`/`to_frequency`/`to_space`), so calling a step method that
+  does not exist on a given subclass is a `pyright` error on a hand-written chain, not just a runtime
+  `AttributeError`. `to(domain)` is the dynamic counterpart: a 5-line walk along `_CHAIN`, never a general
+  graph search, since the only decision at each step is which direction and which of `_STEP_TOWARD`/
+  `_STEP_BACKWARD` advances one edge that way.
+- **`batch_axis: int = DEFAULT_BATCH_AXIS`** mirrors `forward_pft`/`inverse_pft`'s own parameter exactly —
+  `BaseSignal.__post_init__` reuses `pypft.transform._validate_pft_input` directly (the same 2-D-or-3-D,
+  batch-axis-must-be-last validation) rather than duplicating it, and every step method threads
+  `self.batch_axis` through to the signal it returns, since batching never changes along the chain.
 
 ## Architecture: the explicit PFT kernel oracle (`src/pypft/_kernel.py`)
 
@@ -413,15 +463,20 @@ tutorial sequence where each notebook assumes only its predecessors: `00_install
 is non-uniform, the central gap that never fully closes, the angular-vs-radial resolution trade-off via
 `check_adequacy`, and the Nyquist condition via `check_nyquist_adequacy`), `03_pft_and_ipft.ipynb` (the
 full `forward_pft`/`inverse_pft` chain against the Gaussian oracle, ending with the dB-error map reproducing
-Yao & Baddour Part II's own published figure), and `04_transform_properties.ipynb` (a tour of both the DHT's
+Yao & Baddour Part II's own published figure), `04_transform_properties.ipynb` (a tour of both the DHT's
 and the PFT's own analytical properties — self-inverse, the Kronecker-delta pair, the negative-order sign
 relation, the generalized shift and its derived rules, kernel orthogonality, rotation equivariance,
-linearity, and the DC term) exist so far. Internal-plumbing work (the DHT's N-D generalization, the angular
+linearity, and the DC term), `05_domains.ipynb` (typed domains and legal moves), and `06_batches.ipynb`
+(3-D `(radial, angular, batch)` support: exactness vs. looping the 2-D case, `BaseSignal`'s `batch_axis`,
+the batch-axis-must-be-last validation, and a timing comparison against a Python loop) exist so far.
+Internal-plumbing work (the DHT's N-D generalization, the angular
 DFT subsystem) deliberately gets no notebook of its own — their gate is that every *existing* notebook still
 executes, since a notebook per internal subsystem would duplicate the API reference without teaching a
 workflow. See "Architecture: citations" above for the citation discipline notebooks must follow when they
 state a mathematical result — `02_sampling_grids` is the first notebook to actually cite anything
 (`YaoBaddour2020`); `04_transform_properties` is the first to cite `Baddour2019a`/`Baddour2019b`.
+`06_batches` states no new mathematical result (batching is an engineering property, not a new equation), so
+it cites nothing and needs no `bibliography(...)` cell.
 
 ## Conventions (from `README.md`)
 
@@ -451,10 +506,19 @@ state a mathematical result — `02_sampling_grids` is the first notebook to act
 
 ## Benchmarking
 
-`benchmarks/` (tracked) holds `bench_dht.py`/`bench_dft.py` (pytest-benchmark test functions comparing the
-DHT/DFT implementations, respectively) and `run_dht_benchmarks.py`/`run_dft_benchmarks.py` (run them and
-export a sorted Markdown report each); see the DHT/DFT architecture sections above for how their results
-drove each subsystem's own `DEFAULT_IMPLEMENTATION`.
+`benchmarks/` (tracked) holds `bench_dht.py`/`bench_dft.py`/`bench_pft.py` (pytest-benchmark test functions
+comparing the DHT/DFT/PFT-batching implementations, respectively) and `run_dht_benchmarks.py`/
+`run_dft_benchmarks.py`/`run_pft_benchmarks.py` (run them and export a sorted Markdown report each); see the
+DHT/DFT/PFT architecture sections above for how their results drove each subsystem's own
+`DEFAULT_IMPLEMENTATION`/`DEFAULT_PFT_IMPLEMENTATION`.
+
+**A benchmark result never justifies deleting an implementation.** `DHTImplementation.VECTORIZED`
+(`src/pypft/dht/_vectorized.py`) has lost every DHT benchmark ever run against it, including the batched
+`(radial, angular, batch)` regime — see its own `DEFAULT_IMPLEMENTATION` docstring for the numbers — and it
+is still shipped. If a strategy measures slower than its siblings, say so in the relevant
+`DEFAULT_*_IMPLEMENTATION`/benchmark docstring and *suggest* removing it in the phase/PR report; do not
+delete the module, the enum member, or its `[project]` dependency (e.g. `numba`) unilaterally. Removing a
+working implementation is the developer's call to make, not an automatic consequence of a slow number.
 
 ## Local, gitignored data
 
@@ -469,5 +533,5 @@ package or test suite:
   equation-level distillation of both papers' operational rules, mirroring `bessel_properties.md`'s own
   style). These are the sources `src/pypft/references.py`'s `Reference` members cite.
 - `benchmarks/results/` — timestamped Markdown reports generated by `benchmarks/run_dht_benchmarks.py`/
-  `run_dft_benchmarks.py` (gitignored since they're generated artifacts, not source, even though the
-  scripts that produce them are tracked in the top-level `benchmarks/` directory).
+  `run_dft_benchmarks.py`/`run_pft_benchmarks.py` (gitignored since they're generated artifacts, not
+  source, even though the scripts that produce them are tracked in the top-level `benchmarks/` directory).

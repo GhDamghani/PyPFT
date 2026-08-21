@@ -65,7 +65,7 @@ def shepp_logan_phantom(size: int) -> np.ndarray:
     :rtype: np.ndarray
 
     """
-    coords = np.linspace(-1.0, 1.0, size)
+    coords = np.linspace(start=-1.0, stop=1.0, num=size)
     x, y = np.meshgrid(coords, -coords)
     image = np.zeros((size, size))
     for amplitude, a, b, x0, y0, phi in _SHEPP_LOGAN_ELLIPSES:

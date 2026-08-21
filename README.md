@@ -174,6 +174,32 @@ each step method is a thin wrapper around the same `pypft.dft`/
 `pypft.transform` or `pypft.grid` requires wrapping a signal in one of these
 classes at all.
 
+### 3-D batches
+
+`pypft.forward_pft`/`pypft.inverse_pft` (and every `pypft.BaseSignal` step
+method) also accept a 3-D `(n_radial, n_angular, batch)` array -- the same
+two polar axes, plus one trailing batch axis (`pypft.Axis.BATCH`,
+`pypft.DEFAULT_BATCH_AXIS`). Batching is exact, not approximate: it changes
+only how many signals one call transforms, never what it computes, and costs
+no new numerical kernel -- the angular DFT/IDFT and the discrete Hankel
+transform were already able to operate along one named axis of an
+otherwise arbitrary-rank array.
+
+```python
+import numpy as np
+import pypft
+
+grid = pypft.PolarGrid(n_radial=382, n_angular=15, R=40.0)
+widths = np.array([0.5, 1.0, 2.0, 4.0])
+f_batch = np.exp(-widths * grid.r.T[..., np.newaxis] ** 2)  # (n_radial, n_angular, 4)
+
+F_batch = pypft.forward_pft(f_batch, grid)  # every width transformed in one call
+```
+
+The batch axis is always last -- passing one anywhere else, or on a plain
+2-D array, raises immediately. See `notebooks/06_batches.ipynb` for the full
+walkthrough, including the performance case for batching over a Python loop.
+
 ### Citing a result
 
 `pypft.Reference`/`pypft.cite`/`pypft.bibliography` render the scientific
@@ -187,8 +213,8 @@ pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
 See `notebooks/00_installation_and_quickstart.ipynb`,
 `notebooks/01_polar_and_cartesian_images.ipynb`,
 `notebooks/02_sampling_grids.ipynb`, `notebooks/03_pft_and_ipft.ipynb`,
-`notebooks/04_transform_properties.ipynb`, and `notebooks/05_domains.ipynb`
-for the full walkthrough.
+`notebooks/04_transform_properties.ipynb`, `notebooks/05_domains.ipynb`, and
+`notebooks/06_batches.ipynb` for the full walkthrough.
 
 ## Developer Guide
 

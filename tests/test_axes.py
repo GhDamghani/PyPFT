@@ -36,10 +36,10 @@ def test_center_and_uncenter_angular_are_exact_inverses():
     rng = np.random.default_rng(0)
     values = rng.standard_normal((5, 7, 3))
 
-    centered = _center_angular(values, axis=Axis.ANGULAR)
-    restored = _uncenter_angular(centered, axis=Axis.ANGULAR)
+    centered = _center_angular(values=values, axis=Axis.ANGULAR)
+    restored = _uncenter_angular(values=centered, axis=Axis.ANGULAR)
 
-    assert np.array_equal(restored, values)
+    assert np.array_equal(a1=restored, a2=values)
 
 
 def test_center_angular_moves_index_zero_to_the_middle():
@@ -47,7 +47,7 @@ def test_center_angular_moves_index_zero_to_the_middle():
     size = 8
     natural = np.arange(size).reshape(1, size)  # a (radial, angular) row
 
-    centered = _center_angular(natural, axis=Axis.ANGULAR)
+    centered = _center_angular(values=natural, axis=Axis.ANGULAR)
 
     assert centered[0, size // 2] == 0
 
