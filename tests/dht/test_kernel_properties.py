@@ -18,8 +18,8 @@ from .tolerance import dht_tolerance
 def test_kernel_is_self_inverse(implementation, order):
     """Y^{nN} Y^{nN} = I (baddour2019.md, Eq. 41), even though Y is not symmetric.
 
-    This is the regression test for develop_plan.md's §3.1 divergence: the
-    residual grows with ``order`` (§3.2), so it is bounded by the
+    This is the regression test for the removed ``RecurrenceBesselDHT``'s
+    divergence: the residual grows with ``order``, so it is bounded by the
     ``dht_tolerance`` model rather than a flat tolerance -- a flat bound would
     either hide a regression like the deleted ``RecurrenceBesselDHT``'s (too
     loose) or reject the numerically-correct kernel above order ~24 (too

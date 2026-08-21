@@ -74,10 +74,10 @@ class BaseDHT:
         ``_apply`` itself only ever sees its target axis at position ``-2`` (or,
         for a 1-D input, the array's only axis) -- this template method is what
         makes that true for every rank and axis placement, by moving ``axis``
-        there before delegating and moving the result back after (develop_plan.md
-        §3.3). Moving to ``-2`` rather than ``0`` is the load-bearing choice:
-        ``numpy.matmul`` (which every ``_apply`` override is built on, directly or
-        via a reshape) treats only the *last two* dimensions as the matrix and
+        there before delegating and moving the result back after. Moving to
+        ``-2`` rather than ``0`` is the load-bearing choice: ``numpy.matmul``
+        (which every ``_apply`` override is built on, directly or via a
+        reshape) treats only the *last two* dimensions as the matrix and
         broadcasts over every leading dimension, so a trailing batch axis is only
         mishandled if the target axis is moved to ``0`` instead.
 

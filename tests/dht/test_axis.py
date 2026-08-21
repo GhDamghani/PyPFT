@@ -1,7 +1,7 @@
 """Tests for applying the DHT kernel along an arbitrary axis of an N-D array.
 
-develop_plan.md §3.3: ``numpy.matmul`` treats only the *last two* dimensions as
-the matrix and broadcasts over every leading dimension, so moving the target
+``numpy.matmul`` treats only the *last two* dimensions as the matrix and
+broadcasts over every leading dimension, so moving the target
 axis to ``-2`` (not ``0``) before applying the kernel is what makes
 ``BaseDHT._apply_along_axis`` correct for every array rank and axis placement.
 These tests exercise that generalization directly; ``tests/dht/test_gaussian.py``
@@ -50,7 +50,7 @@ def test_apply_along_axis_matches_reference(implementation, shape, axis):
 
 
 def test_apply_along_axis_is_bit_identical_on_1d_and_2d(implementation):
-    """No behavior change for the 1-D/2-D shapes the pre-P2 suite exercised."""
+    """No behavior change for the 1-D/2-D shapes the suite already exercised."""
     impl = _IMPLEMENTATIONS[implementation]
     kernel, _ = NaiveDHT._bessel_kernel(_ORDER, SIGNAL_SIZE)
     rng = np.random.default_rng(1)

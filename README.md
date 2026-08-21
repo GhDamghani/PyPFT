@@ -34,6 +34,27 @@ F = pypft.hankel_transform(f, n, R)
 f_reconstructed = pypft.inverse_hankel_transform(F, n, R)
 ```
 
+### The angular discrete Fourier transform
+
+`pypft.dft.angular_dft`/`pypft.dft.inverse_angular_dft` compute the centered
+angular DFT/IDFT -- the `FFT_phi`/`IFFT_theta` steps at the top of this
+file's chain, kept centered the same way every other PyPFT array is (index
+`n_angular // 2` holds harmonic `0`). This is a lower-level building block
+for the eventual PFT/IPFT pipeline rather than a typical end-user entry
+point, so it is not re-exported from the top-level `pypft` package; see the
+API reference for the full signature, `pypft.dft.harmonics` (the centered
+harmonic-index range for a given angular sample count, valid for either an
+odd or an even count), and `pypft.dft.AngularParity`:
+
+```python
+import numpy as np
+from pypft.dft import angular_dft, inverse_angular_dft
+
+x = np.random.default_rng(0).standard_normal(16)
+X = angular_dft(x)
+x_reconstructed = inverse_angular_dft(X)
+```
+
 ### Cartesian and polar images
 
 `pypft.cartesian_to_polar`/`pypft.polar_to_cartesian` resample an ordinary

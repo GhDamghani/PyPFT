@@ -4,10 +4,10 @@ Baddour's ``Y^{nN}`` kernel (baddour2019.md, Eq. 39) is only approximately
 self-inverse in floating point, and that residual -- along with every other
 error that traces back to it (round-trip application, Parseval, forward/inverse
 round-trip) -- grows with the transform's order ``n``, because the kernel
-evaluates ``J_n`` at arguments that shrink relative to ``n`` as the order rises
-(develop_plan.md §3.2). A single flat ``RTOL``/``ATOL`` (as used elsewhere in
-this suite, see ``tests/dht/conftest.py``) is therefore wrong once high orders
-are exercised: it is far looser than necessary at ``n=0`` and already too tight
+evaluates ``J_n`` at arguments that shrink relative to ``n`` as the order rises.
+A single flat ``RTOL``/``ATOL`` (as used elsewhere in this suite, see
+``tests/dht/conftest.py``) is therefore wrong once high orders are exercised:
+it is far looser than necessary at ``n=0`` and already too tight
 by order ~24 at ``size=64`` -- which is exactly the gap that let the (now
 deleted) ``RecurrenceBesselDHT`` diverge unnoticed, since ``DHT_ORDERS`` used
 to stop at 4. ``dht_tolerance`` replaces the flat bound for assertions whose

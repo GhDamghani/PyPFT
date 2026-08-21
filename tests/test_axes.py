@@ -1,9 +1,9 @@
 """Tests for the axis vocabulary and the centered-angular boundary convention.
 
-develop_plan.md §3.9 requires ``fftshift``/``ifftshift`` to appear nowhere in
-``src/`` outside ``pypft.axes`` -- every other module reorders its angular
-axis through ``_center_angular``/``_uncenter_angular`` instead. The last test
-here is that lint-as-test.
+``fftshift``/``ifftshift`` must appear nowhere in ``src/`` outside
+``pypft.axes`` -- every other module reorders its angular axis through
+``_center_angular``/``_uncenter_angular`` instead. The last test here is
+that lint-as-test.
 """
 
 import re

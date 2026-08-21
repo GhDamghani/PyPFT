@@ -31,6 +31,12 @@ pypft.dht
 .. automodule:: pypft.dht
    :members:
 
+pypft.dft
+---------
+
+.. automodule:: pypft.dft
+   :members:
+
 pypft.utils.validators
 -----------------------
 

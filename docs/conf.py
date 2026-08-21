@@ -13,7 +13,7 @@ extensions = [
     "myst_nb",
 ]
 
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", "jupyter_execute", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 
@@ -27,11 +27,10 @@ def _copy_notebooks(app, config) -> None:
 
     Sphinx requires every document in a toctree to live under its source
     directory (``docs/``), but ``notebooks/`` is tracked at the repo root as
-    one incremental tutorial sequence shared with `nbmake` (develop_plan.md
-    §2.3). Copying at ``config-inited`` -- before Sphinx discovers its
-    sources -- makes ``tutorials.rst``'s glob toctree see them, without a
-    symlink (which needs elevated privileges on Windows, one of CI's three
-    platforms).
+    one incremental tutorial sequence shared with `nbmake`. Copying at
+    ``config-inited`` -- before Sphinx discovers its sources -- makes
+    ``tutorials.rst``'s glob toctree see them, without a symlink (which
+    needs elevated privileges on Windows, one of CI's three platforms).
 
     :param app: The running Sphinx application.
     :type app: sphinx.application.Sphinx

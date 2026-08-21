@@ -7,8 +7,7 @@ code cell rendering ``bibliography(...)`` -- is generated from this module.
 This keeps every citing sentence readable on GitHub, in nbviewer, and in any
 unexecuted checkout, while still machine-checking that every label resolves
 to a real reference and that every citing notebook's bibliography cell lists
-exactly what it cited (``tests/test_notebook_citations.py``,
-develop_plan.md §2.4).
+exactly what it cited (``tests/test_notebook_citations.py``).
 """
 
 from dataclasses import dataclass
