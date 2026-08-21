@@ -19,10 +19,12 @@ Cartesian↔polar image bridge), `src/pypft/grid.py` (`PolarGrid`, the transform
 sampling grid, plus the production `sample_cartesian` sampler and the `check_adequacy`/
 `check_nyquist_adequacy` warnings), `src/pypft/references.py` (citation machinery), `src/pypft/transform.py`
 (`forward_pft`/`inverse_pft`, the full PFT/IPFT pipeline, and the `scaled_hankel` step underlying both),
-`src/pypft/domains.py` (`Domain` and the four `BaseSignal` subclasses, a typed shell over the PFT chain),
-and a Sphinx docs skeleton (`docs/`) with five tutorial notebooks. There are still no batching,
-visualization, or a CLI. Do not assume any prior architecture, module, or API still exists — check the
-current file tree before referencing paths from git history.
+`src/pypft/_kernel.py` (a private, from-scratch `O(N**4)` oracle reproducing `forward_pft`/`inverse_pft`,
+used only by `tests/test_kernel.py`), analytical-property test suites for both transforms
+(`tests/dht/test_kernel_properties.py`, `tests/test_transform_properties.py`), and a Sphinx docs skeleton
+(`docs/`) with five tutorial notebooks. There are still no domain objects, visualization, or a CLI. Do not
+assume any prior architecture, module, or API still exists — check the current file tree before referencing
+paths from git history.
 
 ## Environment and commands
 
@@ -237,38 +239,34 @@ is introduced here, only composition. Key points:
   Shepp-Logan phantom (`shepp_logan_phantom`, no binary test asset) used for a qualitative round-trip check,
   since the Gaussian oracle alone is circularly symmetric and would not catch every axis mix-up.
 
-## Architecture: typed domain objects (`src/pypft/domains.py`)
+## Architecture: the explicit PFT kernel oracle (`src/pypft/_kernel.py`)
 
-A typed, optional shell over the already-verified `forward_pft`/`inverse_pft` chain — it introduces no
-new numerics, only a way to name where a polar array sits along that chain and to walk between those
-points one verified step at a time. Array-in/array-out (`pypft.transform`) stays the primitive; nothing
-in `pypft.transform`/`pypft.grid` requires wrapping a signal in one of these classes.
+`kernel_matrix(grid, *, direction)` builds the PFT's combined `E^{-}`/`E^{+}` operator directly from Yao &
+Baddour's own definition (PeerJ CS Part II, Eqs. 1-3) — one `(n_radial, n_radial)` DHT kernel per harmonic
+(via `NaiveDHT._bessel_kernel`, not `pypft.dht`'s cached entry points, to stay independent of the code under
+test) Kronecker-multiplied against that harmonic's `(n_angular, n_angular)` angular phase factor and summed.
+Applying the resulting `(n_radial*n_angular, n_radial*n_angular)` matrix to a raveled input and reshaping
+reproduces `forward_pft`/`inverse_pft` exactly (`tests/test_kernel.py`) — a **stronger** check than the
+Gaussian oracle above, since it certifies the FFT-plus-per-harmonic-Hankel composition against the paper's
+direct definition rather than only against a known analytic answer. Deliberately named with a leading
+underscore (unlike `pypft.dft`, which is internal but still unprefixed): building this matrix costs
+`O(n_angular * n_radial**2)` and touches all `O((n_radial*n_angular)**2)` of its entries, so it exists purely
+as a from-scratch test oracle, never as a faster or more convenient public entry point. Sign convention
+matches `scaled_hankel` exactly, including its own `_harmonic_sign` — duplicated here rather than imported,
+so a bug shared between the two modules cannot cancel itself out in the comparison.
 
-- **`Domain(Enum)`** has exactly four members on one ordered path, `_CHAIN`: `SPACE_POLAR ->
-  SPACE_HARMONIC -> FREQUENCY_HARMONIC -> FREQUENCY_POLAR`. Word 1 of a member's name (`SPACE`/
-  `FREQUENCY`) is the radial coordinate, changed only by the DHT (edge 1 of `_CHAIN`); word 2 (`POLAR`/
-  `HARMONIC`) is the angular coordinate, changed only by the angular DFT/IDFT (edges 0 and 2). Because
-  this is a path graph with no branches, a transition is legal exactly when it moves one step along
-  `_CHAIN` — there is deliberately **no separate `_LEGAL_MOVES` table**, which would just encode that
-  same adjacency a second time.
-- **`BaseSignal`** is a frozen dataclass carrying `values`/`grid` plus a `domain: ClassVar[Domain]` fixed
-  per subclass; `__post_init__` validates `values`'s type and its shape against `grid`, reusing the same
-  pattern as `pypft.transform`'s own `_validate_pft_input`.
-- **Four subclasses, one per `Domain` member** (`SpacePolarSignal`, `SpaceHarmonicSignal`,
-  `FrequencyHarmonicSignal`, `FrequencyPolarSignal`), each defining only the step methods to its own
-  neighbours in `_CHAIN`: `to_harmonics`/`to_angles` for the angular DFT/IDFT edges, `to_frequency`/
-  `to_space` for the DHT edge. A step method's own implementation is a thin wrapper around
-  `pypft.dft.angular_dft`/`inverse_angular_dft` or `pypft.transform.scaled_hankel` — exactly the calls
-  `forward_pft`/`inverse_pft` themselves make, so a hand-written chain of step calls matches those
-  functions bit-for-bit. Calling a step method a subclass does not define (e.g.
-  `SpaceHarmonicSignal.to_harmonics`, which only `SpacePolarSignal` has) is therefore a `pyright` error on
-  a hand-written chain, not just a runtime `AttributeError`.
-- **`BaseSignal.to(domain)`** is the dynamic counterpart: a short loop indexing into `_CHAIN` plus the
-  parallel `_STEP_TOWARD`/`_STEP_BACKWARD` tuples (which method advances/retreats across each of the
-  chain's three edges), calling the matching named step method via `getattr` until `domain` is reached.
-  It validates its own argument is a real `Domain` member (`EnumValidator`), which is the only way a call
-  to `to` can fail — every pair of `Domain` members is reachable along the path graph, so there is no
-  notion of an "illegal" domain pair once the argument itself is valid.
+`tests/test_transform_properties.py` exercises the Mathematics 7(8):698 (Part I) operational rules this
+kernel obeys — orthogonality (Eqs. 34, 37), the complex-exponential/delta pair (Eq. 43), the generalized
+shift operator and its shift-modulation/modulation/convolution/multiplication consequences (Eqs. 46-71,
+built from `kernel_matrix` columns exactly as `tests/dht/test_kernel_properties.py` builds them from the raw
+DHT kernel — see below), and the non-symmetric-kernel generalized Parseval relationship (Eqs. 80, 87-88,
+using a "starred" conjugate built from the *opposite*-direction kernel, since the plain conjugate only
+preserves the inner product for the *symmetric* kernel choice this package does not implement anywhere).
+Properties about the transform itself rather than the kernel alone — rotation equivariance (Eq. 75),
+linearity, the harmonic-0/DC term, and a real signal's own harmonic spectrum having a twisted conjugate
+symmetry (`F_{-n} = (-1)^n * conj(F_n)`, not plain conjugate symmetry, because of `scaled_hankel`'s own
+negative-order sign) — are tested directly against `forward_pft`/`inverse_pft` instead, since that is both
+simpler and closer to how a caller would actually observe them.
 
 ## Architecture: citations (`src/pypft/references.py`)
 
@@ -328,6 +326,18 @@ changing any of the kernel math. Key points:
   flat tolerance is either too loose (hiding a regression) or too tight (rejecting the correct kernel above
   ~order 24), so order-sensitive assertions in `tests/dht/` use `tests/dht/tolerance.py`'s
   `dht_tolerance(order, size)` model instead of the flat `RTOL`/`ATOL` in `tests/dht/conftest.py`.
+- **Negative-order relation and the shift/modulation/multiplication/convolution rules** (baddour2019.md's
+  Transform Rules section) are exercised in `tests/dht/test_kernel_properties.py`. `Y^{(-n)N} = (-1)^n *
+  Y^{nN}` is verified against a locally-defined `_general_bessel_kernel` (built for any integer `n`, unlike
+  `BaseDHT._bessel_kernel`'s `n >= 0`-only contract) — neither `baddour2019.md` nor the Part I paper states
+  this identity, so it is not attributed to either source; it follows independently from
+  `J_{-n}(x) = (-1)^n * J_n(x)` (an exact Bessel identity for every `x`, not only at a zero). The four
+  transform rules are all built from one `_generalized_shift(kernel, transform, k0) = kernel @
+  (kernel[:, k0] * transform)` helper (Eq. 70: the shift of a signal is defined via *its own transform*,
+  since the ordinary `f_{k-k0}` shift is unusable — the index can fall outside `[1, N-1]` and, unlike the
+  DFT's exponential, the Bessel kernel does not wrap around); self-inverse `Y` makes the same helper
+  direction-agnostic, serving both the shift-modulation (Eq. 76-77) and modulation-shift (Eq. 82) rules, and
+  the convolution (Eq. 83-86) and multiplication (Eq. 89-92) rules built on top of it.
 - **Selection**: `DHTImplementation` (an `Enum`) maps to these three classes via the `_IMPLEMENTATIONS` dict
   in `src/pypft/dht/__init__.py`. `DEFAULT_IMPLEMENTATION` is a hardcoded module-level constant
   (`CACHED_BESSEL`), chosen by running `benchmarks/run_dht_benchmarks.py`: for repeated forward calls at a
@@ -403,14 +413,15 @@ tutorial sequence where each notebook assumes only its predecessors: `00_install
 is non-uniform, the central gap that never fully closes, the angular-vs-radial resolution trade-off via
 `check_adequacy`, and the Nyquist condition via `check_nyquist_adequacy`), `03_pft_and_ipft.ipynb` (the
 full `forward_pft`/`inverse_pft` chain against the Gaussian oracle, ending with the dB-error map reproducing
-Yao & Baddour Part II's own published figure), and `05_domains.ipynb` (`Domain`/`BaseSignal`: walking the
-PFT's chain by hand one verified step at a time vs. dynamically via `to`, and the hand-written illegal-step
-`pyright`/`AttributeError` pair) exist so far. Internal-plumbing work (the DHT's N-D generalization, the
-angular DFT subsystem) deliberately gets no notebook of its own — their gate is that every *existing*
-notebook still executes, since a notebook per internal subsystem would duplicate the API reference without
-teaching a workflow. See "Architecture: citations" above for the citation discipline notebooks must follow
-when they state a mathematical result — `02_sampling_grids` is the first notebook to actually cite anything
-(`YaoBaddour2020`); `05_domains` introduces no new numerics, so it cites nothing.
+Yao & Baddour Part II's own published figure), and `04_transform_properties.ipynb` (a tour of both the DHT's
+and the PFT's own analytical properties — self-inverse, the Kronecker-delta pair, the negative-order sign
+relation, the generalized shift and its derived rules, kernel orthogonality, rotation equivariance,
+linearity, and the DC term) exist so far. Internal-plumbing work (the DHT's N-D generalization, the angular
+DFT subsystem) deliberately gets no notebook of its own — their gate is that every *existing* notebook still
+executes, since a notebook per internal subsystem would duplicate the API reference without teaching a
+workflow. See "Architecture: citations" above for the citation discipline notebooks must follow when they
+state a mathematical result — `02_sampling_grids` is the first notebook to actually cite anything
+(`YaoBaddour2020`); `04_transform_properties` is the first to cite `Baddour2019a`/`Baddour2019b`.
 
 ## Conventions (from `README.md`)
 
@@ -448,10 +459,11 @@ package or test suite:
 
 - `sources/` — reference papers on the DHT, the polar-coordinate DFT/PFT, and Bessel functions (Baddour
   2019's DHT book chapter and Mathematics Part I paper, Yao & Baddour's PeerJ CS Part II paper and its
-  supplementary appendix, and `bessel_properties.md`, a distillation of Bessel-function recurrence/
-  derivative relations — retained for reference even though the `_recurrence.py` implementation that used
-  it was removed for numerical instability; see the DHT architecture section above). These are the sources
-  `src/pypft/references.py`'s `Reference` members cite.
+  supplementary appendix, `bessel_properties.md`, a distillation of Bessel-function recurrence/derivative
+  relations — retained for reference even though the `_recurrence.py` implementation that used it was
+  removed for numerical instability; see the DHT architecture section above — and `pft_properties.md`, an
+  equation-level distillation of both papers' operational rules, mirroring `bessel_properties.md`'s own
+  style). These are the sources `src/pypft/references.py`'s `Reference` members cite.
 - `benchmarks/results/` — timestamped Markdown reports generated by `benchmarks/run_dht_benchmarks.py`/
   `run_dft_benchmarks.py` (gitignored since they're generated artifacts, not source, even though the
   scripts that produce them are tracked in the top-level `benchmarks/` directory).
