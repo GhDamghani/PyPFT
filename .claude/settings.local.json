@@ -25,23 +25,6 @@
       "Bash(git diff *)",
       "Bash(git log)",
       "Bash(git log *)"
-    ],
-    "deny": [],
-    "ask": [
-      "Bash(git add *)",
-      "Bash(git commit *)",
-      "Bash(git push *)",
-      "Bash(git branch *)",
-      "Bash(git checkout *)",
-      "Bash(git reset *)",
-      "Bash(git tag *)",
-      "Bash(git rebase *)",
-      "Bash(uv publish *)",
-      "Bash(uv add *)",
-      "Bash(uv run python -c *)",
-      "Bash(uv run python)",
-      "Bash(python *)",
-      "Bash(python)"
     ]
   }
 }

@@ -1,5 +1,5 @@
 # Runs PyPFT's quality gate: the checks every phase must leave green. Assumes `uv sync`
-# has already run. Sphinx joins this list once docs/ exists.
+# has already run.
 
 $ErrorActionPreference = "Stop"
 
@@ -22,4 +22,5 @@ Invoke-Step "isort --check-only" @("uv", "run", "isort", "--check-only", "src", 
 Invoke-Step "flake8" @("uv", "run", "flake8", "src")
 Invoke-Step "pyright" @("uv", "run", "pyright")
 Invoke-Step "vulture" @("uv", "run", "vulture", "src")
+Invoke-Step "sphinx-build -W" @("uv", "run", "sphinx-build", "-W", "docs", "docs/_build")
 Invoke-Step "uv build" @("uv", "build")

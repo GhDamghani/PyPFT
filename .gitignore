@@ -9,5 +9,8 @@ build/
 dist/
 docs/build/
 docs/_build/
+docs/_notebooks/
+docs/jupyter_execute/
+docs/.jupyter_cache/
 *.egg-info/
 .benchmarks/

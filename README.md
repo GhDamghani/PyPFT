@@ -12,6 +12,57 @@ Based on:
 
     Golshani, S., & Nasiraei‐Moghaddam, A. (2017). Efficient radial tagging CMR exam: A coherent k‐space reading and image reconstruction approach. Magnetic resonance in medicine, 77(4), 1459-1472. https://doi.org/10.1002/mrm.26219
 
+## User Guide
+
+### Installation
+
+```powershell
+uv add pypft
+```
+
+### The discrete Hankel transform
+
+```python
+import numpy as np
+import pypft
+
+n, R = 0, 8.0
+r, rho = pypft.sample_points(n, size=64, R=R)
+
+f = np.exp(-(r**2) / 2)
+F = pypft.hankel_transform(f, n, R)
+f_reconstructed = pypft.inverse_hankel_transform(F, n, R)
+```
+
+### Cartesian and polar images
+
+`pypft.cartesian_to_polar`/`pypft.polar_to_cartesian` resample an ordinary
+image onto (and back off of) a *uniform* polar grid. This is not the
+transform's own (order-dependent, non-uniform) sampling grid -- it is the
+natural first illustration of what "polar" means for an image:
+
+```python
+polar = pypft.cartesian_to_polar(image, n_radial=128, n_angular=96)
+reconstructed = pypft.polar_to_cartesian(polar, height, width)
+```
+
+The returned array follows PyPFT's own `(radial, angular)` axis layout
+(`pypft.Axis`), with a centered angular axis: index `n_angular // 2` holds
+angle `0`.
+
+### Citing a result
+
+`pypft.Reference`/`pypft.cite`/`pypft.bibliography` render the scientific
+sources behind PyPFT's math:
+
+```python
+pypft.cite(pypft.Reference.BADDOUR_2019_DHT)
+pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
+```
+
+See `notebooks/00_installation_and_quickstart.ipynb` and
+`notebooks/01_polar_and_cartesian_images.ipynb` for the full walkthrough.
+
 ## Developer Guide
 
 ### Installing
