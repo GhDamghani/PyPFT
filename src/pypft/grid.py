@@ -104,14 +104,14 @@ class PolarGrid:
 
     def __post_init__(self) -> None:
         """Validate every field once, right after construction."""
-        IntValidator.type_is_int(self.n_radial)
-        IntValidator.value_is_positive(self.n_radial)
-        IntValidator.type_is_int(self.n_angular)
-        IntValidator.value_is_positive(self.n_angular)
-        FloatValidator.type_is_float(self.R)
-        FloatValidator.value_is_positive(self.R)
-        EnumValidator.type_is_enum(self.limit_kind)
-        EnumValidator.value_is_enum_member(self.limit_kind, LimitKind)
+        IntValidator.type_is_int(value=self.n_radial)
+        IntValidator.value_is_positive(value=self.n_radial)
+        IntValidator.type_is_int(value=self.n_angular)
+        IntValidator.value_is_positive(value=self.n_angular)
+        FloatValidator.type_is_float(value=self.R)
+        FloatValidator.value_is_positive(value=self.R)
+        EnumValidator.type_is_enum(value=self.limit_kind)
+        EnumValidator.value_is_enum_member(value=self.limit_kind, enum_class=LimitKind)
 
     @property
     def harmonics(self) -> np.ndarray:
@@ -150,7 +150,7 @@ class PolarGrid:
             # Each row's order is the harmonic's own |n| -- the DHT kernel only
             # ever depends on the order's magnitude (Y^{(-n)N} = (-1)^n Y^{nN}).
             space[row, :], frequency[row, :] = sample_points(
-                int(abs(order)), self.n_radial, self.R
+                n=int(abs(order)), size=self.n_radial, R=self.R
             )
         return space, frequency
 
@@ -211,10 +211,10 @@ def sample_cartesian(image: np.ndarray, grid: PolarGrid) -> np.ndarray:
     :raises ValueError: If any argument has an invalid value.
 
     """
-    NumpyValidator.type_is_ndarray(image)
-    NumpyValidator.value_is_2d(image)
-    NumpyValidator.value_is_finite(image)
-    _type_is_polar_grid(grid)
+    NumpyValidator.type_is_ndarray(value=image)
+    NumpyValidator.value_is_2d(value=image)
+    NumpyValidator.value_is_finite(value=image)
+    _type_is_polar_grid(value=grid)
 
     height, width = image.shape
     center_x, center_y = width / 2.0, height / 2.0
@@ -223,7 +223,12 @@ def sample_cartesian(image: np.ndarray, grid: PolarGrid) -> np.ndarray:
     # angular index also selects the row's Bessel order in grid.r itself.
     map_x = (center_x + grid.r * np.cos(grid.theta)[:, np.newaxis]).astype(np.float32)
     map_y = (center_y + grid.r * np.sin(grid.theta)[:, np.newaxis]).astype(np.float32)
-    return cv2.remap(image.astype(np.float64), map_x, map_y, cv2.INTER_LINEAR)
+    return cv2.remap(
+        src=image.astype(np.float64),
+        map1=map_x,
+        map2=map_y,
+        interpolation=cv2.INTER_LINEAR,
+    )
 
 
 # ======================================================================================
@@ -281,8 +286,10 @@ def check_adequacy(grid: PolarGrid) -> None:
     :raises TypeError: If ``grid`` is not a ``PolarGrid``.
 
     """
-    _type_is_polar_grid(grid)
-    predicted = _predicted_forward_error_db(grid.n_angular, grid.n_radial)
+    _type_is_polar_grid(value=grid)
+    predicted = _predicted_forward_error_db(
+        n_angular=grid.n_angular, n_radial=grid.n_radial
+    )
     if predicted > _ADEQUACY_THRESHOLD_DB:
         needed_log2_n_radial = (
             _ADEQUACY_INTERCEPT_DB
@@ -291,11 +298,13 @@ def check_adequacy(grid: PolarGrid) -> None:
         ) / -_ADEQUACY_N_RADIAL_COEFFICIENT_DB
         suggested_n_radial = int(np.ceil(2.0**needed_log2_n_radial))
         warnings.warn(
-            f"n_radial={grid.n_radial} is likely inadequate for "
-            f"n_angular={grid.n_angular}: predicted forward average error is "
-            f"{predicted:.1f} dB, worse than the {_ADEQUACY_THRESHOLD_DB:.0f} dB "
-            f"target; try n_radial >= {suggested_n_radial}.",
-            AdequacyWarning,
+            message=(
+                f"n_radial={grid.n_radial} is likely inadequate for "
+                f"n_angular={grid.n_angular}: predicted forward average error is "
+                f"{predicted:.1f} dB, worse than the {_ADEQUACY_THRESHOLD_DB:.0f} dB "
+                f"target; try n_radial >= {suggested_n_radial}."
+            ),
+            category=AdequacyWarning,
             stacklevel=2,
         )
 
@@ -321,9 +330,9 @@ def check_nyquist_adequacy(grid: PolarGrid, band_limit: float) -> None:
         ``LimitKind.SPACE_LIMITED``.
 
     """
-    _type_is_polar_grid(grid)
-    FloatValidator.type_is_float(band_limit)
-    FloatValidator.value_is_positive(band_limit)
+    _type_is_polar_grid(value=grid)
+    FloatValidator.type_is_float(value=band_limit)
+    FloatValidator.value_is_positive(value=band_limit)
     if grid.limit_kind is not LimitKind.SPACE_LIMITED:
         raise NotImplementedError(
             "check_nyquist_adequacy only supports LimitKind.SPACE_LIMITED grids"
@@ -331,14 +340,17 @@ def check_nyquist_adequacy(grid: PolarGrid, band_limit: float) -> None:
 
     # jn_zeros(0, N) returns the first N zeros of J_0; the N1-th one (Baddour's
     # notation) is the (n_radial + 1)-th zero, since n_radial itself is "N1 - 1".
-    j_0_n1 = jn_zeros(0, grid.n_radial + 1)[-1]
+    j_0_n1 = jn_zeros(n=0, nt=grid.n_radial + 1)[-1]
     required = band_limit * grid.R
     if j_0_n1 < required:
         suggested_n_radial = int(np.ceil(2.0 * band_limit * grid.R / np.pi))
         warnings.warn(
-            f"grid violates the DHT Nyquist condition: j_(0,{grid.n_radial + 1})="
-            f"{j_0_n1:.3f} < band_limit*R={required:.3f}; try n_radial >= "
-            f"{suggested_n_radial} (Eq. 24's asymptotic estimate).",
-            NyquistWarning,
+            message=(
+                f"grid violates the DHT Nyquist condition: "
+                f"j_(0,{grid.n_radial + 1})={j_0_n1:.3f} < "
+                f"band_limit*R={required:.3f}; try n_radial >= "
+                f"{suggested_n_radial} (Eq. 24's asymptotic estimate)."
+            ),
+            category=NyquistWarning,
             stacklevel=2,
         )

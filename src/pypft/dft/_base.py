@@ -71,9 +71,9 @@ class BaseDFT:
         :rtype: np.ndarray
 
         """
-        natural = _uncenter_angular(x, axis)
-        transformed = cls._forward(natural, axis)
-        return _center_angular(transformed, axis)
+        natural = _uncenter_angular(values=x, axis=axis)
+        transformed = cls._forward(values=natural, axis=axis)
+        return _center_angular(values=transformed, axis=axis)
 
     @classmethod
     def inverse(cls, X: np.ndarray, *, axis: int = -1) -> np.ndarray:
@@ -88,6 +88,6 @@ class BaseDFT:
         :rtype: np.ndarray
 
         """
-        natural = _uncenter_angular(X, axis)
-        transformed = cls._inverse(natural, axis)
-        return _center_angular(transformed, axis)
+        natural = _uncenter_angular(values=X, axis=axis)
+        transformed = cls._inverse(values=natural, axis=axis)
+        return _center_angular(values=transformed, axis=axis)

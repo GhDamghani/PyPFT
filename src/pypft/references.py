@@ -96,8 +96,8 @@ def _validate_references(refs: tuple[Reference, ...]) -> None:
 
     """
     for ref in refs:
-        EnumValidator.type_is_enum(ref)
-        EnumValidator.value_is_enum_member(ref, Reference)
+        EnumValidator.type_is_enum(value=ref)
+        EnumValidator.value_is_enum_member(value=ref, enum_class=Reference)
 
 
 def cite(*refs: Reference) -> str:

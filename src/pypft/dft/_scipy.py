@@ -26,7 +26,7 @@ class ScipyDFT(BaseDFT):
         # scipy.fft's backend-dispatch decorator confuses static return-type
         # inference (it reports a dispatch-machinery type instead of the
         # array the wrapped function actually returns at runtime).
-        return cast(np.ndarray, scipy.fft.fft(values, axis=axis))
+        return cast(np.ndarray, scipy.fft.fft(x=values, axis=axis))
 
     @staticmethod
     def _inverse(values: np.ndarray, axis: int) -> np.ndarray:
@@ -40,4 +40,4 @@ class ScipyDFT(BaseDFT):
         :rtype: np.ndarray
 
         """
-        return cast(np.ndarray, scipy.fft.ifft(values, axis=axis))
+        return cast(np.ndarray, scipy.fft.ifft(x=values, axis=axis))

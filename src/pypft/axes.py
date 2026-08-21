@@ -63,7 +63,7 @@ def _center_angular(values: np.ndarray, axis: int) -> np.ndarray:
     :rtype: np.ndarray
 
     """
-    return np.fft.fftshift(values, axes=axis)
+    return np.fft.fftshift(x=values, axes=axis)
 
 
 def _uncenter_angular(values: np.ndarray, axis: int) -> np.ndarray:
@@ -80,4 +80,4 @@ def _uncenter_angular(values: np.ndarray, axis: int) -> np.ndarray:
     :rtype: np.ndarray
 
     """
-    return np.fft.ifftshift(values, axes=axis)
+    return np.fft.ifftshift(x=values, axes=axis)

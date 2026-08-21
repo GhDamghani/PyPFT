@@ -104,11 +104,13 @@ class BaseSignal:
 
     def __post_init__(self) -> None:
         """Validate ``values``/``grid`` once, right after construction."""
-        NumpyValidator.type_is_ndarray(self.values)
-        NumpyValidator.value_is_2d(self.values)
-        _type_is_polar_grid(self.grid)
+        NumpyValidator.type_is_ndarray(value=self.values)
+        NumpyValidator.value_is_2d(value=self.values)
+        _type_is_polar_grid(value=self.grid)
         reference = np.empty((self.grid.n_radial, self.grid.n_angular))
-        NumpyValidator.value1_shape_matches_value2(self.values, reference)
+        NumpyValidator.value1_shape_matches_value2(
+            value1=self.values, value2=reference
+        )
 
     def to(self, domain: Domain) -> "BaseSignal":
         """Walk ``_CHAIN`` from this signal's own domain to ``domain``.
@@ -126,8 +128,8 @@ class BaseSignal:
         :raises ValueError: If ``domain`` is not a ``Domain`` member.
 
         """
-        EnumValidator.type_is_enum(domain)
-        EnumValidator.value_is_enum_member(domain, Domain)
+        EnumValidator.type_is_enum(value=domain)
+        EnumValidator.value_is_enum_member(value=domain, enum_class=Domain)
         start, end = _CHAIN.index(self.domain), _CHAIN.index(domain)
         step = 1 if end >= start else -1
         signal: BaseSignal = self
@@ -150,8 +152,8 @@ class SpacePolarSignal(BaseSignal):
         :rtype: SpaceHarmonicSignal
 
         """
-        values = angular_dft(self.values, axis=Axis.ANGULAR)
-        return SpaceHarmonicSignal(values, self.grid)
+        values = angular_dft(x=self.values, axis=Axis.ANGULAR)
+        return SpaceHarmonicSignal(values=values, grid=self.grid)
 
 
 @dataclass(frozen=True)
@@ -167,8 +169,8 @@ class SpaceHarmonicSignal(BaseSignal):
         :rtype: SpacePolarSignal
 
         """
-        values = inverse_angular_dft(self.values, axis=Axis.ANGULAR)
-        return SpacePolarSignal(values, self.grid)
+        values = inverse_angular_dft(X=self.values, axis=Axis.ANGULAR)
+        return SpacePolarSignal(values=values, grid=self.grid)
 
     def to_frequency(self) -> "FrequencyHarmonicSignal":
         """Apply the scaled forward Hankel transform, moving to the frequency domain.
@@ -178,9 +180,12 @@ class SpaceHarmonicSignal(BaseSignal):
 
         """
         values = scaled_hankel(
-            self.values, self.grid, direction=Direction.FORWARD, axis=Axis.RADIAL
+            values=self.values,
+            grid=self.grid,
+            direction=Direction.FORWARD,
+            axis=Axis.RADIAL,
         )
-        return FrequencyHarmonicSignal(values, self.grid)
+        return FrequencyHarmonicSignal(values=values, grid=self.grid)
 
 
 @dataclass(frozen=True)
@@ -197,9 +202,12 @@ class FrequencyHarmonicSignal(BaseSignal):
 
         """
         values = scaled_hankel(
-            self.values, self.grid, direction=Direction.INVERSE, axis=Axis.RADIAL
+            values=self.values,
+            grid=self.grid,
+            direction=Direction.INVERSE,
+            axis=Axis.RADIAL,
         )
-        return SpaceHarmonicSignal(values, self.grid)
+        return SpaceHarmonicSignal(values=values, grid=self.grid)
 
     def to_angles(self) -> "FrequencyPolarSignal":
         """Apply the angular IDFT, moving to the frequency domain's angle axis.
@@ -208,8 +216,8 @@ class FrequencyHarmonicSignal(BaseSignal):
         :rtype: FrequencyPolarSignal
 
         """
-        values = inverse_angular_dft(self.values, axis=Axis.ANGULAR)
-        return FrequencyPolarSignal(values, self.grid)
+        values = inverse_angular_dft(X=self.values, axis=Axis.ANGULAR)
+        return FrequencyPolarSignal(values=values, grid=self.grid)
 
 
 @dataclass(frozen=True)
@@ -225,5 +233,5 @@ class FrequencyPolarSignal(BaseSignal):
         :rtype: FrequencyHarmonicSignal
 
         """
-        values = angular_dft(self.values, axis=Axis.ANGULAR)
-        return FrequencyHarmonicSignal(values, self.grid)
+        values = angular_dft(x=self.values, axis=Axis.ANGULAR)
+        return FrequencyHarmonicSignal(values=values, grid=self.grid)

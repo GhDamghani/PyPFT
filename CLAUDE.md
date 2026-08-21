@@ -432,6 +432,10 @@ state a mathematical result — `02_sampling_grids` is the first notebook to act
   use the `warnings` module (not silent fallback) when degrading gracefully instead of raising.
 - **Type annotations**: required on all function signatures, with input validation via the
   `*Validator` classes above.
+- **Keyword arguments**: pass arguments by keyword at every call site where the callee's signature allows
+  it — PyPFT's own API as well as third-party calls (`numpy`/`scipy`/`cv2`/etc.) — e.g.
+  `PolarGrid(n_radial=383, n_angular=15, R=40.0)`, not `PolarGrid(383, 15, 40.0)`. Exempt only where the
+  callee itself forces positional-only arguments (e.g. some NumPy/SciPy C-extension entry points).
 - **Docstrings**: reStructuredText (PEP 287 / Sphinx `:param:`/`:type:`/`:raises:` style), not
   Google/NumPy style — see any method in `validators.py` for the pattern. Avoid Sphinx cross-reference
   roles (`:class:`/`:func:`/`:meth:`/`:data:`) — flake8's RST checker doesn't recognize them; use plain

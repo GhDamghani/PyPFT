@@ -80,8 +80,8 @@ def angular_parity(n_angular: int) -> AngularParity:
     :raises ValueError: If ``n_angular`` is not strictly positive.
 
     """
-    IntValidator.type_is_int(n_angular)
-    IntValidator.value_is_positive(n_angular)
+    IntValidator.type_is_int(value=n_angular)
+    IntValidator.value_is_positive(value=n_angular)
     return AngularParity.EVEN if n_angular % 2 == 0 else AngularParity.ODD
 
 
@@ -101,9 +101,9 @@ def harmonics(n_angular: int) -> np.ndarray:
     :raises ValueError: If ``n_angular`` is not strictly positive.
 
     """
-    IntValidator.type_is_int(n_angular)
-    IntValidator.value_is_positive(n_angular)
-    return np.arange(-(n_angular // 2), n_angular - n_angular // 2)
+    IntValidator.type_is_int(value=n_angular)
+    IntValidator.value_is_positive(value=n_angular)
+    return np.arange(start=-(n_angular // 2), stop=n_angular - n_angular // 2)
 
 
 def _validate_transform_inputs(
@@ -121,12 +121,12 @@ def _validate_transform_inputs(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    NumpyValidator.type_is_ndarray(signal)
-    NumpyValidator.value_is_at_least_1d(signal)
-    EnumValidator.type_is_enum(implementation)
-    EnumValidator.value_is_enum_member(implementation, DFTImplementation)
-    IntValidator.type_is_int(axis)
-    NumpyValidator.value_has_axis(signal, axis)
+    NumpyValidator.type_is_ndarray(value=signal)
+    NumpyValidator.value_is_at_least_1d(value=signal)
+    EnumValidator.type_is_enum(value=implementation)
+    EnumValidator.value_is_enum_member(value=implementation, enum_class=DFTImplementation)
+    IntValidator.type_is_int(value=axis)
+    NumpyValidator.value_has_axis(value=signal, axis=axis)
 
 
 def angular_dft(
@@ -151,8 +151,8 @@ def angular_dft(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    _validate_transform_inputs(x, implementation, axis)
-    return _IMPLEMENTATIONS[implementation].forward(x, axis=axis)
+    _validate_transform_inputs(signal=x, implementation=implementation, axis=axis)
+    return _IMPLEMENTATIONS[implementation].forward(x=x, axis=axis)
 
 
 def inverse_angular_dft(
@@ -177,5 +177,5 @@ def inverse_angular_dft(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    _validate_transform_inputs(X, implementation, axis)
-    return _IMPLEMENTATIONS[implementation].inverse(X, axis=axis)
+    _validate_transform_inputs(signal=X, implementation=implementation, axis=axis)
+    return _IMPLEMENTATIONS[implementation].inverse(X=X, axis=axis)

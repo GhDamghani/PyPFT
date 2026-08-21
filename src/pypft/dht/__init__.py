@@ -79,16 +79,16 @@ def _validate_transform_inputs(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    NumpyValidator.type_is_ndarray(signal)
-    NumpyValidator.value_is_at_least_1d(signal)
-    IntValidator.type_is_int(n)
-    IntValidator.value_is_non_negative(n)
-    FloatValidator.type_is_float(R)
-    FloatValidator.value_is_positive(R)
-    EnumValidator.type_is_enum(implementation)
-    EnumValidator.value_is_enum_member(implementation, DHTImplementation)
-    IntValidator.type_is_int(axis)
-    NumpyValidator.value_has_axis(signal, axis)
+    NumpyValidator.type_is_ndarray(value=signal)
+    NumpyValidator.value_is_at_least_1d(value=signal)
+    IntValidator.type_is_int(value=n)
+    IntValidator.value_is_non_negative(value=n)
+    FloatValidator.type_is_float(value=R)
+    FloatValidator.value_is_positive(value=R)
+    EnumValidator.type_is_enum(value=implementation)
+    EnumValidator.value_is_enum_member(value=implementation, enum_class=DHTImplementation)
+    IntValidator.type_is_int(value=axis)
+    NumpyValidator.value_has_axis(value=signal, axis=axis)
 
 
 def hankel_transform(
@@ -121,8 +121,10 @@ def hankel_transform(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    _validate_transform_inputs(f, n, R, implementation, axis)
-    return _IMPLEMENTATIONS[implementation].forward(f, n, R, axis=axis)
+    _validate_transform_inputs(
+        signal=f, n=n, R=R, implementation=implementation, axis=axis
+    )
+    return _IMPLEMENTATIONS[implementation].forward(f=f, n=n, R=R, axis=axis)
 
 
 def inverse_hankel_transform(
@@ -154,8 +156,10 @@ def inverse_hankel_transform(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    _validate_transform_inputs(F, n, R, implementation, axis)
-    return _IMPLEMENTATIONS[implementation].inverse(F, n, R, axis=axis)
+    _validate_transform_inputs(
+        signal=F, n=n, R=R, implementation=implementation, axis=axis
+    )
+    return _IMPLEMENTATIONS[implementation].inverse(F=F, n=n, R=R, axis=axis)
 
 
 def sample_points(
@@ -180,12 +184,12 @@ def sample_points(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    IntValidator.type_is_int(n)
-    IntValidator.value_is_non_negative(n)
-    IntValidator.type_is_int(size)
-    IntValidator.value_is_non_negative(size)
-    FloatValidator.type_is_float(R)
-    FloatValidator.value_is_positive(R)
-    EnumValidator.type_is_enum(implementation)
-    EnumValidator.value_is_enum_member(implementation, DHTImplementation)
-    return _IMPLEMENTATIONS[implementation].sample_points(n, size, R)
+    IntValidator.type_is_int(value=n)
+    IntValidator.value_is_non_negative(value=n)
+    IntValidator.type_is_int(value=size)
+    IntValidator.value_is_non_negative(value=size)
+    FloatValidator.type_is_float(value=R)
+    FloatValidator.value_is_positive(value=R)
+    EnumValidator.type_is_enum(value=implementation)
+    EnumValidator.value_is_enum_member(value=implementation, enum_class=DHTImplementation)
+    return _IMPLEMENTATIONS[implementation].sample_points(n=n, size=size, R=R)

@@ -26,11 +26,11 @@ class NaiveDHT(BaseDHT):
         :rtype: tuple[np.ndarray, np.ndarray]
 
         """
-        zeros = jn_zeros(n, size + 1)
+        zeros = jn_zeros(n=n, nt=size + 1)
         j_nN = zeros[-1]
         jn_vals = zeros[:-1]
         j_np1_vals = jv(n + 1, jn_vals)
-        outer = np.outer(jn_vals, jn_vals) / j_nN
+        outer = np.outer(a=jn_vals, b=jn_vals) / j_nN
         j_n_outer = jv(n, outer)
         kernel = (2.0 / j_nN) * j_n_outer / j_np1_vals[np.newaxis, :] ** 2
         return kernel, zeros

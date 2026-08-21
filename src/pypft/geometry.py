@@ -70,23 +70,27 @@ def cartesian_to_polar(image: np.ndarray, n_radial: int, n_angular: int) -> np.n
     :raises ValueError: If any argument has an invalid value.
 
     """
-    NumpyValidator.type_is_ndarray(image)
-    NumpyValidator.value_is_at_least_1d(image)
-    IntValidator.type_is_int(n_radial)
-    IntValidator.value_is_positive(n_radial)
-    IntValidator.type_is_int(n_angular)
-    IntValidator.value_is_positive(n_angular)
+    NumpyValidator.type_is_ndarray(value=image)
+    NumpyValidator.value_is_at_least_1d(value=image)
+    IntValidator.type_is_int(value=n_radial)
+    IntValidator.value_is_positive(value=n_radial)
+    IntValidator.type_is_int(value=n_angular)
+    IntValidator.value_is_positive(value=n_angular)
 
     height, width = image.shape[:2]
-    center, max_radius = _center_and_max_radius(height, width)
+    center, max_radius = _center_and_max_radius(height=height, width=width)
 
     # warpPolar's dsize is (width, height) and it lays its own output out
     # (angular, radial[, channel]) -- moveaxis undoes that to PyPFT's layout.
     warped = cv2.warpPolar(
-        image, (n_radial, n_angular), center, max_radius, _WARP_POLAR_FLAGS
+        src=image,
+        dsize=(n_radial, n_angular),
+        center=center,
+        maxRadius=max_radius,
+        flags=_WARP_POLAR_FLAGS,
     )
-    polar = np.moveaxis(warped, 0, 1)
-    return _center_angular(polar, axis=Axis.ANGULAR)
+    polar = np.moveaxis(a=warped, source=0, destination=1)
+    return _center_angular(values=polar, axis=Axis.ANGULAR)
 
 
 def polar_to_cartesian(polar: np.ndarray, height: int, width: int) -> np.ndarray:
@@ -110,21 +114,23 @@ def polar_to_cartesian(polar: np.ndarray, height: int, width: int) -> np.ndarray
     :raises ValueError: If any argument has an invalid value.
 
     """
-    NumpyValidator.type_is_ndarray(polar)
-    NumpyValidator.value_is_at_least_1d(polar)
-    IntValidator.type_is_int(height)
-    IntValidator.value_is_positive(height)
-    IntValidator.type_is_int(width)
-    IntValidator.value_is_positive(width)
+    NumpyValidator.type_is_ndarray(value=polar)
+    NumpyValidator.value_is_at_least_1d(value=polar)
+    IntValidator.type_is_int(value=height)
+    IntValidator.value_is_positive(value=height)
+    IntValidator.type_is_int(value=width)
+    IntValidator.value_is_positive(value=width)
 
-    center, max_radius = _center_and_max_radius(height, width)
+    center, max_radius = _center_and_max_radius(height=height, width=width)
 
-    uncentered = _uncenter_angular(polar, axis=Axis.ANGULAR)
-    warped = np.moveaxis(uncentered, 0, 1)  # back to warpPolar's own layout
+    uncentered = _uncenter_angular(values=polar, axis=Axis.ANGULAR)
+    warped = np.moveaxis(
+        a=uncentered, source=0, destination=1
+    )  # back to warpPolar's own layout
     return cv2.warpPolar(
-        warped,
-        (width, height),
-        center,
-        max_radius,
-        _WARP_POLAR_FLAGS | cv2.WARP_INVERSE_MAP,
+        src=warped,
+        dsize=(width, height),
+        center=center,
+        maxRadius=max_radius,
+        flags=_WARP_POLAR_FLAGS | cv2.WARP_INVERSE_MAP,
     )

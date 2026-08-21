@@ -33,7 +33,7 @@ def _cached_naive_kernel(n: int, size: int) -> tuple[np.ndarray, np.ndarray]:
     :rtype: tuple[np.ndarray, np.ndarray]
 
     """
-    kernel, zeros = NaiveDHT._bessel_kernel(n, size)
+    kernel, zeros = NaiveDHT._bessel_kernel(n=n, size=size)
     kernel.setflags(write=False)
     zeros.setflags(write=False)
     return kernel, zeros

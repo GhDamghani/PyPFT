@@ -93,10 +93,10 @@ class BaseDHT:
 
         """
         if values.ndim == 1:  # a bare vector already has no other axis to move
-            return cls._apply(kernel, values)
-        moved = np.moveaxis(values, axis, -2)
-        applied = cls._apply(kernel, moved)
-        return np.moveaxis(applied, -2, axis)
+            return cls._apply(kernel=kernel, vector=values)
+        moved = np.moveaxis(a=values, source=axis, destination=-2)
+        applied = cls._apply(kernel=kernel, vector=moved)
+        return np.moveaxis(a=applied, source=-2, destination=axis)
 
     @classmethod
     def sample_points(
@@ -115,7 +115,7 @@ class BaseDHT:
         :rtype: tuple[np.ndarray, np.ndarray]
 
         """
-        _, zeros = cls._bessel_kernel(n, size)
+        _, zeros = cls._bessel_kernel(n=n, size=size)
         j_nN = zeros[-1]
         jn_vals = zeros[:-1]
         r = jn_vals * R / j_nN
@@ -140,9 +140,11 @@ class BaseDHT:
         :rtype: np.ndarray
 
         """
-        kernel, zeros = cls._bessel_kernel(n, f.shape[axis])
+        kernel, zeros = cls._bessel_kernel(n=n, size=f.shape[axis])
         j_nN = zeros[-1]
-        return (R**2 / j_nN) * cls._apply_along_axis(kernel, f, axis)
+        return (R**2 / j_nN) * cls._apply_along_axis(
+            kernel=kernel, values=f, axis=axis
+        )
 
     @classmethod
     def inverse(cls, F: np.ndarray, n: int, R: float, *, axis: int = -1) -> np.ndarray:
@@ -161,6 +163,8 @@ class BaseDHT:
         :rtype: np.ndarray
 
         """
-        kernel, zeros = cls._bessel_kernel(n, F.shape[axis])
+        kernel, zeros = cls._bessel_kernel(n=n, size=F.shape[axis])
         j_nN = zeros[-1]
-        return (j_nN / R**2) * cls._apply_along_axis(kernel, F, axis)
+        return (j_nN / R**2) * cls._apply_along_axis(
+            kernel=kernel, values=F, axis=axis
+        )

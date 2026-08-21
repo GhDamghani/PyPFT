@@ -58,12 +58,12 @@ def _apply_batched(kernel: np.ndarray, values: np.ndarray) -> np.ndarray:
 
     """
     size = values.shape[-2]
-    moved = np.moveaxis(values, -2, 0)  # (size, *rest)
+    moved = np.moveaxis(a=values, source=-2, destination=0)  # (size, *rest)
     rest_shape = moved.shape[1:]
     flat = np.ascontiguousarray(moved.reshape(size, -1))
-    result_flat = _matmat_parallel(kernel, flat)
+    result_flat = _matmat_parallel(kernel=kernel, matrix=flat)
     result = result_flat.reshape((size,) + rest_shape)
-    return np.moveaxis(result, 0, -2)
+    return np.moveaxis(a=result, source=0, destination=-2)
 
 
 class VectorizedDHT(CachedBesselDHT):
@@ -86,11 +86,11 @@ class VectorizedDHT(CachedBesselDHT):
         vector_c = vector.astype(np.complex128, copy=False)
         kernel_c = kernel.astype(np.complex128)
         if vector.ndim == 1:
-            result = _matvec_parallel(kernel_c, vector_c)
+            result = _matvec_parallel(kernel=kernel_c, vector=vector_c)
         elif vector.ndim == 2:
-            result = _matmat_parallel(kernel_c, vector_c)
+            result = _matmat_parallel(kernel=kernel_c, matrix=vector_c)
         else:
-            result = _apply_batched(kernel_c, vector_c)
+            result = _apply_batched(kernel=kernel_c, values=vector_c)
         if not np.iscomplexobj(vector):
             result = np.real(result)
         return result.astype(vector.dtype, copy=False)

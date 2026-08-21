@@ -79,9 +79,9 @@ def kernel_matrix(grid: PolarGrid, *, direction: Direction) -> np.ndarray:
     :raises ValueError: If ``direction`` is not a ``Direction`` member.
 
     """
-    _type_is_polar_grid(grid)
-    EnumValidator.type_is_enum(direction)
-    EnumValidator.value_is_enum_member(direction, Direction)
+    _type_is_polar_grid(value=grid)
+    EnumValidator.type_is_enum(value=direction)
+    EnumValidator.value_is_enum_member(value=direction, enum_class=Direction)
 
     n_radial = grid.n_radial
     n_angular = grid.n_angular
@@ -89,14 +89,14 @@ def kernel_matrix(grid: PolarGrid, *, direction: Direction) -> np.ndarray:
     total_size = n_radial * n_angular
     operator = np.zeros((total_size, total_size), dtype=complex)
 
-    for harmonic in harmonics(n_angular):
+    for harmonic in harmonics(n_angular=n_angular):
         n = int(harmonic)
         order = abs(n)
         sign = _harmonic_sign(n)
         # NaiveDHT is the from-scratch reference kernel builder -- every
         # other DHT implementation is verified against it, never the other
         # way around, so it is the right ground truth for an oracle too.
-        bessel_kernel, zeros = NaiveDHT._bessel_kernel(order, n_radial)
+        bessel_kernel, zeros = NaiveDHT._bessel_kernel(n=order, size=n_radial)
         j_nN1 = zeros[-1]
 
         # phase[i] = exp(i*n*theta_i); the angular factor at (row, col) is
@@ -106,7 +106,7 @@ def kernel_matrix(grid: PolarGrid, *, direction: Direction) -> np.ndarray:
         # differ only in which flattened axis (output or input) plays the
         # "row"/"col" role of this same, direction-agnostic matrix.
         phase = np.exp(1j * n * theta)
-        angular = np.outer(phase, phase.conj())
+        angular = np.outer(a=phase, b=phase.conj())
 
         if direction is Direction.FORWARD:
             # Matches scaled_hankel's forward scale factor exactly: sign *
@@ -114,9 +114,9 @@ def kernel_matrix(grid: PolarGrid, *, direction: Direction) -> np.ndarray:
             # the 1/n_angular below is inverse_angular_dft's own
             # normalization (angular_dft itself is unnormalized).
             radial = sign * (2.0 * np.pi) * (1j ** (-n)) * (grid.R**2 / j_nN1)
-            operator += np.kron(radial * bessel_kernel, angular) / n_angular
+            operator += np.kron(a=radial * bessel_kernel, b=angular) / n_angular
         else:
             radial = sign * (1j**n) * (j_nN1 / grid.R**2) * bessel_kernel
-            operator += np.kron(radial, angular) / (2.0 * np.pi * n_angular)
+            operator += np.kron(a=radial, b=angular) / (2.0 * np.pi * n_angular)
 
     return operator

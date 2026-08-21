@@ -111,19 +111,19 @@ def scaled_hankel(
     :raises ValueError: If any argument has an invalid value.
 
     """
-    NumpyValidator.type_is_ndarray(values)
-    NumpyValidator.value_is_2d(values)
-    _type_is_polar_grid(grid)
-    EnumValidator.type_is_enum(direction)
-    EnumValidator.value_is_enum_member(direction, Direction)
-    IntValidator.type_is_int(axis)
-    NumpyValidator.value_has_axis(values, axis)
+    NumpyValidator.type_is_ndarray(value=values)
+    NumpyValidator.value_is_2d(value=values)
+    _type_is_polar_grid(value=grid)
+    EnumValidator.type_is_enum(value=direction)
+    EnumValidator.value_is_enum_member(value=direction, enum_class=Direction)
+    IntValidator.type_is_int(value=axis)
+    NumpyValidator.value_has_axis(value=values, axis=axis)
     # values is 2-D, so the axis complementary to the (validated) radial one
     # is exactly "the other one" -- 1 - radial_axis once axis is normalized.
     radial_axis = axis % values.ndim
     angular_axis = 1 - radial_axis
     NumpyValidator.value1_axis_length_matches_value2(
-        values, angular_axis, grid.harmonics, 0
+        value1=values, axis1=angular_axis, value2=grid.harmonics, axis2=0
     )
 
     result = np.empty(values.shape, dtype=complex)
@@ -140,10 +140,12 @@ def scaled_hankel(
         line = values[index_tuple]
         if direction is Direction.FORWARD:
             factor = sign * (2.0 * np.pi) * (1j ** (-n))
-            result[index_tuple] = factor * hankel_transform(line, order, grid.R)
+            result[index_tuple] = factor * hankel_transform(f=line, n=order, R=grid.R)
         else:
             factor = sign * (1j**n) / (2.0 * np.pi)
-            result[index_tuple] = factor * inverse_hankel_transform(line, order, grid.R)
+            result[index_tuple] = factor * inverse_hankel_transform(
+                F=line, n=order, R=grid.R
+            )
     return result
 
 
@@ -164,11 +166,11 @@ def _validate_pft_input(values: np.ndarray, grid: PolarGrid) -> None:
         ``grid``'s ``(n_radial, n_angular)`` layout.
 
     """
-    NumpyValidator.type_is_ndarray(values)
-    NumpyValidator.value_is_2d(values)
-    _type_is_polar_grid(grid)
+    NumpyValidator.type_is_ndarray(value=values)
+    NumpyValidator.value_is_2d(value=values)
+    _type_is_polar_grid(value=grid)
     reference = np.empty((grid.n_radial, grid.n_angular))
-    NumpyValidator.value1_shape_matches_value2(values, reference)
+    NumpyValidator.value1_shape_matches_value2(value1=values, value2=reference)
 
 
 def forward_pft(f: np.ndarray, grid: PolarGrid) -> np.ndarray:
@@ -193,10 +195,12 @@ def forward_pft(f: np.ndarray, grid: PolarGrid) -> np.ndarray:
         ``grid``.
 
     """
-    _validate_pft_input(f, grid)
-    f_n = angular_dft(f, axis=Axis.ANGULAR)
-    F_n = scaled_hankel(f_n, grid, direction=Direction.FORWARD, axis=Axis.RADIAL)
-    return inverse_angular_dft(F_n, axis=Axis.ANGULAR)
+    _validate_pft_input(values=f, grid=grid)
+    f_n = angular_dft(x=f, axis=Axis.ANGULAR)
+    F_n = scaled_hankel(
+        values=f_n, grid=grid, direction=Direction.FORWARD, axis=Axis.RADIAL
+    )
+    return inverse_angular_dft(X=F_n, axis=Axis.ANGULAR)
 
 
 def inverse_pft(F: np.ndarray, grid: PolarGrid) -> np.ndarray:
@@ -217,7 +221,9 @@ def inverse_pft(F: np.ndarray, grid: PolarGrid) -> np.ndarray:
         ``grid``.
 
     """
-    _validate_pft_input(F, grid)
-    F_n = angular_dft(F, axis=Axis.ANGULAR)
-    f_n = scaled_hankel(F_n, grid, direction=Direction.INVERSE, axis=Axis.RADIAL)
-    return inverse_angular_dft(f_n, axis=Axis.ANGULAR)
+    _validate_pft_input(values=F, grid=grid)
+    F_n = angular_dft(x=F, axis=Axis.ANGULAR)
+    f_n = scaled_hankel(
+        values=F_n, grid=grid, direction=Direction.INVERSE, axis=Axis.RADIAL
+    )
+    return inverse_angular_dft(X=f_n, axis=Axis.ANGULAR)

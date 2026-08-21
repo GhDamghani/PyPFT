@@ -20,7 +20,7 @@ class NumpyDFT(BaseDFT):
         :rtype: np.ndarray
 
         """
-        return np.fft.fft(values, axis=axis)
+        return np.fft.fft(a=values, axis=axis)
 
     @staticmethod
     def _inverse(values: np.ndarray, axis: int) -> np.ndarray:
@@ -34,4 +34,4 @@ class NumpyDFT(BaseDFT):
         :rtype: np.ndarray
 
         """
-        return np.fft.ifft(values, axis=axis)
+        return np.fft.ifft(a=values, axis=axis)
