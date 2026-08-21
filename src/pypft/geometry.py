@@ -5,23 +5,23 @@ inverse) so a plain image can be viewed on a polar grid and back, at whatever
 resolution the caller asks for. **This is not the transform's own sampling
 grid**: ``cv2.warpPolar`` produces a *uniformly* spaced radial axis, whereas the
 discrete Hankel transform's grid is order-dependent and non-uniform (Baddour's
-``r_nk``, develop_plan.md §3.5); ``pypft.grid.sample_cartesian`` will be the
-production sampler once it exists. These two functions exist because
+``r_nk``); ``pypft.grid.sample_cartesian`` will be the production sampler
+once it exists. These two functions exist because
 ``warpPolar`` is the natural first illustration of what "polar" means for an
 image, not because it feeds the transform.
 
 Two more things happen at this boundary, once per direction:
 
 - **Layout.** ``cv2.warpPolar`` lays its polar array out ``(angular, radial[,
-  channel])`` -- the reference implementation's convention (develop_plan.md
-  §3.10). PyPFT's own convention is the opposite, ``(radial, angular[,
-  channel])`` (``pypft.axes.Axis``), so every crossing of this boundary
-  transposes deliberately.
+  channel])`` -- the reference implementation's convention. PyPFT's own
+  convention is the opposite, ``(radial, angular[, channel])``
+  (``pypft.axes.Axis``), so every crossing of this boundary transposes
+  deliberately.
 - **Angular convention.** ``warpPolar``'s angular axis is in natural
   (ascending-from-zero) order; PyPFT's own convention is centered
-  (``pypft.axes._center_angular``, develop_plan.md §3.9). ``cartesian_to_polar``
-  centers on the way in, ``polar_to_cartesian`` un-centers on the way out, so
-  nothing downstream of this module has to think about it again.
+  (``pypft.axes._center_angular``). ``cartesian_to_polar`` centers on the way
+  in, ``polar_to_cartesian`` un-centers on the way out, so nothing downstream
+  of this module has to think about it again.
 """
 
 import cv2

@@ -2,17 +2,17 @@
 
 Implements the centered angular DFT/IDFT that sits between PyPFT's stored,
 centered-angular arrays and the discrete Hankel transform's per-harmonic
-processing (develop_plan.md §3.9) -- the ``FFT_phi``/``IFFT_theta`` steps of
-``README.md``'s PFT chain. ``angular_dft`` and ``inverse_angular_dft`` are the
-public entry points; each dispatches to one of several interchangeable
+processing -- the ``FFT_phi``/``IFFT_theta`` steps of ``README.md``'s PFT
+chain. ``angular_dft`` and ``inverse_angular_dft`` are the public entry
+points; each dispatches to one of several interchangeable
 ``DFTImplementation`` strategies (Strategy pattern, see
 ``pypft.dft._base.BaseDFT``), selected by the ``implementation`` argument and
 defaulting to ``DEFAULT_IMPLEMENTATION``.
 
 This module also owns the harmonic-range derivation (``harmonics``) and the
 angular-parity classification (``AngularParity``/``angular_parity``): both
-sample-count parities are numerically valid (develop_plan.md §3.4), so parity
-is reported, never validated against.
+sample-count parities are numerically valid, so parity is reported, never
+validated against.
 """
 
 from enum import Enum, auto
@@ -60,9 +60,9 @@ algorithm, not parallelism -- not worth a third strategy. See
 class AngularParity(Enum):
     """Whether an angular sample count is even or odd.
 
-    A derived, *reported* property of a size, never a precondition
-    (develop_plan.md §3.4): both parities are numerically valid, so no
-    validator rejects an odd or even ``n_angular`` -- see ``angular_parity``.
+    A derived, *reported* property of a size, never a precondition: both
+    parities are numerically valid, so no validator rejects an odd or even
+    ``n_angular`` -- see ``angular_parity``.
     """
 
     ODD = auto()
@@ -88,10 +88,10 @@ def angular_parity(n_angular: int) -> AngularParity:
 def harmonics(n_angular: int) -> np.ndarray:
     """Compute the centered harmonic indices for ``n_angular`` samples.
 
-    Correct for either parity (develop_plan.md §3.4): index ``i`` holds
-    harmonic ``i - n_angular // 2``, matching ``pypft.axes``'s centering
-    convention (and, transitively, what ``angular_dft``'s output means at
-    each index) exactly.
+    Correct for either parity: index ``i`` holds harmonic
+    ``i - n_angular // 2``, matching ``pypft.axes``'s centering convention
+    (and, transitively, what ``angular_dft``'s output means at each index)
+    exactly.
 
     :param n_angular: The number of angular samples.
     :type n_angular: int

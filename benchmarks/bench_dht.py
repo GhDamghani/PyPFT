@@ -1,6 +1,6 @@
 """pytest-benchmark suite comparing DHT implementations along both optimization
-axes described in baddour2019.md's discretization scheme (see CLAUDE.md step 7):
-computing the Bessel-valued kernel, and applying that kernel to a signal.
+axes of the transform's discretization scheme: computing the Bessel-valued
+kernel, and applying that kernel to a signal.
 
 Not part of the package's test suite (outside ``testpaths``); run explicitly via
 ``run_dht_benchmarks.py``, which invokes this file directly with ``pytest``.
@@ -21,9 +21,9 @@ FORWARD_R = 1.0
 
 APPLY_BATCH = 64
 
-#: Shape/axis for the N-D/batched case (develop_plan.md P2): a
-#: (radial, angular, batch)-shaped array with the transform axis first, the
-#: layout ``pypft.transform`` will actually call the DHT with (§3.10).
+#: Shape/axis for the N-D/batched case: a (radial, angular, batch)-shaped
+#: array with the transform axis first, the layout ``pypft.transform`` will
+#: actually call the DHT with.
 ND_SHAPE = (FORWARD_SIZE, 15, APPLY_BATCH)
 ND_AXIS = 0
 
@@ -61,7 +61,7 @@ def test_bench_apply_batch(benchmark, implementation):
 
 @pytest.mark.parametrize("implementation", list(DHTImplementation))
 def test_bench_apply_along_axis_nd(benchmark, implementation):
-    """P2's N-D/batched case: axis 0 of a (radial, angular, batch) array.
+    """The N-D/batched case: axis 0 of a (radial, angular, batch) array.
 
     This is the first workload exercising ``VECTORIZED``'s mat-mat regime via
     ``_apply_batched`` (a flatten-to-2D reshape around ``_matmat_parallel``)

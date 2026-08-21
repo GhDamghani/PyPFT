@@ -15,8 +15,8 @@ from .conftest import DHT_ORDERS, SIGNAL_SIZE
 from .tolerance import dht_tolerance
 
 #: The model is allowed to overestimate the measured residual by at most this
-#: factor (develop_plan.md §3.2's "~10x" margin), so it stays tight enough to
-#: still catch a future regression rather than silently absorbing it.
+#: factor, so it stays tight enough to still catch a future regression rather
+#: than silently absorbing it.
 MAX_MODEL_TO_MEASURED_RATIO = 10.0
 
 

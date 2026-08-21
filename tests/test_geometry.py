@@ -3,9 +3,8 @@
 Two properties are checked: that the round trip through a uniform polar
 resampling approximately recovers a smooth image, and the angular-origin
 test that pins down *which* physical angle lands at which centered angular
-index -- the piece most likely to silently invert (develop_plan.md §3.9's
-centering convention crossed with OpenCV's own angle sign, per §"P3"'s test
-list).
+index -- the piece most likely to silently invert, since it crosses the
+centering convention with OpenCV's own angle sign.
 
 OpenCV's polar angle is measured directly on image coordinates, i.e.
 ``atan2(row - center_y, col - center_x)`` with no ``y``-flip -- so rotating

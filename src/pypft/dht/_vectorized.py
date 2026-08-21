@@ -41,9 +41,9 @@ def _apply_batched(kernel: np.ndarray, values: np.ndarray) -> np.ndarray:
     """Apply ``_matmat_parallel`` to a ``(size, ...)``-shaped, rank > 2 array.
 
     ``_matmat_parallel`` only understands a plain ``(size, batch)`` matrix, but
-    ``BaseDHT._apply_along_axis`` (develop_plan.md §3.3) hands ``_apply`` an
-    array whose target axis sits at ``-2`` with an arbitrary number of leading
-    dimensions and exactly one trailing one. This flattens every dimension
+    ``BaseDHT._apply_along_axis`` hands ``_apply`` an array whose target axis
+    sits at ``-2`` with an arbitrary number of leading dimensions and exactly
+    one trailing one. This flattens every dimension
     except the size axis into a single batch dimension, delegates, then
     restores the original shape -- the numba-loop equivalent of the implicit
     broadcasting ``numpy.matmul`` already gives the other implementations.

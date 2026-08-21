@@ -1,4 +1,4 @@
-"""Machine-checks the notebook citation discipline (develop_plan.md §2.4).
+"""Machine-checks the notebook citation discipline.
 
 Notebook Markdown cells write a citation's inline label out literally (e.g.
 "...is self-inverse [Baddour2019a, Eq. 41]."), since Markdown cells cannot

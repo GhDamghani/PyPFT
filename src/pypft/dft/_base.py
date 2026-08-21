@@ -5,15 +5,14 @@ Every angular DFT implementation is a subclass of ``BaseDFT`` overriding the
 opinion on centering. ``forward``/``inverse`` are template methods built on
 top of those hooks; they never need to be overridden.
 
-``BaseDFT`` -- not its hooks -- owns the centered-angular convention
-(develop_plan.md §3.9): every array PyPFT stores has index ``i`` holding
-angle/harmonic ``i - size // 2`` on its angular axis, but ``numpy.fft``/
-``scipy.fft`` both expect and produce natural order (index ``0`` holds
-angle/harmonic ``0``, ascending). ``forward``/``inverse`` bridge the two by
-reordering to natural order before, and back to centered order after,
-delegating to the hook, via ``pypft.axes._center_angular``/
-``_uncenter_angular`` -- the only place in ``src/`` allowed to reorder an
-angular axis that way.
+``BaseDFT`` -- not its hooks -- owns the centered-angular convention: every
+array PyPFT stores has index ``i`` holding angle/harmonic ``i - size // 2``
+on its angular axis, but ``numpy.fft``/``scipy.fft`` both expect and produce
+natural order (index ``0`` holds angle/harmonic ``0``, ascending).
+``forward``/``inverse`` bridge the two by reordering to natural order
+before, and back to centered order after, delegating to the hook, via
+``pypft.axes._center_angular``/``_uncenter_angular`` -- the sanctioned way
+to reorder an angular axis outside ``pypft.axes`` itself.
 """
 
 import numpy as np
