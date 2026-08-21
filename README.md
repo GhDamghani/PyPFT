@@ -102,6 +102,25 @@ pypft.check_adequacy(grid)                      # silent for this grid
 pypft.check_adequacy(pypft.PolarGrid(383, 64, 40.0))  # warns: n_radial too small
 ```
 
+### The full PFT/IPFT pipeline
+
+`pypft.forward_pft`/`pypft.inverse_pft` chain the angular DFT/IDFT with a
+per-harmonic, `R`-scaled discrete Hankel transform -- the complete chain at
+the top of this file. Both take a `pypft.PolarGrid` and a `(n_radial,
+n_angular)` array on PyPFT's own layout (`pypft.Axis`) -- **not**
+`PolarGrid.r`'s/`pypft.sample_cartesian`'s own `(n_angular, n_radial)`
+layout, so transpose a `sample_cartesian` result first:
+
+```python
+import numpy as np
+import pypft
+
+grid = pypft.PolarGrid(n_radial=382, n_angular=15, R=40.0)
+f = np.exp(-(grid.r.T**2))            # a radially symmetric Gaussian, on grid.r.T
+F = pypft.forward_pft(f, grid)        # the frequency-domain samples F(rho, phi)
+f_reconstructed = pypft.inverse_pft(F, grid)
+```
+
 ### Citing a result
 
 `pypft.Reference`/`pypft.cite`/`pypft.bibliography` render the scientific
@@ -113,8 +132,9 @@ pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
 ```
 
 See `notebooks/00_installation_and_quickstart.ipynb`,
-`notebooks/01_polar_and_cartesian_images.ipynb`, and
-`notebooks/02_sampling_grids.ipynb` for the full walkthrough.
+`notebooks/01_polar_and_cartesian_images.ipynb`,
+`notebooks/02_sampling_grids.ipynb`, and `notebooks/03_pft_and_ipft.ipynb`
+for the full walkthrough.
 
 ## Developer Guide
 
