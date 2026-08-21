@@ -19,6 +19,12 @@ pypft.geometry
 .. automodule:: pypft.geometry
    :members:
 
+pypft.grid
+----------
+
+.. automodule:: pypft.grid
+   :members:
+
 pypft.references
 -----------------
 
