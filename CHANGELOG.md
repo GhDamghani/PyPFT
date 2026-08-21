@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Analytical-property tests for both transforms: the DHT's negative-order
+  sign relation and its shift/modulation/multiplication/convolution rules
+  (`tests/dht/test_kernel_properties.py`), and the PFT's kernel
+  orthogonality, complex-exponential/delta pair, generalized shift and its
+  derived rules, rotation equivariance, linearity, DC term, and twisted
+  conjugate symmetry (`tests/test_transform_properties.py`).
+- `pypft._kernel.kernel_matrix`: an explicit, from-scratch `O(N**4)`
+  operator reproducing `forward_pft`/`inverse_pft` exactly (PeerJ CS Part
+  II, Eqs. 1-3) -- a from-first-principles oracle for
+  `tests/test_kernel.py`, not part of the public API.
+- `notebooks/04_transform_properties.ipynb`: a tour of both transforms'
+  analytical properties, citing Baddour's DHT chapter and the first part of
+  the two-part polar-coordinates paper.
 - `pypft.forward_pft`/`pypft.inverse_pft`: the full polar Fourier transform
   (PFT) / inverse PFT (IPFT) pipeline, chaining the angular DFT/IDFT with a
   per-harmonic, `R`-scaled discrete Hankel transform on a `pypft.PolarGrid`.
