@@ -55,8 +55,8 @@ class BaseDHT:
 
         :param kernel: The ``(size, size)`` kernel matrix from ``_bessel_kernel``.
         :type kernel: np.ndarray
-        :param vector: A length-``size`` signal, or a ``(size, batch)`` stack of
-            signals to transform together.
+        :param vector: A length-``size`` signal, or a ``(size, ...)`` array whose
+            axis ``-2`` (or, if 1-D, its only axis) has length ``size``.
         :type vector: np.ndarray
         :returns: The kernel applied to ``vector``.
         :rtype: np.ndarray
@@ -64,6 +64,39 @@ class BaseDHT:
 
         """
         raise NotImplementedError
+
+    @classmethod
+    def _apply_along_axis(
+        cls, kernel: np.ndarray, values: np.ndarray, axis: int
+    ) -> np.ndarray:
+        """Apply ``_apply``'s kernel along an arbitrary axis of an N-D array.
+
+        ``_apply`` itself only ever sees its target axis at position ``-2`` (or,
+        for a 1-D input, the array's only axis) -- this template method is what
+        makes that true for every rank and axis placement, by moving ``axis``
+        there before delegating and moving the result back after (develop_plan.md
+        §3.3). Moving to ``-2`` rather than ``0`` is the load-bearing choice:
+        ``numpy.matmul`` (which every ``_apply`` override is built on, directly or
+        via a reshape) treats only the *last two* dimensions as the matrix and
+        broadcasts over every leading dimension, so a trailing batch axis is only
+        mishandled if the target axis is moved to ``0`` instead.
+
+        :param kernel: The ``(size, size)`` kernel matrix from ``_bessel_kernel``.
+        :type kernel: np.ndarray
+        :param values: A length-``size`` signal, or an N-D array with a
+            length-``size`` dimension at ``axis``.
+        :type values: np.ndarray
+        :param axis: The axis of ``values`` holding the length-``size`` dimension.
+        :type axis: int
+        :returns: The kernel applied to ``values`` along ``axis``.
+        :rtype: np.ndarray
+
+        """
+        if values.ndim == 1:  # a bare vector already has no other axis to move
+            return cls._apply(kernel, values)
+        moved = np.moveaxis(values, axis, -2)
+        applied = cls._apply(kernel, moved)
+        return np.moveaxis(applied, -2, axis)
 
     @classmethod
     def sample_points(
@@ -90,38 +123,48 @@ class BaseDHT:
         return r, rho
 
     @classmethod
-    def forward(cls, f: np.ndarray, n: int, R: float) -> np.ndarray:
+    def forward(
+        cls, f: np.ndarray, n: int, R: float, *, axis: int = -1
+    ) -> np.ndarray:
         """Compute the physical, ``R``-scaled forward discrete Hankel transform.
 
         :param f: The space-domain samples ``f(r_nk)``, sampled at the points
-            returned by ``sample_points``.
+            returned by ``sample_points``, along ``axis`` of an otherwise
+            arbitrary-rank array.
         :type f: np.ndarray
         :param n: The order of the discrete Hankel transform.
         :type n: int
         :param R: The space-domain limit ``f`` is assumed confined to.
         :type R: float
+        :param axis: The axis of ``f`` holding the length-``size`` samples.
+        :type axis: int
         :returns: The frequency-domain samples ``F(rho_nk)`` (Eq. 42).
         :rtype: np.ndarray
 
         """
-        kernel, zeros = cls._bessel_kernel(n, f.shape[0])
+        kernel, zeros = cls._bessel_kernel(n, f.shape[axis])
         j_nN = zeros[-1]
-        return (R**2 / j_nN) * cls._apply(kernel, f)
+        return (R**2 / j_nN) * cls._apply_along_axis(kernel, f, axis)
 
     @classmethod
-    def inverse(cls, F: np.ndarray, n: int, R: float) -> np.ndarray:
+    def inverse(
+        cls, F: np.ndarray, n: int, R: float, *, axis: int = -1
+    ) -> np.ndarray:
         """Compute the physical, ``R``-scaled inverse discrete Hankel transform.
 
-        :param F: The frequency-domain samples ``F(rho_nk)``.
+        :param F: The frequency-domain samples ``F(rho_nk)``, along ``axis`` of
+            an otherwise arbitrary-rank array.
         :type F: np.ndarray
         :param n: The order of the discrete Hankel transform.
         :type n: int
         :param R: The space-domain limit the reconstructed signal is confined to.
         :type R: float
+        :param axis: The axis of ``F`` holding the length-``size`` samples.
+        :type axis: int
         :returns: The space-domain samples ``f(r_nk)`` (Eq. 43).
         :rtype: np.ndarray
 
         """
-        kernel, zeros = cls._bessel_kernel(n, F.shape[0])
+        kernel, zeros = cls._bessel_kernel(n, F.shape[axis])
         j_nN = zeros[-1]
-        return (j_nN / R**2) * cls._apply(kernel, F)
+        return (j_nN / R**2) * cls._apply_along_axis(kernel, F, axis)

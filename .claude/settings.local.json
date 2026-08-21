@@ -1,11 +1,47 @@
 {
   "permissions": {
     "allow": [
+      "Bash(uv sync)",
+      "Bash(uv sync *)",
+      "Bash(uv lock)",
+      "Bash(uv build)",
+      "Bash(uv build *)",
+      "Bash(uv run pytest)",
+      "Bash(uv run pytest *)",
+      "Bash(uv run black *)",
+      "Bash(uv run isort *)",
       "Bash(uv run flake8 *)",
       "Bash(uv run pyright *)",
       "Bash(uv run vulture *)",
-      "Bash(uv run black *)",
-      "Bash(uv run isort *)"
+      "Bash(uv run sphinx-build *)",
+      "Bash(uv run python benchmarks/run_dht_benchmarks.py)",
+      "Bash(uv run python benchmarks/run_dft_benchmarks.py)",
+      "Bash(uv run python benchmarks/run_pft_benchmarks.py)",
+      "Bash(./scripts/Invoke-QualityGate.ps1)",
+      "Bash(./scripts/Test-Notebooks.ps1)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)"
+    ],
+    "deny": [],
+    "ask": [
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git reset *)",
+      "Bash(git tag *)",
+      "Bash(git rebase *)",
+      "Bash(uv publish *)",
+      "Bash(uv add *)",
+      "Bash(uv run python -c *)",
+      "Bash(uv run python)",
+      "Bash(python *)",
+      "Bash(python)"
     ]
   }
 }
