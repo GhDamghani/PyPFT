@@ -7,6 +7,14 @@ from .dht import (
     inverse_hankel_transform,
     sample_points,
 )
+from .domains import (
+    BaseSignal,
+    Domain,
+    FrequencyHarmonicSignal,
+    FrequencyPolarSignal,
+    SpaceHarmonicSignal,
+    SpacePolarSignal,
+)
 from .geometry import cartesian_to_polar, polar_to_cartesian
 from .grid import (
     LimitKind,
@@ -20,11 +28,17 @@ from .transform import forward_pft, inverse_pft
 
 __all__ = [
     "Axis",
+    "BaseSignal",
     "DEFAULT_BATCH_AXIS",
     "DHTImplementation",
+    "Domain",
+    "FrequencyHarmonicSignal",
+    "FrequencyPolarSignal",
     "LimitKind",
     "PolarGrid",
     "Reference",
+    "SpaceHarmonicSignal",
+    "SpacePolarSignal",
     "bibliography",
     "cartesian_to_polar",
     "check_adequacy",

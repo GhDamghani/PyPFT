@@ -75,10 +75,10 @@ with one local command. `CHANGELOG.md` follows Keep a Changelog, with changes ac
 ## Architecture: the package facade
 
 `src/pypft/__init__.py` re-exports the public surface from each submodule (`Axis`, `DEFAULT_BATCH_AXIS`,
-the DHT API, the geometry functions, the grid API — `PolarGrid`, `LimitKind`, `sample_cartesian`,
-`check_adequacy`, `check_nyquist_adequacy` — `Reference`/`cite`/`bibliography`, and `forward_pft`/
-`inverse_pft`), listed in `__all__` — this is what keeps `flake8`'s unused-import check (`F401`) satisfied
-for a pure re-export module. `pypft.dft` is deliberately **not** re-exported here: it is internal plumbing
+the DHT API, the domains API — `Domain`, `BaseSignal`, and its four subclasses — the geometry functions,
+the grid API — `PolarGrid`, `LimitKind`, `sample_cartesian`, `check_adequacy`, `check_nyquist_adequacy` —
+`Reference`/`cite`/`bibliography`, and `forward_pft`/`inverse_pft`), listed in `__all__` — this is what
+keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module. `pypft.dft` is deliberately **not** re-exported here: it is internal plumbing
 between the geometry/axes layer and the DHT (no notebook of its own — see the Notebooks section), reachable
 as `pypft.dft.angular_dft` and documented via `docs/api.rst`, the same way `pypft.utils.validators` is
 public but un-re-exported. `pypft.grid`'s two warning classes (`AdequacyWarning`, `NyquistWarning`) and

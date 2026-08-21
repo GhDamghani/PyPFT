@@ -49,6 +49,12 @@ pypft.transform
 .. automodule:: pypft.transform
    :members:
 
+pypft.domains
+-------------
+
+.. automodule:: pypft.domains
+   :members:
+
 pypft.utils.validators
 -----------------------
 
