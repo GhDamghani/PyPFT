@@ -10,15 +10,15 @@ this package), and an inverse angular FFT — see `README.md` for the math and t
 
 The package was substantially rewritten from scratch in the `start over` commit (deccca8), which deleted a
 full prior layout (`backends/`, `cli/`, `core/`, `dft/`, `dht/`, `fields/`, `grids/`, `idft/`, `io/`, docs,
-benchmarks, notebooks, release scripts) and is being rebuilt incrementally, one reviewable phase at a time
-per `.local_files/develop_plan.md` (gitignored; not part of the package). So far: `src/pypft/dht/` (the
-discrete Hankel transform, four strategy implementations), `src/pypft/utils/validators.py` (shared input
-validation), `src/pypft/axes.py` (the axis vocabulary and centered-angular convention),
-`src/pypft/geometry.py` (the Cartesian↔polar image bridge), `src/pypft/references.py` (citation machinery),
-and a Sphinx docs skeleton (`docs/`) with the first two tutorial notebooks. There is still no angular DFT
-subsystem, `PolarGrid`, the actual PFT/IPFT pipeline, domain objects, visualization, or a CLI. Do not assume
-any prior architecture, module, or API still exists — check the current file tree before referencing paths
-from git history.
+benchmarks, notebooks, release scripts) and is being rebuilt incrementally, one reviewable unit at a time.
+So far: `src/pypft/dht/` (the
+discrete Hankel transform, three strategy implementations), `src/pypft/dft/` (the angular discrete Fourier
+transform, two strategy implementations), `src/pypft/utils/validators.py` (shared input validation),
+`src/pypft/axes.py` (the axis vocabulary and centered-angular convention), `src/pypft/geometry.py` (the
+Cartesian↔polar image bridge), `src/pypft/references.py` (citation machinery), and a Sphinx docs skeleton
+(`docs/`) with the first two tutorial notebooks. There is still no `PolarGrid`, the actual PFT/IPFT
+pipeline, domain objects, visualization, or a CLI. Do not assume any prior architecture, module, or API
+still exists — check the current file tree before referencing paths from git history.
 
 ## Environment and commands
 
@@ -45,9 +45,10 @@ exclusively** (`requires-python = ">=3.14,<3.15"`).
   `--check`, isort `--check-only`, flake8, pyright, vulture, `sphinx-build -W`, `uv build`, in that order,
   stopping at the first failure. `./scripts/Test-Notebooks.ps1` runs `uv run pytest --nbmake notebooks/`
   separately.
-- Benchmark the DHT implementations: `uv run python benchmarks/run_dht_benchmarks.py` — not part of
-  `uv run pytest` (it lives outside `testpaths`), since it's dev tooling, not a correctness check. Writes
-  its report to the gitignored `.local_files/benchmarks/results/`, since reports are generated artifacts.
+- Benchmark the DHT/DFT implementations: `uv run python benchmarks/run_dht_benchmarks.py` /
+  `uv run python benchmarks/run_dft_benchmarks.py` — neither is part of `uv run pytest` (they live outside
+  `testpaths`), since they're dev tooling, not a correctness check. Both write timestamped Markdown reports
+  to the gitignored `.local_files/benchmarks/results/`.
 - `pytest.ini_options` sets `filterwarnings = ["error"]` — any `warnings.warn` in `src/` needs a matching
   `pytest.warns` test, or the suite fails.
 
@@ -69,7 +70,10 @@ with one local command. `CHANGELOG.md` follows Keep a Changelog, with changes ac
 
 `src/pypft/__init__.py` re-exports the public surface from each submodule (`Axis`, `DEFAULT_BATCH_AXIS`,
 the DHT API, the geometry functions, `Reference`/`cite`/`bibliography`), listed in `__all__` — this is what
-keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module.
+keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module. `pypft.dft` is
+deliberately **not** re-exported here: it is internal plumbing between the geometry/axes layer and the DHT
+(no notebook of its own — see the Notebooks section), reachable as `pypft.dft.angular_dft` and documented
+via `docs/api.rst`, the same way `pypft.utils.validators` is public but un-re-exported.
 
 ## Architecture: the validators module
 
@@ -109,16 +113,19 @@ type-validated with `EnumValidator.type_is_enum` first (that raises on a bare `i
 
 Only the batch axis is ever defaulted (`DEFAULT_BATCH_AXIS = -1`), since `-1` and `Axis.BATCH` (`2`) name
 the same physical axis on a 3-D `(radial, angular, batch)` array — "default to the last axis" and "default
-to the batch axis" coincide exactly where that's unambiguous. Low-level generic transforms (`pypft.dht`)
-separately default their own `axis` to `-1` for an unrelated, purely conventional reason; polar-layer
-functions never default a *transform* axis.
+to the batch axis" coincide exactly where that's unambiguous. Low-level generic transforms (`pypft.dht`,
+`pypft.dft`) separately default their own `axis` to `-1` for an unrelated, purely conventional reason;
+polar-layer functions never default a *transform* axis.
 
 `_center_angular`/`_uncenter_angular` reorder an angular axis between "natural" order (index `0` holds
 angle/harmonic `0`, ascending — what `cv2.warpPolar` and an uncentered DFT both produce) and PyPFT's own
 "centered" order (index `i` holds angle/harmonic `i - size // 2`). **`axes.py` is the only module in
 `src/` allowed to call `numpy.fft.fftshift`/`ifftshift`** — a lint-as-test in `tests/test_axes.py` asserts
-this by scanning every other file under `src/pypft/` for the literal names. Anything that needs to
-reorder an angular axis imports these two helpers instead of calling `fftshift`/`ifftshift` directly.
+this by scanning every other file under `src/pypft/` for the literal names (including inside docstrings —
+`src/pypft/dft/_base.py` describes its own centering in prose rather than naming the functions, to stay
+clean of the regex). Anything that needs to reorder an angular axis imports these two helpers instead of
+calling `fftshift`/`ifftshift` directly — `src/pypft/geometry.py` and `src/pypft/dft/_base.py` are the two
+current consumers.
 
 ## Architecture: the Cartesian↔polar image bridge (`src/pypft/geometry.py`)
 
@@ -213,11 +220,45 @@ changing any of the kernel math. Key points:
   `src/pypft/dht/__init__.py` validate their arguments (via the `*Validator` classes above) and dispatch
   through `_IMPLEMENTATIONS`; internal `BaseDHT` subclass methods assume already-validated input.
 
+## Architecture: the angular discrete Fourier transform (`src/pypft/dft/`)
+
+The centered angular DFT/IDFT that sits between PyPFT's stored, centered-angular arrays and the DHT's
+per-harmonic processing — internal plumbing (no notebook; see the Notebooks section), exercised end-to-end
+once `transform.py`'s PFT pipeline exists, and directly by `tests/dft/test_oracle.py` in the meantime. Same
+strategy shape as `pypft.dht`:
+
+- **Strategy pattern**: `src/pypft/dft/_base.py`'s `BaseDFT` defines two overridable hooks — `_forward`/
+  `_inverse` — that call the raw, natural-order FFT/IFFT with no opinion on centering. The public
+  `forward`/`inverse` template methods (not overridden) own the centered-angular convention themselves:
+  they reorder to natural order, delegate to the hook, then reorder back to centered order, via
+  `pypft.axes._center_angular`/`_uncenter_angular` — exactly the DHT's `_bessel_kernel`/`_apply` split,
+  renamed for the DFT's single optimization axis (which FFT library computes the transform).
+- **Implementations**: `_numpy.NumpyDFT` (`numpy.fft.fft`/`ifft`) and `_scipy.ScipyDFT` (`scipy.fft.fft`/
+  `ifft`). `ScipyDFT`'s hooks return `cast(np.ndarray, ...)` — `scipy.fft`'s backend-dispatch decorator
+  otherwise makes `pyright` infer a dispatch-machinery return type instead of the actual array.
+- **Selection**: `DFTImplementation` maps to these two classes via `_IMPLEMENTATIONS` in
+  `src/pypft/dft/__init__.py`. `DEFAULT_IMPLEMENTATION` is `NUMPY`, picked by
+  `benchmarks/run_dft_benchmarks.py`'s repeated-forward-call scenario (essentially tied with `SCIPY` there,
+  ~11.7us vs. ~12.1us). A third `SCIPY_WORKERS` (`workers=-1`) implementation was considered for `SCIPY`'s
+  ~33% win on batched, non-trailing-axis input, and rejected: explicit worker parallelism measured only
+  ~2% faster than `SCIPY`'s own default in that regime, so the win is the algorithm, not parallelism — not
+  worth a third strategy. See the constant's own docstring and the benchmark report for the full numbers.
+- **`harmonics(n_angular)`/`AngularParity`**: also live in `src/pypft/dft/__init__.py`, since this module
+  owns the harmonic-range derivation. `harmonics` returns `-(n_angular // 2) .. n_angular - n_angular // 2
+  - 1`, correct for either parity — there is deliberately **no `value_is_odd` validator**: an even angular
+  sample count is fully valid, just with one asymmetry (below).
+- **The even-`N2` Nyquist caveat**: for even `n_angular`, harmonic `-n_angular // 2` has no
+  `+n_angular // 2` partner in `harmonics`' range, so a real-valued signal's usual conjugate symmetry
+  (`X[-n] == conj(X[n])`) is one-sided at that one bin. Both `tests/dft/test_parity.py` (a direct
+  conjugate-symmetry check) and `tests/dft/test_oracle.py` (reproducing the published PFT error figures at
+  `N2=15/16/17`, composing this module with the existing DHT) exist specifically to keep this regression
+  visible without waiting for the full PFT pipeline.
+
 ## Documentation (`docs/`)
 
 A Sphinx skeleton (`furo` theme, `myst_nb` for notebooks, plain `autodoc` for the API reference — docstrings
 are RST, not Google/NumPy style, so no napoleon extension is needed). Built with `sphinx-build -W docs
-docs/_build` (warnings fail the build), part of the quality gate from this phase onward.
+docs/_build` (warnings fail the build), part of the quality gate.
 
 `notebooks/` is tracked at the repo root, not under `docs/`, so it can be shared as-is with `nbmake` (see
 below). Sphinx requires toctree documents to live under its own source directory, so `docs/conf.py`
@@ -226,12 +267,24 @@ its sources; `docs/tutorials.rst`'s toctree globs `_notebooks/*`. This avoids a 
 elevated privileges on Windows, one of CI's three platforms). `nb_execution_mode = "off"` — notebooks are
 executed and checked by `nbmake` in CI, not re-executed by the docs build.
 
+`docs/conf.py`'s `exclude_patterns` must list `"jupyter_execute"` alongside `"_build"`: even with
+`nb_execution_mode = "off"`, `myst_nb`'s jupyter-cache machinery writes a `docs/jupyter_execute/` directory
+directly under the *source* tree (not under `docs/_build/`) as a side effect of a second `sphinx-build -W`
+run against an already-pickled environment. Without the exclude, Sphinx then discovers those `.ipynb`
+files as new source documents outside any toctree on the next build and `-W` fails on the resulting
+warning — reproducible with zero other changes, purely by running `sphinx-build -W docs docs/_build` twice
+in a row. `docs/jupyter_execute/` is gitignored either way, so deleting it (along with `docs/_build/`,
+`docs/_notebooks/`, `docs/.jupyter_cache/`) before a build is always safe if it ever reappears.
+
 ## Notebooks
 
 `notebooks/` is tracked and executed in CI via `nbmake` (see the CI section above), as one incremental
 tutorial sequence where each notebook assumes only its predecessors: `00_installation_and_quickstart.ipynb`
-and `01_polar_and_cartesian_images.ipynb` exist so far. See "Architecture: citations" above for the
-citation discipline notebooks must follow when they state a mathematical result.
+and `01_polar_and_cartesian_images.ipynb` exist so far. Internal-plumbing phases (the DHT's N-D
+generalization, the angular DFT subsystem) deliberately get no notebook of their own — their gate is that
+every *existing* notebook still executes, since a notebook per internal subsystem would duplicate the API
+reference without teaching a workflow. See "Architecture: citations" above for the citation discipline
+notebooks must follow when they state a mathematical result.
 
 ## Conventions (from `README.md`)
 
@@ -257,9 +310,10 @@ citation discipline notebooks must follow when they state a mathematical result.
 
 ## Benchmarking
 
-`benchmarks/` (tracked) holds `bench_dht.py` (pytest-benchmark test functions comparing the DHT
-implementations) and `run_dht_benchmarks.py` (runs them and exports a sorted Markdown report); see the DHT
-architecture section above for how its results drove `DEFAULT_IMPLEMENTATION`.
+`benchmarks/` (tracked) holds `bench_dht.py`/`bench_dft.py` (pytest-benchmark test functions comparing the
+DHT/DFT implementations, respectively) and `run_dht_benchmarks.py`/`run_dft_benchmarks.py` (run them and
+export a sorted Markdown report each); see the DHT/DFT architecture sections above for how their results
+drove each subsystem's own `DEFAULT_IMPLEMENTATION`.
 
 ## Local, gitignored data
 
@@ -272,8 +326,6 @@ package or test suite:
   derivative relations — retained for reference even though the `_recurrence.py` implementation that used
   it was removed for numerical instability; see the DHT architecture section above). These are the sources
   `src/pypft/references.py`'s `Reference` members cite.
-- `benchmarks/results/` — timestamped Markdown reports generated by `benchmarks/run_dht_benchmarks.py`
-  (gitignored since they're generated artifacts, not source, even though the scripts that produce them are
-  tracked in the top-level `benchmarks/` directory).
-- `develop_plan.md` — the phased development plan driving this rebuild (gitignored; not part of the
-  package). Each phase is one reviewable PR with its own file list and "do not touch" list.
+- `benchmarks/results/` — timestamped Markdown reports generated by `benchmarks/run_dht_benchmarks.py`/
+  `run_dft_benchmarks.py` (gitignored since they're generated artifacts, not source, even though the
+  scripts that produce them are tracked in the top-level `benchmarks/` directory).
