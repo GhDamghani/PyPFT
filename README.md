@@ -71,6 +71,37 @@ The returned array follows PyPFT's own `(radial, angular)` axis layout
 (`pypft.Axis`), with a centered angular axis: index `n_angular // 2` holds
 angle `0`.
 
+### The transform's own sampling grid
+
+`pypft.PolarGrid` is the discrete Hankel transform's *actual* sampling grid --
+order-dependent and non-uniform, unlike `cartesian_to_polar`'s uniform one above.
+Every angular row has its own radial sample positions, tied to the zeros of a
+Bessel function of that row's harmonic order:
+
+```python
+grid = pypft.PolarGrid(n_radial=383, n_angular=15, R=40.0)
+grid.r      # (n_angular, n_radial) space-domain radii
+grid.theta  # (n_angular,) centered angles, shared by both domains
+```
+
+`pypft.sample_cartesian` resamples an ordinary image directly onto a grid's own
+points -- the production sampler, as opposed to `cartesian_to_polar`'s
+illustrative uniform one:
+
+```python
+polar = pypft.sample_cartesian(image, grid)
+```
+
+`pypft.check_adequacy`/`pypft.check_nyquist_adequacy` warn (never raise) when a
+grid's `n_radial` is too small for its `n_angular`, or violates the discrete
+Hankel transform's own Nyquist condition, respectively -- both are easy mistakes
+to make silently, since neither failure mode raises an error on its own:
+
+```python
+pypft.check_adequacy(grid)                      # silent for this grid
+pypft.check_adequacy(pypft.PolarGrid(383, 64, 40.0))  # warns: n_radial too small
+```
+
 ### Citing a result
 
 `pypft.Reference`/`pypft.cite`/`pypft.bibliography` render the scientific
@@ -81,8 +112,9 @@ pypft.cite(pypft.Reference.BADDOUR_2019_DHT)
 pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
 ```
 
-See `notebooks/00_installation_and_quickstart.ipynb` and
-`notebooks/01_polar_and_cartesian_images.ipynb` for the full walkthrough.
+See `notebooks/00_installation_and_quickstart.ipynb`,
+`notebooks/01_polar_and_cartesian_images.ipynb`, and
+`notebooks/02_sampling_grids.ipynb` for the full walkthrough.
 
 ## Developer Guide
 

@@ -344,6 +344,18 @@ class NumpyValidator:
             raise ValueError(f"value must be 1-D, got {value.ndim}-D")
 
     @staticmethod
+    def value_is_2d(value: np.ndarray) -> None:
+        """Value-validator to check if a numpy.ndarray is two-dimensional.
+
+        :param value: The value to be validated.
+        :type value: np.ndarray
+        :raises ValueError: If the value does not have exactly two dimensions.
+
+        """
+        if value.ndim != 2:
+            raise ValueError(f"value must be 2-D, got {value.ndim}-D")
+
+    @staticmethod
     def value_is_at_least_1d(value: np.ndarray) -> None:
         """Value-validator to check if a numpy.ndarray has at least one dimension.
 
@@ -361,6 +373,18 @@ class NumpyValidator:
             raise ValueError(
                 f"value must have at least 1 dimension, got {value.ndim}-D"
             )
+
+    @staticmethod
+    def value_is_finite(value: np.ndarray) -> None:
+        """Value-validator to check if every element of a numpy.ndarray is finite.
+
+        :param value: The value to be validated.
+        :type value: np.ndarray
+        :raises ValueError: If any element is ``NaN`` or infinite.
+
+        """
+        if not np.all(np.isfinite(value)):
+            raise ValueError("value must be finite, got NaN or infinite element(s)")
 
     @staticmethod
     def value_has_axis(value: np.ndarray, axis: int) -> None:
