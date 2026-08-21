@@ -43,6 +43,12 @@ pypft.dft
 .. automodule:: pypft.dft
    :members:
 
+pypft.transform
+----------------
+
+.. automodule:: pypft.transform
+   :members:
+
 pypft.utils.validators
 -----------------------
 

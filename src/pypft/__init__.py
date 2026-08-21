@@ -16,6 +16,7 @@ from .grid import (
     sample_cartesian,
 )
 from .references import Reference, bibliography, cite
+from .transform import forward_pft, inverse_pft
 
 __all__ = [
     "Axis",
@@ -29,8 +30,10 @@ __all__ = [
     "check_adequacy",
     "check_nyquist_adequacy",
     "cite",
+    "forward_pft",
     "hankel_transform",
     "inverse_hankel_transform",
+    "inverse_pft",
     "polar_to_cartesian",
     "sample_cartesian",
     "sample_points",

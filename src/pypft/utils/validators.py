@@ -425,3 +425,24 @@ class NumpyValidator:
                 f"value1 has length {length1} along axis {axis1}, but value2 has "
                 f"length {length2} along axis {axis2}"
             )
+
+    @staticmethod
+    def value1_shape_matches_value2(value1: np.ndarray, value2: np.ndarray) -> None:
+        """Value-validator to check two arrays have exactly the same shape.
+
+        Unlike ``value1_axis_length_matches_value2``, this compares every axis
+        at once -- for callers that need to validate a whole array's shape
+        against a reference in one call.
+
+        :param value1: The first array.
+        :type value1: np.ndarray
+        :param value2: The second array.
+        :type value2: np.ndarray
+        :raises ValueError: If ``value1.shape != value2.shape``.
+
+        """
+        if value1.shape != value2.shape:
+            raise ValueError(
+                f"value1 has shape {value1.shape}, but value2 has shape "
+                f"{value2.shape}"
+            )
