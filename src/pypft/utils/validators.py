@@ -83,6 +83,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
 
 # ========================================================================================
 # numbers.Integral: int, bool
@@ -312,6 +314,38 @@ class EnumValidator:
 # ========================================================================================
 # Third-party libraries
 # ========================================================================================
+
+
+class MatplotlibValidator:
+    """Validate ``matplotlib`` figure/axes values."""
+
+    @staticmethod
+    def type_is_axes(value: Axes) -> None:
+        """Type-validator for matplotlib.axes.Axes.
+
+        :param value: The value to be validated.
+        :type value: Axes
+        :raises TypeError: If the value is not a matplotlib.axes.Axes.
+
+        """
+        if not isinstance(value, Axes):
+            raise TypeError(
+                f"value must be {Axes.__name__}, got {type(value).__name__}"
+            )
+
+    @staticmethod
+    def type_is_figure(value: Figure) -> None:
+        """Type-validator for matplotlib.figure.Figure.
+
+        :param value: The value to be validated.
+        :type value: Figure
+        :raises TypeError: If the value is not a matplotlib.figure.Figure.
+
+        """
+        if not isinstance(value, Figure):
+            raise TypeError(
+                f"value must be {Figure.__name__}, got {type(value).__name__}"
+            )
 
 
 class NumpyValidator:

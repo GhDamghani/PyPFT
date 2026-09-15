@@ -55,6 +55,12 @@ pypft.domains
 .. automodule:: pypft.domains
    :members:
 
+pypft.viz
+---------
+
+.. automodule:: pypft.viz
+   :members:
+
 pypft.utils.validators
 -----------------------
 

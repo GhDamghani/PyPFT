@@ -286,10 +286,8 @@ batch)`` scenario this default exists for: ``STACKED_KERNEL`` at ~4.7ms vs.
 ``HARMONIC_LOOP`` remains faster on a single, unbatched 2-D call (~2.7ms vs.
 ~3.6ms) -- a single batched ``matmul`` has nothing to amortize its own
 per-call overhead against there -- but batching is exactly the scenario this
-default is chosen for. No third, ``numba``-parallelized ``PARALLEL`` strategy
-was added: ``STACKED_KERNEL``'s win here comes from a single BLAS call, not
-from added parallelism, so the measurement that would justify one (being
-Python-overhead-bound rather than BLAS-bound) never showed up. See
+default is chosen for. See ``DESIGN_NOTES.md``, "PFT: ``STACKED_KERNEL`` has
+no separate ``PARALLEL`` strategy," for why. See
 ``pypft.dht``'s own ``DEFAULT_IMPLEMENTATION`` docstring for a related,
 similarly-measured case (``VectorizedDHT``) that was kept despite losing on
 every benchmark, rather than removed.

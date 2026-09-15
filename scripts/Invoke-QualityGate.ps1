@@ -17,10 +17,11 @@ function Invoke-Step {
 }
 
 Invoke-Step "pytest" @("uv", "run", "pytest")
-Invoke-Step "black --check" @("uv", "run", "black", "--check", "src", "tests", "benchmarks")
-Invoke-Step "isort --check-only" @("uv", "run", "isort", "--check-only", "src", "tests", "benchmarks")
-Invoke-Step "flake8" @("uv", "run", "flake8", "src")
+Invoke-Step "notebooks (nbmake)" @("pwsh", "-NoProfile", "-File", "scripts/Test-Notebooks.ps1")
+Invoke-Step "black --check" @("uv", "run", "black", "--check", "src", "tests", "benchmarks", "scripts")
+Invoke-Step "isort --check-only" @("uv", "run", "isort", "--check-only", "src", "tests", "benchmarks", "scripts")
+Invoke-Step "flake8" @("uv", "run", "flake8", "src", "scripts")
 Invoke-Step "pyright" @("uv", "run", "pyright")
-Invoke-Step "vulture" @("uv", "run", "vulture", "src")
+Invoke-Step "vulture" @("uv", "run", "vulture", "src", "scripts")
 Invoke-Step "sphinx-build -W" @("uv", "run", "sphinx-build", "-W", "docs", "docs/_build")
 Invoke-Step "uv build" @("uv", "build")

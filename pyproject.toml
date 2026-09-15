@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PyPFT"
-version = "0.6.0"
+version = "0.7.0"
 description = "Polar Fourier transform toolkit with a modular PyPFT facade."
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
@@ -61,6 +61,7 @@ dev = [
     "myst-nb>=1.1.2",
     "furo>=2024.8.6",
     "flake8-docstrings>=1.7.0",
+    "pillow>=11",
 ]
 
 [tool.setuptools]

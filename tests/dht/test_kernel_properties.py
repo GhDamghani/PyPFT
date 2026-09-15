@@ -77,12 +77,12 @@ def _generalized_shift(
 def test_kernel_is_self_inverse(implementation, order):
     """Y^{nN} Y^{nN} = I (baddour2019.md, Eq. 41), even though Y is not symmetric.
 
-    This is the regression test for the removed ``RecurrenceBesselDHT``'s
-    divergence: the residual grows with ``order``, so it is bounded by the
+    The residual grows with ``order``, so it is bounded by the
     ``dht_tolerance`` model rather than a flat tolerance -- a flat bound would
-    either hide a regression like the deleted ``RecurrenceBesselDHT``'s (too
-    loose) or reject the numerically-correct kernel above order ~24 (too
-    tight).
+    either hide the numerical-instability failure mode described in
+    ``DESIGN_NOTES.md``, "DHT: the kernel's Bessel values must be computed
+    directly, never via order recurrence" (too loose), or reject the
+    numerically-correct kernel above order ~24 (too tight).
     """
     kernel, _ = _IMPLEMENTATIONS[implementation]._bessel_kernel(order, SIGNAL_SIZE)
     identity = kernel @ kernel

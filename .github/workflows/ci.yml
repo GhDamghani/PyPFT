@@ -20,4 +20,3 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: ./scripts/Invoke-QualityGate.ps1
-      - run: ./scripts/Test-Notebooks.ps1

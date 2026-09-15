@@ -25,6 +25,13 @@ from .grid import (
 )
 from .references import Reference, bibliography, cite
 from .transform import forward_pft, inverse_pft
+from .viz import (
+    PFTTrace,
+    forward_pft_traced,
+    inverse_pft_traced,
+    plot_signal,
+    render_cartesian,
+)
 
 __all__ = [
     "Axis",
@@ -35,6 +42,7 @@ __all__ = [
     "FrequencyHarmonicSignal",
     "FrequencyPolarSignal",
     "LimitKind",
+    "PFTTrace",
     "PolarGrid",
     "Reference",
     "SpaceHarmonicSignal",
@@ -45,10 +53,14 @@ __all__ = [
     "check_nyquist_adequacy",
     "cite",
     "forward_pft",
+    "forward_pft_traced",
     "hankel_transform",
     "inverse_hankel_transform",
     "inverse_pft",
+    "inverse_pft_traced",
+    "plot_signal",
     "polar_to_cartesian",
+    "render_cartesian",
     "sample_cartesian",
     "sample_points",
 ]
