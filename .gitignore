@@ -14,4 +14,4 @@ docs/jupyter_execute/
 docs/.jupyter_cache/
 *.egg-info/
 .benchmarks/
-/.claude
+.claude/

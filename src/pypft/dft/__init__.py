@@ -48,11 +48,9 @@ lines sharing one size) -- ``NUMPY`` at ~11.7us vs. ``SCIPY``'s ~12.1us,
 essentially tied. ``SCIPY`` wins by a wide margin (~33%) on a batched,
 non-trailing-axis input instead (~2.8ms vs. ~4.2ms at a (32, 128, 64) shape),
 but that is not the scenario this default is chosen for -- see
-``benchmarks/bench_dft.py``'s ``test_bench_forward_batched``. A separate
-``SCIPY_WORKERS`` (``workers=-1``) implementation was considered for that
-batched case and rejected: explicit worker parallelism measured only ~2%
-faster than ``SCIPY``'s own default there, so the gain is ``scipy.fft``'s
-algorithm, not parallelism -- not worth a third strategy. See
+``benchmarks/bench_dft.py``'s ``test_bench_forward_batched``. See
+``DESIGN_NOTES.md``, "DFT: ``SCIPY_WORKERS`` is not offered as a separate
+strategy," for why there is no ``workers=-1`` implementation, and
 ``.local_files/benchmarks/results/`` for the full report.
 """
 

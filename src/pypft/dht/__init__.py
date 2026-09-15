@@ -46,17 +46,15 @@ DEFAULT_IMPLEMENTATION: DHTImplementation = DHTImplementation.CACHED_BESSEL
 Hardcoded to the fastest *numerically sound* implementation found by
 ``.local_files/benchmarks/run_dht_benchmarks.py``: for repeated forward calls at a
 fixed order/size (the realistic usage pattern, e.g. many radial lines sharing one
-discretization), ``CACHED_BESSEL`` is ~3000x faster than ``NAIVE``. The
-previously-default ``RECURRENCE_BESSEL`` matched that speed but was removed: its
-upward Bessel-order recurrence is exponentially unstable once the order exceeds
-the argument, which the kernel does by construction, so it silently diverged
-above order ~12 (measured ``max|Y @ Y - I|`` reaching ``2.1e+16`` by order 47).
-``VECTORIZED`` remains slower than plain BLAS matmul at every benchmarked size,
-including the batched ``(radial, angular, batch)`` regime PyPFT's own transform
-pipeline actually exercises (measured ~9.1ms vs. ``CACHED_BESSEL``'s ~1.7ms and
-even ``NAIVE``'s ~1.6ms at a representative batch size -- see
-``.local_files/benchmarks/results/`` for the numbers), now inheriting
-``CACHED_BESSEL``'s kernel instead. It is kept regardless: a benchmark result
+discretization), ``CACHED_BESSEL`` is ~3000x faster than ``NAIVE``. See
+``DESIGN_NOTES.md``, "DHT: the kernel's Bessel values must be computed directly,
+never via order recurrence," for why the kernel is never built via Bessel-order
+recurrence. ``VECTORIZED`` remains slower than plain BLAS matmul at every
+benchmarked size, including the batched ``(radial, angular, batch)`` regime
+PyPFT's own transform pipeline actually exercises (measured ~9.1ms vs.
+``CACHED_BESSEL``'s ~1.7ms and even ``NAIVE``'s ~1.6ms at a representative batch
+size -- see ``.local_files/benchmarks/results/`` for the numbers), inheriting
+``CACHED_BESSEL``'s kernel. It is kept regardless: a benchmark result
 this poor is a *suggestion* to remove the implementation, raised to the
 developer, not grounds to delete it unilaterally.
 """
@@ -120,8 +118,8 @@ def hankel_transform(
     :param implementation: The DHT implementation strategy to use.
     :type implementation: DHTImplementation
     :param axis: The axis of ``f`` holding the length-``size`` samples.
-        Keyword-only and last so every pre-existing 4-positional-argument call
-        site is unaffected.
+        Keyword-only and last, so a positional call passing only the first
+        four arguments still works.
     :type axis: int
     :returns: The frequency-domain samples ``F(rho_nk)``.
     :rtype: np.ndarray
@@ -155,8 +153,8 @@ def inverse_hankel_transform(
     :param implementation: The DHT implementation strategy to use.
     :type implementation: DHTImplementation
     :param axis: The axis of ``F`` holding the length-``size`` samples.
-        Keyword-only and last so every pre-existing 4-positional-argument call
-        site is unaffected.
+        Keyword-only and last, so a positional call passing only the first
+        four arguments still works.
     :type axis: int
     :returns: The space-domain samples ``f(r_nk)``.
     :rtype: np.ndarray

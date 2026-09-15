@@ -5,8 +5,8 @@ inverse) so a plain image can be viewed on a polar grid and back, at whatever
 resolution the caller asks for. **This is not the transform's own sampling
 grid**: ``cv2.warpPolar`` produces a *uniformly* spaced radial axis, whereas the
 discrete Hankel transform's grid is order-dependent and non-uniform (Baddour's
-``r_nk``); ``pypft.grid.sample_cartesian`` will be the production sampler
-once it exists. These two functions exist because
+``r_nk``); ``pypft.grid.sample_cartesian`` is the production sampler. These
+two functions exist because
 ``warpPolar`` is the natural first illustration of what "polar" means for an
 image, not because it feeds the transform.
 
