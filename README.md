@@ -200,6 +200,67 @@ The batch axis is always last -- passing one anywhere else, or on a plain
 2-D array, raises immediately. See `notebooks/06_batches.ipynb` for the full
 walkthrough, including the performance case for batching over a Python loop.
 
+### Visualization
+
+`pypft.plot_signal`/`pypft.BaseSignal.plot` render a signal as a `matplotlib`
+`(magnitude, phase)` pair of `Axes`, for every `pypft.Domain` member alike --
+a full forward-then-inverse round trip can leave even a `SPACE_POLAR` signal
+with a non-trivial phase, and `SPACE_HARMONIC` is an angular DFT's own
+coefficients, generically complex even when the space-domain signal being
+transformed is real. Magnitude is gamma-enhanced
+(`matplotlib.colors.PowerNorm`, never a hand-rolled `** gamma`).
+`SPACE_POLAR`'s own magnitude is drawn in grayscale, everywhere it appears,
+since it is literally a photographic image, unlike every other domain's more
+abstract magnitude. `pypft.render_cartesian` interpolates a
+`SPACE_POLAR`/`FREQUENCY_POLAR` signal's own non-uniform sample points onto
+an ordinary Cartesian grid via `scipy.interpolate.griddata` -- for display
+only; its output must never be fed back into
+`pypft.forward_pft`/`pypft.inverse_pft`.
+
+```python
+import numpy as np
+import pypft
+
+grid = pypft.PolarGrid(n_radial=96, n_angular=31, R=40.0)
+f = np.exp(-(grid.r.T**2))
+signal = pypft.SpacePolarSignal(f, grid)
+
+signal.plot()                                     # magnitude and phase
+signal.to_harmonics().plot()                       # magnitude and phase
+signal.to(pypft.Domain.FREQUENCY_POLAR).plot()     # magnitude and phase
+pypft.render_cartesian(signal, height=256, width=256)
+```
+
+`pypft.forward_pft_traced`/`pypft.inverse_pft_traced` run the same pipeline
+as `pypft.forward_pft`/`pypft.inverse_pft`, but return a `pypft.PFTTrace`
+recording every domain (and, optionally, every figure) along the way --
+`visualize_steps=True` renders one figure per domain, and
+`visualize_pipeline=True` renders one holistic mosaic of all of them. Both
+combine freely, and every combination always returns the same `PFTTrace`
+type. `PFTTrace.signals` keeps every intermediate `pypft.BaseSignal`, so
+`pypft.render_cartesian` can still be called directly on any `POLAR`-domain
+step (e.g. `trace.signals[0]`/`trace.signals[-1]`):
+
+```python
+from pathlib import Path
+
+trace = pypft.forward_pft_traced(
+    f, grid, visualize_steps=True, visualize_pipeline=True,
+)
+trace.values             # identical to pypft.forward_pft(f, grid)
+len(trace.figures)        # 4 step figures + 1 pipeline mosaic
+trace.save(Path("out"))   # writes every figure as an enumerated, domain-named PNG
+trace.close()             # frees every figure the trace created
+```
+
+`PFTTrace.save` is the one place this module ever writes to disk -- only when
+called explicitly, never as a side effect of tracing itself.
+
+See `notebooks/07_visualization.ipynb` for the full walkthrough, including a
+full forward-then-inverse round trip back to the original image. That
+notebook's sample image (`tests/samples/hedge_maze.tif`) carries its own
+third-party attribution — see `THIRD-PARTY-NOTICES.md`.
+
 ### Citing a result
 
 `pypft.Reference`/`pypft.cite`/`pypft.bibliography` render the scientific
@@ -213,8 +274,9 @@ pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
 See `notebooks/00_installation_and_quickstart.ipynb`,
 `notebooks/01_polar_and_cartesian_images.ipynb`,
 `notebooks/02_sampling_grids.ipynb`, `notebooks/03_pft_and_ipft.ipynb`,
-`notebooks/04_transform_properties.ipynb`, `notebooks/05_domains.ipynb`, and
-`notebooks/06_batches.ipynb` for the full walkthrough.
+`notebooks/04_transform_properties.ipynb`, `notebooks/05_domains.ipynb`,
+`notebooks/06_batches.ipynb`, and `notebooks/07_visualization.ipynb` for the
+full walkthrough.
 
 ## Developer Guide
 
@@ -251,7 +313,7 @@ See `notebooks/00_installation_and_quickstart.ipynb`,
 - `ipdb`: IPython version of the `pdb` debugger.
 - `ipython`: Enhanced interactive Python shell.
 - `isort`: Sorts Python imports.
-- `matplotlib`: Visualization tool. Useful for quick debugging related to signals.
+- `matplotlib`: Also a `[project]` runtime dependency (`pypft.viz`); listed here too since it's useful for quick debugging related to signals.
 - `myst-nb`: Renders the tutorial notebooks into the Sphinx docs build.
 - `nbmake`: Executes and checks every tutorial notebook as part of the test suite.
 - `notebook`: Notebook environment for interactive computing, and for authoring the tutorial notebooks.

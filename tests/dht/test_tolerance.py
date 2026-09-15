@@ -1,8 +1,9 @@
 """Tests for the ``dht_tolerance`` model itself (see ``tests.dht.tolerance``).
 
 The model must stay an upper bound on the measured self-inverse residual --
-otherwise a real regression (like the deleted ``RecurrenceBesselDHT``'s
-divergence) could slip past the assertions that rely on it -- but it must not
+otherwise a regression like the one described in ``DESIGN_NOTES.md``, "DHT: the
+kernel's Bessel values must be computed directly, never via order recurrence,"
+could slip past the assertions that rely on it -- but it must not
 be so loose that it stops meaning anything. Both directions are checked here.
 """
 

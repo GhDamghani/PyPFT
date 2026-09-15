@@ -8,10 +8,7 @@ PyPFT is a Polar Fourier Transform toolkit for reconstructing polar-coordinate M
 angular FFT (`numpy.fft.fft`), a Hankel transform (not available elsewhere in the Python ecosystem, hence
 this package), and an inverse angular FFT — see `README.md` for the math and the underlying paper.
 
-The package was substantially rewritten from scratch in the `start over` commit (deccca8), which deleted a
-full prior layout (`backends/`, `cli/`, `core/`, `dft/`, `dht/`, `fields/`, `grids/`, `idft/`, `io/`, docs,
-benchmarks, notebooks, release scripts) and is being rebuilt incrementally, one reviewable unit at a time.
-So far: `src/pypft/dht/` (the
+PyPFT is built incrementally, one reviewable unit at a time. So far: `src/pypft/dht/` (the
 discrete Hankel transform, three strategy implementations), `src/pypft/dft/` (the angular discrete Fourier
 transform, two strategy implementations), `src/pypft/utils/validators.py` (shared input validation),
 `src/pypft/axes.py` (the axis vocabulary and centered-angular convention), `src/pypft/geometry.py` (the
@@ -22,13 +19,18 @@ sampling grid, plus the production `sample_cartesian` sampler and the `check_ade
 strategy implementations, plus 3-D `(radial, angular, batch)` support on top of the plain 2-D case),
 `src/pypft/domains.py` (`Domain`/`BaseSignal`, the typed legal-move shell over `transform.py`'s numerics),
 `src/pypft/_kernel.py` (a private, from-scratch `O(N**4)` oracle reproducing `forward_pft`/`inverse_pft`,
-used only by `tests/test_kernel.py`), analytical-property test suites for both transforms
+used only by `tests/test_kernel.py`), `src/pypft/viz.py` (`plot_signal`/`BaseSignal.plot`,
+`render_cartesian`, and `forward_pft_traced`/`inverse_pft_traced` -- `Axes`/`Figure`-based visualization,
+never writing to disk), analytical-property test suites for both transforms
 (`tests/dht/test_kernel_properties.py`, `tests/test_transform_properties.py`), and a Sphinx docs skeleton
-(`docs/`) with six tutorial notebooks. There is still no visualization or a CLI. Do not
+(`docs/`) with seven tutorial notebooks. There is still no CLI. Do not
 assume any prior architecture, module, or API still exists — check the current file tree before referencing
-paths from git history. **`CHANGELOG.md` does not exist** (deliberately removed, "streamline project
-documentation") despite the historical Keep-a-Changelog convention some older commits reference — do not
-recreate it without checking with the developer first.
+paths from git history; module names like `backends/`, `cli/`, `core/`, `fields/`, `grids/`, `idft/`, `io/`
+may still appear in older commits but do not correspond to anything in the current tree. `CHANGELOG.md`
+does not exist and must not be recreated without checking with the developer first, even though some commit
+messages still follow the Keep-a-Changelog convention. `DESIGN_NOTES.md` (repo root) holds general
+technical rationale and pitfall warnings referenced by file/section from source and from this file's own
+Architecture sections below — see the Conventions section for what belongs there.
 
 ## Environment and commands
 
@@ -48,40 +50,56 @@ exclusively** (`requires-python = ">=3.14,<3.15"`).
   artifacts — see the docs section below for why `_notebooks/`/`jupyter_execute/` exist at all).
 - Add/upgrade a dependency (don't hand-edit version pins): `uv add "<pkg>>=X.Y.Z"` or
   `uv add --group dev "<pkg>>=X.Y.Z"`, then `uv lock` / `uv sync`.
-- Format/lint/type-check: `uv run black src tests benchmarks`, `uv run isort src tests benchmarks`,
-  `uv run flake8 src` (only `src` is linted — `--extend-select=D1` in `pyproject.toml` enforces
-  missing-docstring checks via `flake8-docstrings`), `uv run pyright`, `uv run vulture src`.
-- Run the whole quality gate at once (what CI runs): `./scripts/Invoke-QualityGate.ps1` — pytest, black
-  `--check`, isort `--check-only`, flake8, pyright, vulture, `sphinx-build -W`, `uv build`, in that order,
-  stopping at the first failure. `./scripts/Test-Notebooks.ps1` runs `uv run pytest --nbmake notebooks/`
-  separately.
+- Format/lint/type-check: `uv run black src tests benchmarks scripts`,
+  `uv run isort src tests benchmarks scripts`, `uv run flake8 src scripts` (only `src` and `scripts` are
+  linted — `--extend-select=D1` in `pyproject.toml` enforces missing-docstring checks via
+  `flake8-docstrings`), `uv run pyright`, `uv run vulture src scripts`.
+- Run the whole quality gate at once (what CI runs): `./scripts/Invoke-QualityGate.ps1` — pytest, the
+  notebook suite (`./scripts/Test-Notebooks.ps1`, `uv run pytest --nbmake notebooks/`), black `--check`,
+  isort `--check-only`, flake8, pyright, vulture, `sphinx-build -W`, `uv build`, in that order, stopping at
+  the first failure. `Test-Notebooks.ps1` is still a separate, standalone script (useful on its own when
+  only notebooks changed), just also invoked as one step of the main gate rather than only by CI calling it
+  a second time.
 - Benchmark the DHT/DFT/PFT-batching implementations: `uv run python benchmarks/run_dht_benchmarks.py` /
   `uv run python benchmarks/run_dft_benchmarks.py` / `uv run python benchmarks/run_pft_benchmarks.py` —
   none are part of `uv run pytest` (they live outside `testpaths`), since they're dev tooling, not a
   correctness check. All three write timestamped Markdown reports to the gitignored
   `.local_files/benchmarks/results/`.
+- Regenerate the package's Mermaid class diagram: `uv run python scripts/make_class_diagram.py
+  [--output <path>]` — parses `src/pypft` with `ast` (nothing is imported, stdlib only), printing to
+  stdout by default. `--no-private` gives the public-API view, `--no-module-functions` the pure-class
+  view. Dev tooling like the benchmarks: not part of `uv run pytest` or the quality gate, and the
+  diagram is not committed anywhere, so nothing goes stale when `src/` changes.
+- Regenerate a polar-sampled test fixture: `uv run python scripts/make_test_image.py --input <path>
+  --output <path> [--size 256] [--n-radial 1024] [--n-angular 127] [--r-fraction 0.95]` — rasterizes a
+  source image (vector `.eps`/`.ps` via Pillow's Ghostscript-backed `EpsImagePlugin`, or an ordinary raster
+  format directly), resizes it to a square, and samples that square via `pypft.sample_cartesian` onto a
+  `pypft.PolarGrid(n_radial, n_angular, R)`, writing the result as an uncompressed 8-bit grayscale TIFF.
+  `tests/samples/hedge_maze.tif` (the `Domain.SPACE_POLAR` sample signal in
+  `notebooks/07_visualization.ipynb`) was produced this way; see `THIRD-PARTY-NOTICES.md` for that file's
+  own third-party attribution, separate from this project's own BSD-3-Clause `LICENSE`.
 - `pytest.ini_options` sets `filterwarnings = ["error"]` — any `warnings.warn` in `src/` needs a matching
   `pytest.warns` test, or the suite fails.
 
-`pyproject.toml`'s `[project]` table must keep `dependencies = [...]` before `[project.urls]` — TOML
-otherwise attaches a bare `dependencies` key to whichever table header precedes it (this previously broke
-the build: `numba`/`scipy` silently vanished from the resolved lock and `uv sync` failed with a setuptools
-`project.urls.dependencies` validation error).
+`pyproject.toml`'s `[project]` table must keep `dependencies = [...]` before `[project.urls]` — see
+`DESIGN_NOTES.md`, "Packaging: `dependencies` must precede `[project.urls]`" for why.
 
 ## CI
 
 `.github/workflows/ci.yml` runs on every pull request and on push to `main`, across a
 `windows-latest`/`ubuntu-latest`/`macos-latest` matrix (`shell: pwsh` throughout): `astral-sh/setup-uv`,
-`uv sync`, then `scripts/Invoke-QualityGate.ps1` and `scripts/Test-Notebooks.ps1`. No inline shell logic
-lives in the YAML — both scripts are meant to be run locally too, so a red CI leg is always reproducible
-with one local command.
+`uv sync`, then `scripts/Invoke-QualityGate.ps1` alone — it already runs `scripts/Test-Notebooks.ps1` as
+one of its own steps, so CI does not call it a second time. No inline shell logic lives in the YAML — both
+scripts are meant to be run locally too, so a red CI leg is always reproducible with one local command.
 
 ## Architecture: the package facade
 
 `src/pypft/__init__.py` re-exports the public surface from each submodule (`Axis`, `DEFAULT_BATCH_AXIS`,
 the DHT API, the domains API — `Domain`, `BaseSignal`, and its four subclasses — the geometry functions,
 the grid API — `PolarGrid`, `LimitKind`, `sample_cartesian`, `check_adequacy`, `check_nyquist_adequacy` —
-`Reference`/`cite`/`bibliography`, and `forward_pft`/`inverse_pft`), listed in `__all__` — this is what
+`Reference`/`cite`/`bibliography`, `forward_pft`/`inverse_pft`, and the visualization API —
+`PFTTrace`, `forward_pft_traced`, `inverse_pft_traced`, `plot_signal`, `render_cartesian` — listed
+in `__all__` — this is what
 keeps `flake8`'s unused-import check (`F401`) satisfied for a pure re-export module. `pypft.dft` is deliberately **not** re-exported here: it is internal plumbing
 between the geometry/axes layer and the DHT (no notebook of its own — see the Notebooks section), reachable
 as `pypft.dft.angular_dft` and documented via `docs/api.rst`, the same way `pypft.utils.validators` is
@@ -105,14 +123,17 @@ points:
   `@staticmethod`s. Validators for locally-defined (in-package) types live on the class where that type is
   defined, to avoid circular imports — not in this shared module (e.g. `DHTImplementation`'s enum
   membership is validated in `src/pypft/dht/__init__.py`, not here; `PolarGrid`'s own type-validator,
-  `_type_is_polar_grid`, likewise lives in `src/pypft/grid.py`). `NumpyValidator` also has
-  `value_is_2d`/`value_is_finite` (added for `pypft.grid.sample_cartesian`'s image argument), alongside the
-  pre-existing `value_is_1d`/`value_is_at_least_1d`, and `value1_shape_matches_value2` (added for
-  `pypft.transform.forward_pft`/`inverse_pft`'s whole-array shape check against a `PolarGrid`), alongside
-  the pre-existing single-axis `value1_axis_length_matches_value2`. `value_has_ndim_in(value, ndims)`
-  (general-purpose rank check) and `value_is_2d_or_3d` (built on it) were added for the polar layer's
-  optional trailing batch axis — `pypft.transform.scaled_hankel`/`forward_pft`/`inverse_pft` and
-  `pypft.domains.BaseSignal` all accept 2-D or 3-D `values` now, batch axis last.
+  `_type_is_polar_grid`, likewise lives in `src/pypft/grid.py`; `BaseSignal`'s own type-validator,
+  `_type_is_base_signal`, lives in `src/pypft/domains.py` and is reused by `pypft.viz`).
+  `NumpyValidator` has `value_is_1d`/`value_is_at_least_1d`, `value_is_2d`/`value_is_finite` (for
+  `pypft.grid.sample_cartesian`'s image argument), `value1_axis_length_matches_value2` (single-axis) and
+  `value1_shape_matches_value2` (for `pypft.transform.forward_pft`/`inverse_pft`'s whole-array shape check
+  against a `PolarGrid`), and `value_has_ndim_in(value, ndims)` (general-purpose rank check) with
+  `value_is_2d_or_3d` (built on it) for the polar layer's optional trailing batch axis —
+  `pypft.transform.scaled_hankel`/`forward_pft`/`inverse_pft` and `pypft.domains.BaseSignal` all accept
+  2-D or 3-D `values`, batch axis last. `MatplotlibValidator` (`type_is_axes`, `type_is_figure`) covers
+  `pypft.viz`'s `Axes`/`Figure` arguments and its `PFTTrace.figures` field, ordered before `NumpyValidator`
+  (third-party classes are alphabetical: `matplotlib` before `numpy`).
 - Methods are named `type_is_<typename>` (type-validators, raise `TypeError`) or
   `value_<is|has|should|...>_<condition>` (value-validators, raise `ValueError`, or an `OSError` subclass
   for filesystem-state checks like "path writable").
@@ -234,7 +255,7 @@ is introduced here, only composition. Key points:
   step underlying both directions: it loops over `grid.harmonics` (one Hankel transform per harmonic, since
   each order needs its own kernel), and is the single place in `src/` that names the radial axis —
   `forward_pft`/`inverse_pft` always pass `Axis.RADIAL`/`Axis.ANGULAR` explicitly rather than relying on
-  `hankel_transform`'s own unrelated `axis=-1` default. Unlike the 2-D-only original, `angular_axis` is a
+  `hankel_transform`'s own unrelated `axis=-1` default. `angular_axis` is a
   required argument (not derived as "the other axis") since a 3-D input has more than two axes to choose
   from. **Two `PFTImplementation` strategies**, dispatched like `DHTImplementation`/`DFTImplementation`:
   `HARMONIC_LOOP` (one `hankel_transform`/`inverse_hankel_transform` call per harmonic — a trailing batch
@@ -246,8 +267,8 @@ is introduced here, only composition. Key points:
   n_radial=128, batch=64`) — `HARMONIC_LOOP` stays faster on a single unbatched 2-D call (~2.7ms vs.
   ~3.6ms), but batching is the scenario this default is chosen for. The kernel stack itself is cached (an
   `lru_cache` keyed on the hashable `(grid, direction)`, `STACKED_KERNEL_CACHE_MAXSIZE`-bounded, mirroring
-  `CachedBesselDHT`'s own `(n, size)` cache): without it, rebuilding and copying the whole stack on every
-  call made `STACKED_KERNEL` measure *slower* than `HARMONIC_LOOP` even on the batched workload.
+  `CachedBesselDHT`'s own `(n, size)` cache) — see `DESIGN_NOTES.md`, "PFT: `STACKED_KERNEL`'s kernel-stack
+  cache is required for its own performance win," for why this cache is load-bearing.
 - **Negative orders reuse the positive-order kernel.** `Y^{(-n)N} = (-1)^n Y^{nN}` exactly (the
   denominator's squared Bessel term is unchanged because `J_{n-1}(j_nk) = -J_{n+1}(j_nk)` at a zero of
   `J_n`), so `scaled_hankel` always calls the DHT with `abs(n)` and multiplies the sign in afterwards; the
@@ -318,6 +339,90 @@ symmetry (`F_{-n} = (-1)^n * conj(F_n)`, not plain conjugate symmetry, because o
 negative-order sign) — are tested directly against `forward_pft`/`inverse_pft` instead, since that is both
 simpler and closer to how a caller would actually observe them.
 
+## Architecture: visualization (`src/pypft/viz.py`)
+
+`Axes`/`Figure`-based figures for a `pypft.domains.BaseSignal`. `plot_signal`/`render_cartesian`
+never write to disk, and `forward_pft_traced`/`inverse_pft_traced` don't either on their own —
+only `PFTTrace.save` does, and only when a caller calls it explicitly. Key points:
+
+- **`plot_signal(signal, ax=None)` renders every domain the same way — a gamma-enhanced magnitude
+  and a phase map**, unconditionally, with no domain-based dispatch
+  (`matplotlib.colors.PowerNorm`, never a hand-rolled `** gamma`, so the colorbar's own tick values stay
+  meaningful). Every `Domain` member is treated as complex-valued: `SPACE_HARMONIC` is an angular
+  DFT's own coefficients, generically complex even when the space-domain signal being transformed is real
+  (a DFT of real input is only symmetric, not real, in general); `SPACE_POLAR` can likewise carry a
+  non-trivial phase after a full forward-then-inverse round trip. Since
+  every domain takes the same path, `plot_signal` always returns `tuple[Axes, Axes]`, and there is no
+  `_plot_complex_signal`/`_plot_magnitude_signal` helper split, since there is no dispatch for such a
+  helper to support.
+  `plot_signal` still type-validates a given `ax` as a 2-tuple *before* unpacking it into
+  `(magnitude_ax, phase_ax)` — an unguarded unpack would raise `ValueError` instead of `TypeError` on a
+  wrong-length `ax`, breaking `plot_signal`'s own documented type-validation contract. `BaseSignal.plot()`
+  is a thin delegate to this function, using a **function-local** import of `pypft.viz` (`domains.py`
+  cannot import it at module level: `pypft.viz` itself imports `Domain`/`BaseSignal` from `pypft.domains`,
+  so a top-level import would be circular).
+- **`_magnitude_cmap(domain)` grayscales `SPACE_POLAR`'s own magnitude specifically**, everywhere a
+  magnitude is drawn (`plot_signal`, `render_cartesian`) — a
+  `SPACE_POLAR` magnitude is literally a photographic image (`pypft.grid.sample_cartesian`'s own image
+  argument), unlike every other domain's more abstract Fourier/harmonic-coefficient magnitude, which stays
+  at `matplotlib`'s own default colormap (`cmap=None`, resolved by each `imshow` call). Phase panels are
+  never affected by domain — `cmap="twilight"` (a cyclic colormap, correct for any wrapped `[-pi, pi]`
+  quantity regardless of domain) is unconditional, and so is its color *range*: `_PHASE_VMIN`/`_PHASE_VMAX`
+  (`-np.pi`/`np.pi`) are always passed explicitly to every phase `imshow` call — see below for why.
+- **Every phase `imshow` call pins `vmin`/`vmax` to `[-pi, pi]` explicitly**, rather than leaving the range
+  to `matplotlib`'s own auto-scaling — see `DESIGN_NOTES.md`, "Visualization: phase color range is pinned
+  to `[-pi, pi]`," for why (a degenerate-`Normalize` failure mode for any exactly-constant phase, e.g. a
+  real-valued `SPACE_POLAR` signal). `tests/test_viz.py::test_plot_signal_phase_color_range_is_fixed_for_constant_phase`
+  pins this down: `phase_ax.images[0].get_clim() == (-np.pi, np.pi)` must hold for a real-valued signal.
+- **`render_cartesian(signal, *, height, width, ax=None)`** is the display-only counterpart for the two
+  `POLAR` domains specifically (`SPACE_POLAR`/`FREQUENCY_POLAR` — the two whose angular axis is a physical
+  angle, not a harmonic order): it interpolates `PolarGrid.r`/`.theta`'s own non-uniform sample points onto
+  an ordinary Cartesian pixel grid via `scipy.interpolate.griddata`. This is an **approximation for display
+  only** — its output must never be fed back into `forward_pft`/`inverse_pft`, unlike
+  `pypft.grid.sample_cartesian`'s own exact, order-dependent sampling. **`grid.theta` must be negated before
+  use here** (`y = -grid.r * np.sin(grid.theta)`, not a bare `sin`) — see `DESIGN_NOTES.md`,
+  "Visualization: `render_cartesian`'s `grid.theta` must be negated," for why.
+  `tests/test_viz.py::test_render_cartesian_orientation_matches_image_convention` pins this down: a bright
+  wedge at `theta=+pi/2` must render in the physical lower half.
+- **`forward_pft_traced`/`inverse_pft_traced`** walk the same `pypft.domains.BaseSignal` chain
+  `forward_pft`/`inverse_pft` are built on (rather than duplicating the pipeline), so their `values` are
+  identical to calling `forward_pft`/`inverse_pft` directly. They return a `PFTTrace` (frozen dataclass:
+  `values`, `signals` — all 4 domains visited, in order — `figures`, and `figure_labels`), **always the same
+  type regardless of** `visualize_steps`/`visualize_pipeline` — a value-dependent
+  return type is a `pyright` defect, which is why tracing is a separate entry point rather than a
+  `visualize=`/`record=` flag on `forward_pft`/`inverse_pft` themselves. `visualize_steps` builds one figure
+  per domain (4), each rendered via `plot_signal`; `visualize_pipeline` builds one holistic mosaic figure
+  (two panels per domain, via `plt.subplots` with a computed `ncols`, each panel likewise rendered via
+  `plot_signal`). There is deliberately no option to render a traced
+  panel as a Cartesian circle instead of the ordinary polar-index table, to keep this module's surface
+  area proportional to its value: `render_cartesian` (above) remains the one function for rendering a
+  polar signal as a Cartesian circle, called directly by a caller who wants one, e.g. on `trace.signals[0]`/
+  `trace.signals[-1]`.
+- **`PFTTrace.figures`/`figure_labels` and `filterwarnings = ["error"]`**: `figures: tuple[Figure, ...] =
+  field(default=(), compare=False, repr=False)` (a `Figure` is neither comparable nor usefully
+  representable) plus a `PFTTrace.close()` method are both required because matplotlib's own "more than 20
+  figures have been opened" `RuntimeWarning` becomes a **test failure** under this project's
+  `filterwarnings = ["error"]`. Tests must assert `plt.get_fignums()` actually returns to its prior length
+  after `close()`, not just that the return types are right. `figure_labels` is a same-length, parallel
+  tuple of names (`"step_<domain>"`, `"pipeline"`) `PFTTrace.__post_init__` validates against `figures`' own
+  length — what `PFTTrace.save(directory)` names each `"<index>_<label>.png"` file after. `save` is the
+  **one** explicit, opt-in place this module ever writes to disk: never called
+  implicitly by tracing itself, and it creates `directory` (`Path.mkdir(parents=True, exist_ok=True)`) after
+  validating it with the shared `PathValidator`.
+- **Cross-module RST type references must be fully qualified.** A docstring's `:type:`/`:rtype:` field
+  naming a type defined in *another* module (e.g. `pypft.domains.BaseSignal`, `pypft.grid.PolarGrid`) must
+  spell out the dotted path, not the bare class name — `sphinx-build -W` raises a `more than one target
+  found for cross-reference` (`ref.python`) warning otherwise, since both the bare name (re-exported at
+  `pypft.<Name>`) and the fully-qualified original resolve as candidates. A module documenting its *own*
+  type (e.g. `pypft.grid`'s own docstrings naming `PolarGrid`) stays bare, since Sphinx resolves an
+  unqualified reference to the current module first. `transform.py`'s existing `:type grid:
+  pypft.grid.PolarGrid` already followed this; `viz.py` is what makes the rule explicit.
+- **`tests/conftest.py` forces the `Agg` backend** (`matplotlib.use("Agg")`) before any test imports
+  `matplotlib.pyplot` — every CI OS is headless, so an interactive backend (e.g. `TkAgg`) fails outright.
+  This only matters for plain `pytest` collection: a notebook executed via `nbmake` runs under a real
+  Jupyter/`ipykernel` kernel, which already defaults to the inline backend, so no notebook needs this itself
+  (see `notebooks/07_visualization.ipynb`).
+
 ## Architecture: citations (`src/pypft/references.py`)
 
 `Reference(Enum)` holds one member per cited scientific source (each an `_Entry` with a `key`, an `inline`
@@ -340,12 +445,9 @@ Implements the DHT as a transform in its own right (not a discretized integral),
 changing any of the kernel math. Key points:
 
 - **Kernel choice**: the transform uses Baddour's `Y^{nN}` formulation (paper's Eq. 39), not the
-  alternative symmetric `T^{nN}` formulation (Eq. 44). Both are self-inverse (`M @ M = I`), but `T^{nN}`
-  only preserves Parseval's theorem on Sec. 7's "scaled" vectors, not on raw `f`/`F` values directly —
-  `Y^{nN}` was chosen so the public API works in terms of raw signal values. This was found by empirical
-  verification against a known continuous Hankel-transform pair (a self-reciprocal Gaussian) after an
-  initial `T^{nN}`-based attempt produced wrong (sign-oscillating) results; see `tests/dht/test_gaussian.py`
-  for that check and `src/pypft/dht/_base.py`'s module docstring for the full rationale.
+  alternative symmetric `T^{nN}` formulation (Eq. 44) — see `DESIGN_NOTES.md`, "DHT: kernel formulation is
+  `Y^{nN}`, not the symmetric `T^{nN}`," for why; `tests/dht/test_gaussian.py` and
+  `src/pypft/dht/_base.py`'s module docstring carry the same rationale.
 - **Strategy pattern**: `src/pypft/dht/_base.py`'s `BaseDHT` defines two overridable hooks —
   `_bessel_kernel(n, size)` (computing the Bessel-valued kernel) and `_apply(kernel, vector)` (applying it
   to a signal) — matching the two independent optimization axes of the transform. `forward`/`inverse` are
@@ -363,14 +465,10 @@ changing any of the kernel math. Key points:
   → `_vectorized.VectorizedDHT` (overrides only `_apply`, using `numba`-parallelized loops instead of
   NumPy's BLAS matmul — for `ndim > 2` it flattens the leading dimensions into one batch dimension before
   calling the numba kernel and unflattens after — inheriting `CachedBesselDHT`'s kernel unchanged).
-- **`RECURRENCE_BESSEL` was removed (numerically unsound, live-bug fix):** an earlier `_recurrence.py`
-  implementation built the kernel's Bessel values via the three-term order recurrence instead of one direct
-  `jv()` call per order. That recurrence is exponentially unstable once the order exceeds the argument,
-  which the kernel evaluates by construction — `max|Y^{nN} @ Y^{nN} - I|` measured at 2.1e+16 by order 47
-  (size 64), against ~7e-6 for the direct/cached kernel at the same order. It was never caught because
-  `tests/dht/conftest.py`'s `DHT_ORDERS` used to stop at order 4; `DHT_ORDERS` now includes 16/32/64
-  specifically to keep this class of regression visible, and `VectorizedDHT` was reparented from
-  `RecurrenceBesselDHT` to `CachedBesselDHT` (it only overrides `_apply`, so reparenting was a pure fix).
+- **The kernel's Bessel values are always computed via a direct `jv()` call per order** — see
+  `DESIGN_NOTES.md`, "DHT: the kernel's Bessel values must be computed directly, never via order
+  recurrence," for why, including `DHT_ORDERS`' high-order coverage (16/32/64) and `dht_tolerance`'s
+  order-dependent model.
 - **Order-dependent tolerance:** even the correct kernel's self-inverse residual grows with order (an
   inherent discretization effect, not a bug) — from ~1.9e-9 at order 0 to ~1.1e-5 at order 64 (size 64). A
   flat tolerance is either too loose (hiding a regression) or too tight (rejecting the correct kernel above
@@ -418,10 +516,9 @@ strategy shape as `pypft.dht`:
 - **Selection**: `DFTImplementation` maps to these two classes via `_IMPLEMENTATIONS` in
   `src/pypft/dft/__init__.py`. `DEFAULT_IMPLEMENTATION` is `NUMPY`, picked by
   `benchmarks/run_dft_benchmarks.py`'s repeated-forward-call scenario (essentially tied with `SCIPY` there,
-  ~11.7us vs. ~12.1us). A third `SCIPY_WORKERS` (`workers=-1`) implementation was considered for `SCIPY`'s
-  ~33% win on batched, non-trailing-axis input, and rejected: explicit worker parallelism measured only
-  ~2% faster than `SCIPY`'s own default in that regime, so the win is the algorithm, not parallelism — not
-  worth a third strategy. See the constant's own docstring and the benchmark report for the full numbers.
+  ~11.7us vs. ~12.1us). See `DESIGN_NOTES.md`, "DFT: `SCIPY_WORKERS` is not offered as a separate
+  strategy," for why there is no `workers=-1` implementation, and the constant's own docstring and the
+  benchmark report for the full numbers.
 - **`harmonics(n_angular)`/`AngularParity`**: also live in `src/pypft/dft/__init__.py`, since this module
   owns the harmonic-range derivation. `harmonics` returns `-(n_angular // 2) .. n_angular - n_angular // 2
   - 1`, correct for either parity — there is deliberately **no `value_is_odd` validator**: an even angular
@@ -460,23 +557,27 @@ in a row. `docs/jupyter_execute/` is gitignored either way, so deleting it (alon
 `notebooks/` is tracked and executed in CI via `nbmake` (see the CI section above), as one incremental
 tutorial sequence where each notebook assumes only its predecessors: `00_installation_and_quickstart.ipynb`,
 `01_polar_and_cartesian_images.ipynb`, `02_sampling_grids.ipynb` (the `PolarGrid` sampling grid: why it
-is non-uniform, the central gap that never fully closes, the angular-vs-radial resolution trade-off via
+is non-uniform, the central gap that never fully closes, the angular axis's own harmonics and its
+unpaired Nyquist bin for even `n_angular` via `grid.parity`, the angular-vs-radial resolution trade-off via
 `check_adequacy`, and the Nyquist condition via `check_nyquist_adequacy`), `03_pft_and_ipft.ipynb` (the
 full `forward_pft`/`inverse_pft` chain against the Gaussian oracle, ending with the dB-error map reproducing
 Yao & Baddour Part II's own published figure), `04_transform_properties.ipynb` (a tour of both the DHT's
 and the PFT's own analytical properties — self-inverse, the Kronecker-delta pair, the negative-order sign
 relation, the generalized shift and its derived rules, kernel orthogonality, rotation equivariance,
-linearity, and the DC term), `05_domains.ipynb` (typed domains and legal moves), and `06_batches.ipynb`
+linearity, and the DC term), `05_domains.ipynb` (typed domains and legal moves), `06_batches.ipynb`
 (3-D `(radial, angular, batch)` support: exactness vs. looping the 2-D case, `BaseSignal`'s `batch_axis`,
-the batch-axis-must-be-last validation, and a timing comparison against a Python loop) exist so far.
+the batch-axis-must-be-last validation, and a timing comparison against a Python loop), and
+`07_visualization.ipynb` (`plot_signal`/`BaseSignal.plot`, `render_cartesian`, a full
+forward-then-inverse round trip via `forward_pft_traced`/`inverse_pft_traced` with both
+visualization keywords, and `PFTTrace.save`) exist so far.
 Internal-plumbing work (the DHT's N-D generalization, the angular
 DFT subsystem) deliberately gets no notebook of its own — their gate is that every *existing* notebook still
 executes, since a notebook per internal subsystem would duplicate the API reference without teaching a
 workflow. See "Architecture: citations" above for the citation discipline notebooks must follow when they
 state a mathematical result — `02_sampling_grids` is the first notebook to actually cite anything
 (`YaoBaddour2020`); `04_transform_properties` is the first to cite `Baddour2019a`/`Baddour2019b`.
-`06_batches` states no new mathematical result (batching is an engineering property, not a new equation), so
-it cites nothing and needs no `bibliography(...)` cell.
+`06_batches`/`07_visualization` state no new mathematical result (batching and visualization are engineering
+properties, not new equations), so neither cites anything or needs a `bibliography(...)` cell.
 
 ## Conventions (from `README.md`)
 
@@ -498,6 +599,18 @@ it cites nothing and needs no `bibliography(...)` cell.
   `sphinx-build -W`: a module docstring written as plain indented prose rather than valid RST (inconsistent
   bullet-list indentation, missing blank lines around nested lists) raises docutils errors that `-W`
   escalates to build failures, even though `flake8-rst-docstrings` may not catch every case in isolation.
+- **No historical narration**: docstrings, comments, and notebooks describe the current design and its
+  rationale only — never "used to be," "no longer," "was removed/replaced," "an earlier revision," or
+  similar before/after framing. `git log`/`git blame` is the record of what changed; source-level prose is
+  not a changelog.
+- **No explanations targeted at the Claude user, anywhere in the repo**: source code, tests, and notebooks
+  read as ordinary documentation for a human engineer — never as notes addressed to an AI coding assistant
+  (bug-hunting narratives like "found by actually looking at a rendered image," process commentary like
+  "written to fail without the fix," or any other meta-commentary about how or why a change was made). A
+  general technical explanation with lasting value (a numerical-instability warning, a design-choice
+  rationale) belongs in `DESIGN_NOTES.md` at the repo root, referenced by file and section from the code it
+  explains — not inlined. A one-off changelog-style note needed only while actively working belongs in a
+  scratch file under `.local_files/` (gitignored), never committed into tracked source.
 - **Line length**: 88 chars everywhere — `pyproject.toml`'s `[tool.black]`/`[tool.flake8]`, `README.md`,
   and `.vscode/settings.json` (editor rulers, `rewrap.wrappingColumn`) all agree.
 - **Code-sectioning comments**: `# ` + repeated character to fill the line width — `=` for a top-level
@@ -528,8 +641,9 @@ package or test suite:
 - `sources/` — reference papers on the DHT, the polar-coordinate DFT/PFT, and Bessel functions (Baddour
   2019's DHT book chapter and Mathematics Part I paper, Yao & Baddour's PeerJ CS Part II paper and its
   supplementary appendix, `bessel_properties.md`, a distillation of Bessel-function recurrence/derivative
-  relations — retained for reference even though the `_recurrence.py` implementation that used it was
-  removed for numerical instability; see the DHT architecture section above — and `pft_properties.md`, an
+  relations — retained for reference even though nothing in `src/` currently derives a kernel via Bessel
+  recurrence (see `DESIGN_NOTES.md`, "DHT: the kernel's Bessel values must be computed directly, never via
+  order recurrence") — and `pft_properties.md`, an
   equation-level distillation of both papers' operational rules, mirroring `bessel_properties.md`'s own
   style). These are the sources `src/pypft/references.py`'s `Reference` members cite.
 - `benchmarks/results/` — timestamped Markdown reports generated by `benchmarks/run_dht_benchmarks.py`/

@@ -25,8 +25,9 @@ SIGNAL_SIZE = 64
 #: Orders exercised across the parametrized test suite: 0 (the common case,
 #: with a closed-form self-reciprocal Gaussian check), a few small arbitrary
 #: nonzero orders, and high orders (16, 32, 64) that specifically exercise
-#: the order-dependent kernel degradation that let ``RecurrenceBesselDHT``
-#: diverge unnoticed. Order-sensitive assertions must use
+#: the order-dependent kernel degradation described in ``DESIGN_NOTES.md``,
+#: "DHT: the kernel's Bessel values must be computed directly, never via
+#: order recurrence." Order-sensitive assertions must use
 #: ``tests.dht.tolerance.dht_tolerance`` instead of the flat RTOL/ATOL below
 #: once orders this high are involved.
 DHT_ORDERS = (0, 1, 4, 16, 32, 64)

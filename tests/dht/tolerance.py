@@ -8,10 +8,10 @@ evaluates ``J_n`` at arguments that shrink relative to ``n`` as the order rises.
 A single flat ``RTOL``/``ATOL`` (as used elsewhere in this suite, see
 ``tests/dht/conftest.py``) is therefore wrong once high orders are exercised:
 it is far looser than necessary at ``n=0`` and already too tight
-by order ~24 at ``size=64`` -- which is exactly the gap that let the (now
-deleted) ``RecurrenceBesselDHT`` diverge unnoticed, since ``DHT_ORDERS`` used
-to stop at 4. ``dht_tolerance`` replaces the flat bound for assertions whose
-expected error is order-sensitive.
+by order ~24 at ``size=64`` -- see ``DESIGN_NOTES.md``, "DHT: the kernel's
+Bessel values must be computed directly, never via order recurrence," for
+why this gap matters. ``dht_tolerance`` replaces the flat bound for
+assertions whose expected error is order-sensitive.
 
 Fitted from ``NaiveDHT``/``CachedBesselDHT`` self-inverse residuals
 (``max|Y @ Y - I|``), measured at ``size=64``:
@@ -32,8 +32,10 @@ roughly as ``order**2 / size`` above the smallest orders, plus a floor for the
 near-zero error at ``order=0``. ``ORDER_COEFFICIENT`` is chosen so the model
 stays an upper bound, with roughly a 1.2x-3x margin, across every point above
 -- comfortably inside the ~10x window ``test_tolerance.py`` checks this module
-against, so a future regression (like the recurrence divergence) would still
-be caught rather than silently absorbed by an over-loose model.
+against, so a future regression in this class of numerical failure (see
+``DESIGN_NOTES.md``, "DHT: the kernel's Bessel values must be computed
+directly, never via order recurrence") would still be caught rather than
+silently absorbed by an over-loose model.
 """
 
 #: Baseline error at order 0, where the residual is dominated by ordinary

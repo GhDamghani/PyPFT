@@ -26,6 +26,7 @@ from enum import Enum, auto
 from typing import ClassVar
 
 import numpy as np
+from matplotlib.axes import Axes
 
 from pypft.axes import DEFAULT_BATCH_AXIS, Axis
 from pypft.dft import angular_dft, inverse_angular_dft
@@ -138,6 +139,33 @@ class BaseSignal:
             method = _STEP_TOWARD[edge] if step == 1 else _STEP_BACKWARD[edge - 1]
             signal = getattr(signal, method)()
         return signal
+
+    def plot(self, ax: tuple[Axes, Axes] | None = None) -> tuple[Axes, Axes]:
+        """Delegate to ``pypft.viz.plot_signal`` for this signal.
+
+        :param ax: See ``pypft.viz.plot_signal``.
+        :type ax: tuple[Axes, Axes] | None
+        :returns: See ``pypft.viz.plot_signal``.
+        :rtype: tuple[Axes, Axes]
+
+        """
+        # Deferred import: pypft.viz imports Domain/BaseSignal from this module,
+        # so importing it at module level here would be circular.
+        from pypft.viz import plot_signal
+
+        return plot_signal(signal=self, ax=ax)
+
+
+def _type_is_base_signal(value: BaseSignal) -> None:
+    """Type-validator for ``BaseSignal``, defined here since the type is defined here.
+
+    :param value: The value to be validated.
+    :type value: BaseSignal
+    :raises TypeError: If the value is not a ``BaseSignal``.
+
+    """
+    if not isinstance(value, BaseSignal):
+        raise TypeError(f"value must be BaseSignal, got {type(value).__name__}")
 
 
 @dataclass(frozen=True)
