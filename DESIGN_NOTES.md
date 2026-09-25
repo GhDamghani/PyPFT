@@ -1,7 +1,7 @@
 # Design Notes
 
 Technical rationale and pitfall warnings for PyPFT that are too detailed for an inline comment but have
-lasting value for anyone changing the referenced code. Source code, `CLAUDE.md`, and the test suite point
+lasting value for anyone changing the referenced code. Source code and the test suite point
 here by section heading rather than repeating this content inline.
 
 ## Packaging: `dependencies` must precede `[project.urls]`

@@ -1,0 +1,15 @@
+# Install once per clone with `uv run pre-commit install`.
+repos:
+  - repo: local
+    hooks:
+      # Strip every tutorial notebook to its bare form: no outputs, no execution
+      # counts, and no notebook- or cell-level metadata.
+      - id: nbstripout
+        name: nbstripout
+        entry: uv run nbstripout
+        language: system
+        files: ^notebooks/.*\.ipynb$
+        args:
+          - --drop-empty-cells
+          - --extra-keys
+          - metadata.kernelspec metadata.language_info
