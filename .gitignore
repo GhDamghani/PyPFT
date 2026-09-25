@@ -15,3 +15,5 @@ docs/.jupyter_cache/
 *.egg-info/
 .benchmarks/
 .claude/
+.vscode/
+CLAUDE.md
