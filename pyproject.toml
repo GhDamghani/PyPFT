@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "PyPFT"
-version = "0.7.0"
-description = "Polar Fourier transform toolkit with a modular PyPFT facade."
+version = "0.7.1"
+description = "Polar Fourier transform and discrete Hankel transform toolkit"
 readme = "README.md"
 requires-python = ">=3.14,<3.15"
 license = "BSD-3-Clause"
@@ -62,6 +62,8 @@ dev = [
     "furo>=2024.8.6",
     "flake8-docstrings>=1.7.0",
     "pillow>=11",
+    "pre-commit>=4.0",
+    "nbstripout>=0.8",
 ]
 
 [tool.setuptools]
