@@ -1,7 +1,11 @@
 Quickstart
 ==========
 
-Install PyPFT with `uv <https://docs.astral.sh/uv/>`_::
+Install PyPFT with ``pip``::
+
+   pip install pypft
+
+or add it to a `uv <https://docs.astral.sh/uv/>`_ project::
 
    uv add pypft
 
