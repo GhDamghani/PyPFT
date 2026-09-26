@@ -6,17 +6,52 @@ on:
     branches: [main]
 
 jobs:
+  python-versions:
+    name: Resolve the supported Python versions
+    runs-on: ubuntu-latest
+    outputs:
+      versions: ${{ steps.versions.outputs.versions }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - id: versions
+        run: ./scripts/Get-PythonVersions.ps1
+
   quality-gate:
+    needs: [python-versions]
+    name: Gate (${{ matrix.os }}, Python ${{ matrix.python-version }}, ${{ matrix.dependency-set }})
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
+        # Read from supported_python_versions.txt, never repeated here.
+        python-version: ${{ fromJSON(needs.python-versions.outputs.versions) }}
+        # "minimum" runs against the dependency floors pinned by pyproject.toml's
+        # [tool.uv] constraint-dependencies; "latest" upgrades past them.
+        dependency-set: [minimum, latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # Pin every uv command to the matrix interpreter rather than .python-version,
+      # which deliberately names the oldest supported one for development.
+      UV_PYTHON: ${{ matrix.python-version }}
     defaults:
       run:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
       - run: uv sync
-      - run: ./scripts/Invoke-QualityGate.ps1
+      # --no-config makes `uv pip` ignore constraint-dependencies. Only the runtime
+      # dependencies are named, so dev tooling stays exactly as synced.
+      - if: matrix.dependency-set == 'latest'
+        run: uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+      - run: uv pip list
+      - if: matrix.dependency-set == 'minimum'
+        run: ./scripts/Invoke-QualityGate.ps1
+      # -NoSync keeps the upgrade above instead of re-syncing to uv.lock.
+      - if: matrix.dependency-set == 'latest'
+        run: ./scripts/Invoke-QualityGate.ps1 -NoSync

@@ -26,6 +26,21 @@ with both runtime and development dependencies, from the repository root::
 Run ``uv sync`` again after every pull or branch switch, so the environment always matches
 ``pyproject.toml``.
 
+Python versions and dependency floors
+-------------------------------------
+
+PyPFT supports every CPython listed in ``supported_python_versions.txt`` (currently 3.12,
+3.13, and 3.14). ``.python-version`` pins the oldest of them, so ``uv sync`` develops on
+Python 3.12, and pins each runtime dependency to the oldest release supported on that
+interpreter, so the lower bounds PyPFT publishes are the ones the tests run against. CI
+additionally runs every interpreter against the newest releases. To do the same locally,
+upgrade past the floors and run the gate without re-syncing::
+
+   uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+   ./scripts/Invoke-QualityGate.ps1 -NoSync
+
+Run ``uv sync`` afterwards to return to the floors.
+
 Install the commit hook
 -----------------------
 
