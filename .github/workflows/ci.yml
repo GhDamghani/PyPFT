@@ -1,4 +1,4 @@
-name: CI
+name: Quality gate
 
 on:
   pull_request:
@@ -7,16 +7,15 @@ on:
 
 jobs:
   quality-gate:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    name: Quality gate (development Python, minimum dependencies)
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: pwsh
     steps:
       - uses: actions/checkout@v4
+      # No python-version input: uv reads .python-version, the development
+      # interpreter, and uv.lock's constraint-dependencies pin the dependency floors.
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
       - run: ./scripts/Invoke-QualityGate.ps1

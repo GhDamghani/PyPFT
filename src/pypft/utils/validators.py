@@ -1,4 +1,3 @@
-# cython: language_level=3
 """Shared validation module: the design rules and conventions for every validator.
 
 Rules

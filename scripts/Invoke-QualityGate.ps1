@@ -1,7 +1,21 @@
 # Runs PyPFT's quality gate: the checks every phase must leave green. Assumes `uv sync`
 # has already run.
+#
+# -NoSync runs every step with `uv run --no-sync`, so an environment deliberately
+# upgraded past the locked dependency floors (CI's "latest" leg) is tested as-is
+# instead of being re-synced back to uv.lock first.
+
+param(
+    [switch]$NoSync
+)
 
 $ErrorActionPreference = "Stop"
+
+# Every `uv run` below goes through this prefix, so -NoSync covers all of them.
+$UvRun = @("uv", "run")
+if ($NoSync) {
+    $UvRun += "--no-sync"
+}
 
 function Invoke-Step {
     param(
@@ -16,12 +30,18 @@ function Invoke-Step {
     }
 }
 
-Invoke-Step "pytest" @("uv", "run", "pytest")
-Invoke-Step "notebooks (nbmake)" @("pwsh", "-NoProfile", "-File", "scripts/Test-Notebooks.ps1")
-Invoke-Step "black --check" @("uv", "run", "black", "--check", "src", "tests", "benchmarks", "scripts")
-Invoke-Step "isort --check-only" @("uv", "run", "isort", "--check-only", "src", "tests", "benchmarks", "scripts")
-Invoke-Step "flake8" @("uv", "run", "flake8", "src", "scripts")
-Invoke-Step "pyright" @("uv", "run", "pyright")
-Invoke-Step "vulture" @("uv", "run", "vulture", "src", "scripts")
-Invoke-Step "sphinx-build -W" @("uv", "run", "sphinx-build", "-W", "docs", "docs/_build")
+# Forward -NoSync to the notebook script, which runs its own `uv run`.
+$NotebookCommand = @("pwsh", "-NoProfile", "-File", "scripts/Test-Notebooks.ps1")
+if ($NoSync) {
+    $NotebookCommand += "-NoSync"
+}
+
+Invoke-Step "pytest" ($UvRun + @("pytest"))
+Invoke-Step "notebooks (nbmake)" $NotebookCommand
+Invoke-Step "black --check" ($UvRun + @("black", "--check", "src", "tests", "benchmarks", "scripts"))
+Invoke-Step "isort --check-only" ($UvRun + @("isort", "--check-only", "src", "tests", "benchmarks", "scripts"))
+Invoke-Step "flake8" ($UvRun + @("flake8", "src", "scripts"))
+Invoke-Step "pyright" ($UvRun + @("pyright"))
+Invoke-Step "vulture" ($UvRun + @("vulture", "src", "scripts"))
+Invoke-Step "sphinx-build -W" ($UvRun + @("sphinx-build", "-W", "docs", "docs/_build"))
 Invoke-Step "uv build" @("uv", "build")

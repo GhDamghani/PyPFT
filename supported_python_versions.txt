@@ -1,0 +1,10 @@
+# Every CPython version PyPFT is tested on, oldest first. The oldest entry is the
+# floor that pyproject.toml's requires-python and its "Programming Language ::
+# Python :: 3.x" classifiers must agree with, and the one .python-version pins for
+# development.
+#
+# Read by scripts/Get-PythonVersions.ps1, which feeds the test matrix in
+# .github/workflows/ci.yml. Blank lines and "#" comments are ignored.
+3.12
+3.13
+3.14

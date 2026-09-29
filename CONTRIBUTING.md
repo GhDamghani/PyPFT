@@ -38,7 +38,22 @@ PyPFT's dependencies are managed with [`uv`](https://docs.astral.sh/uv/), and `u
 
 Run `uv sync` again after every pull or branch switch, so your environment always matches `pyproject.toml`.
 
-To add or upgrade a dependency, don't hand-edit the version pins; use `uv add "<pkg>>=X.Y.Z"` (runtime) or `uv add --group dev "<pkg>>=X.Y.Z"` (development), then `uv lock` and `uv sync`.
+### Supported Python versions and dependency floors
+
+PyPFT supports every CPython listed in `supported_python_versions.txt` (currently 3.12, 3.13, and 3.14). Development happens on the oldest of them: `.python-version` pins 3.12, so `uv sync` creates a 3.12 environment, installing the interpreter if needed.
+
+That environment also runs against the *oldest* supported release of each runtime dependency. `pyproject.toml` publishes a per-interpreter floor for each dependency (the oldest release shipping a wheel for that CPython) with no upper bound, and its `[tool.uv] constraint-dependencies` table pins your environment to exactly those floors, so the lower bounds PyPFT claims are the ones you test against. CI runs the full quality gate once, on that development setup (`.github/workflows/ci.yml`), and runs the tests and notebooks on every supported interpreter twice: once at those floors ("minimum") and once after upgrading to the newest releases ("latest") (`.github/workflows/tests.yml`). Both run on Linux.
+
+To reproduce the "latest" leg locally, upgrade the runtime dependencies past the floors and run the gate without re-syncing (`--no-config` makes `uv pip` ignore the constraint table):
+
+```bash
+uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+./scripts/Invoke-QualityGate.ps1 -NoSync
+```
+
+Run `uv sync` afterwards to return to the floors. To test on a different interpreter, set `UV_PYTHON` (for example `UV_PYTHON=3.14`) before `uv sync`.
+
+To add or upgrade a dependency, don't hand-edit the version pins; use `uv add "<pkg>>=X.Y.Z"` (runtime) or `uv add --group dev "<pkg>>=X.Y.Z"` (development), then `uv lock` and `uv sync`. A new runtime dependency also needs a per-interpreter wheel floor and a matching `constraint-dependencies` entry, following the comments in `pyproject.toml`.
 
 ### Development dependencies
 
@@ -79,7 +94,7 @@ The project does not ship editor configuration. If you use VS Code, these extens
   uv run pytest --nbmake notebooks/
   ```
 
-- Run the full quality gate — the same script CI runs on Windows, Linux, and macOS (pytest, the notebook suite, `black --check`, `isort --check-only`, `flake8`, `pyright`, `vulture`, the docs build, and `uv build`, stopping at the first failure):
+- Run the full quality gate — the same script CI runs (pytest, the notebook suite, `black --check`, `isort --check-only`, `flake8`, `pyright`, `vulture`, the docs build, and `uv build`, stopping at the first failure):
 
   ```powershell
   ./scripts/Invoke-QualityGate.ps1
@@ -200,4 +215,4 @@ Sections are marked with `# ` followed by a sectioning character repeated to the
 1. Create a branch from `main` in your fork.
 2. Keep the change focused on one topic, with tests for any new behavior, and update the docs and notebooks it affects.
 3. Run `./scripts/Invoke-QualityGate.ps1` and make sure it passes.
-4. Push your branch and open a pull request against `main`, describing what changed and why. CI runs the same quality gate on Windows, Linux, and macOS.
+4. Push your branch and open a pull request against `main`, describing what changed and why. CI runs the same quality gate, plus the tests on every supported Python at both ends of the dependency range.

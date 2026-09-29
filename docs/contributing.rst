@@ -26,6 +26,22 @@ with both runtime and development dependencies, from the repository root::
 Run ``uv sync`` again after every pull or branch switch, so the environment always matches
 ``pyproject.toml``.
 
+Python versions and dependency floors
+-------------------------------------
+
+PyPFT supports every CPython listed in ``supported_python_versions.txt`` (currently 3.12,
+3.13, and 3.14). ``.python-version`` pins the oldest of them, so ``uv sync`` develops on
+Python 3.12, and pins each runtime dependency to the oldest release supported on that
+interpreter, so the lower bounds PyPFT publishes are the ones the tests run against. CI
+runs the quality gate on that setup, and additionally runs the tests and notebooks on
+every supported interpreter, both at the floors and against the newest releases. To do the same locally,
+upgrade past the floors and run the gate without re-syncing::
+
+   uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+   ./scripts/Invoke-QualityGate.ps1 -NoSync
+
+Run ``uv sync`` afterwards to return to the floors.
+
 Install the commit hook
 -----------------------
 
@@ -37,13 +53,13 @@ test suite checks this. Install the ``pre-commit`` hook that does the stripping 
 Run the quality gate
 --------------------
 
-The quality gate is the same script CI runs on Windows, Linux, and macOS. It runs the test
+The quality gate is the same script CI runs. It runs the test
 suite, the notebooks, the formatters and linters, the type checker, the dead-code check,
 the documentation build, and the package build, stopping at the first failure::
 
    ./scripts/Invoke-QualityGate.ps1
 
-The script needs PowerShell 7 (``pwsh``), which is available on all three platforms. The
+The script needs PowerShell 7 (``pwsh``), available on Windows, Linux, and macOS. The
 test suite alone runs with::
 
    uv run pytest
