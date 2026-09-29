@@ -6,12 +6,16 @@ nothing numerical on top of them. What it adds is a *typed* way to name where a 
 array sits along that chain, and to walk between those points one verified step at a
 time:
 
-``SPACE_POLAR --DFT--> SPACE_HARMONIC --DHT--> FREQUENCY_HARMONIC --IDFT-->
-FREQUENCY_POLAR``
+``POLAR_SPATIAL --DFT--> POLAR_SPATIAL_HARMONIC --DHT--> POLAR_FREQUENCY_HARMONIC
+--IDFT--> POLAR_FREQUENCY``
 
-Word 1 of each ``Domain`` member (``SPACE``/``FREQUENCY``) is the radial coordinate,
-changed only by the discrete Hankel transform; word 2 (``POLAR``/``HARMONIC``) is the
-angular coordinate, changed only by the angular DFT/IDFT. Because this is a path graph
+Every ``Domain`` member starts with ``POLAR``, since every point on the chain is
+sampled on the same ``pypft.grid.PolarGrid``. The word after it (``SPATIAL``/
+``FREQUENCY``) names the radial coordinate, changed only by the discrete Hankel
+transform; a trailing ``HARMONIC`` marks the angular coordinate as a harmonic order
+rather than a physical angle, changed only by the angular DFT/IDFT. Step methods are
+named after the domain they move *into* (``to_polar_spatial_harmonic``, ...), so a
+hand-written chain reads as the chain itself. Because this is a path graph
 with no branches, a transition is legal exactly when it moves one step along ``_CHAIN``
 -- there is no separate legality table to keep in sync with it.
 
@@ -42,33 +46,42 @@ from pypft.utils.validators import EnumValidator
 class Domain(Enum):
     """The four points a polar array occupies across the PFT/IPFT chain.
 
-    Word 1 of each member's name is the radial coordinate (changed only by the
-    discrete Hankel transform); word 2 is the angular coordinate (changed only by
-    the angular DFT/IDFT) -- see ``_CHAIN``.
+    The word after ``POLAR`` (``SPATIAL``/``FREQUENCY``) is the radial coordinate
+    (changed only by the discrete Hankel transform); a trailing ``HARMONIC`` marks
+    the angular coordinate as a harmonic order rather than a physical angle
+    (changed only by the angular DFT/IDFT) -- see ``_CHAIN``.
     """
 
-    SPACE_POLAR = auto()
-    SPACE_HARMONIC = auto()
-    FREQUENCY_HARMONIC = auto()
-    FREQUENCY_POLAR = auto()
+    POLAR_SPATIAL = auto()
+    POLAR_SPATIAL_HARMONIC = auto()
+    POLAR_FREQUENCY_HARMONIC = auto()
+    POLAR_FREQUENCY = auto()
 
 
 _CHAIN: tuple[Domain, ...] = (
-    Domain.SPACE_POLAR,
-    Domain.SPACE_HARMONIC,
-    Domain.FREQUENCY_HARMONIC,
-    Domain.FREQUENCY_POLAR,
+    Domain.POLAR_SPATIAL,
+    Domain.POLAR_SPATIAL_HARMONIC,
+    Domain.POLAR_FREQUENCY_HARMONIC,
+    Domain.POLAR_FREQUENCY,
 )
 """The PFT's single, ordered path of domains, space to frequency. A transition
 between two domains is legal exactly when ``abs(i - j) == 1`` over these indices --
 there are no branches or cycles, so no separate legal-moves table is needed."""
 
-_STEP_TOWARD: tuple[str, str, str] = ("to_harmonics", "to_frequency", "to_angles")
+_STEP_TOWARD: tuple[str, str, str] = (
+    "to_polar_spatial_harmonic",
+    "to_polar_frequency_harmonic",
+    "to_polar_frequency",
+)
 """The method that advances a signal from ``_CHAIN[i]`` to ``_CHAIN[i + 1]``, for each
 of the chain's three edges -- edges 0 and 2 are angular (DFT), edge 1 is radial (DHT),
 matching ``forward_pft``'s own step order."""
 
-_STEP_BACKWARD: tuple[str, str, str] = ("to_angles", "to_space", "to_harmonics")
+_STEP_BACKWARD: tuple[str, str, str] = (
+    "to_polar_spatial",
+    "to_polar_spatial_harmonic",
+    "to_polar_frequency_harmonic",
+)
 """The method that retreats a signal from ``_CHAIN[i + 1]`` to ``_CHAIN[i]``, mirroring
 ``_STEP_TOWARD`` -- matching ``inverse_pft``'s own step order."""
 
@@ -169,47 +182,47 @@ def _type_is_base_signal(value: BaseSignal) -> None:
 
 
 @dataclass(frozen=True)
-class SpacePolarSignal(BaseSignal):
-    """The space domain on the physical angle axis: ``f(r, theta)``."""
+class PolarSpatialSignal(BaseSignal):
+    """The spatial domain on the physical angle axis: ``f(r, theta)``."""
 
-    domain: ClassVar[Domain] = Domain.SPACE_POLAR
+    domain: ClassVar[Domain] = Domain.POLAR_SPATIAL
 
-    def to_harmonics(self) -> "SpaceHarmonicSignal":
-        """Apply the angular DFT, moving to the space domain's harmonic axis.
+    def to_polar_spatial_harmonic(self) -> "PolarSpatialHarmonicSignal":
+        """Apply the angular DFT, moving to the spatial domain's harmonic axis.
 
-        :returns: The equivalent signal in ``Domain.SPACE_HARMONIC``.
-        :rtype: SpaceHarmonicSignal
+        :returns: The equivalent signal in ``Domain.POLAR_SPATIAL_HARMONIC``.
+        :rtype: PolarSpatialHarmonicSignal
 
         """
         values = angular_dft(x=self.values, axis=Axis.ANGULAR)
-        return SpaceHarmonicSignal(
+        return PolarSpatialHarmonicSignal(
             values=values, grid=self.grid, batch_axis=self.batch_axis
         )
 
 
 @dataclass(frozen=True)
-class SpaceHarmonicSignal(BaseSignal):
-    """The space domain on the harmonic-order axis: ``f_n(r)``."""
+class PolarSpatialHarmonicSignal(BaseSignal):
+    """The spatial domain on the harmonic-order axis: ``f_n(r)``."""
 
-    domain: ClassVar[Domain] = Domain.SPACE_HARMONIC
+    domain: ClassVar[Domain] = Domain.POLAR_SPATIAL_HARMONIC
 
-    def to_angles(self) -> SpacePolarSignal:
+    def to_polar_spatial(self) -> PolarSpatialSignal:
         """Apply the angular IDFT, moving back to the physical angle axis.
 
-        :returns: The equivalent signal in ``Domain.SPACE_POLAR``.
-        :rtype: SpacePolarSignal
+        :returns: The equivalent signal in ``Domain.POLAR_SPATIAL``.
+        :rtype: PolarSpatialSignal
 
         """
         values = inverse_angular_dft(X=self.values, axis=Axis.ANGULAR)
-        return SpacePolarSignal(
+        return PolarSpatialSignal(
             values=values, grid=self.grid, batch_axis=self.batch_axis
         )
 
-    def to_frequency(self) -> "FrequencyHarmonicSignal":
+    def to_polar_frequency_harmonic(self) -> "PolarFrequencyHarmonicSignal":
         """Apply the scaled forward Hankel transform, moving to the frequency domain.
 
-        :returns: The equivalent signal in ``Domain.FREQUENCY_HARMONIC``.
-        :rtype: FrequencyHarmonicSignal
+        :returns: The equivalent signal in ``Domain.POLAR_FREQUENCY_HARMONIC``.
+        :rtype: PolarFrequencyHarmonicSignal
 
         """
         values = scaled_hankel(
@@ -219,22 +232,22 @@ class SpaceHarmonicSignal(BaseSignal):
             axis=Axis.RADIAL,
             angular_axis=Axis.ANGULAR,
         )
-        return FrequencyHarmonicSignal(
+        return PolarFrequencyHarmonicSignal(
             values=values, grid=self.grid, batch_axis=self.batch_axis
         )
 
 
 @dataclass(frozen=True)
-class FrequencyHarmonicSignal(BaseSignal):
+class PolarFrequencyHarmonicSignal(BaseSignal):
     """The frequency domain on the harmonic-order axis: ``F_n(rho)``."""
 
-    domain: ClassVar[Domain] = Domain.FREQUENCY_HARMONIC
+    domain: ClassVar[Domain] = Domain.POLAR_FREQUENCY_HARMONIC
 
-    def to_space(self) -> SpaceHarmonicSignal:
-        """Apply the scaled inverse Hankel transform, moving back to the space domain.
+    def to_polar_spatial_harmonic(self) -> PolarSpatialHarmonicSignal:
+        """Apply the scaled inverse Hankel transform, moving back to the spatial domain.
 
-        :returns: The equivalent signal in ``Domain.SPACE_HARMONIC``.
-        :rtype: SpaceHarmonicSignal
+        :returns: The equivalent signal in ``Domain.POLAR_SPATIAL_HARMONIC``.
+        :rtype: PolarSpatialHarmonicSignal
 
         """
         values = scaled_hankel(
@@ -244,37 +257,37 @@ class FrequencyHarmonicSignal(BaseSignal):
             axis=Axis.RADIAL,
             angular_axis=Axis.ANGULAR,
         )
-        return SpaceHarmonicSignal(
+        return PolarSpatialHarmonicSignal(
             values=values, grid=self.grid, batch_axis=self.batch_axis
         )
 
-    def to_angles(self) -> "FrequencyPolarSignal":
+    def to_polar_frequency(self) -> "PolarFrequencySignal":
         """Apply the angular IDFT, moving to the frequency domain's angle axis.
 
-        :returns: The equivalent signal in ``Domain.FREQUENCY_POLAR``.
-        :rtype: FrequencyPolarSignal
+        :returns: The equivalent signal in ``Domain.POLAR_FREQUENCY``.
+        :rtype: PolarFrequencySignal
 
         """
         values = inverse_angular_dft(X=self.values, axis=Axis.ANGULAR)
-        return FrequencyPolarSignal(
+        return PolarFrequencySignal(
             values=values, grid=self.grid, batch_axis=self.batch_axis
         )
 
 
 @dataclass(frozen=True)
-class FrequencyPolarSignal(BaseSignal):
+class PolarFrequencySignal(BaseSignal):
     """The frequency domain on the physical angle axis: ``F(rho, phi)``."""
 
-    domain: ClassVar[Domain] = Domain.FREQUENCY_POLAR
+    domain: ClassVar[Domain] = Domain.POLAR_FREQUENCY
 
-    def to_harmonics(self) -> FrequencyHarmonicSignal:
+    def to_polar_frequency_harmonic(self) -> PolarFrequencyHarmonicSignal:
         """Apply the angular DFT, moving back to the harmonic-order axis.
 
-        :returns: The equivalent signal in ``Domain.FREQUENCY_HARMONIC``.
-        :rtype: FrequencyHarmonicSignal
+        :returns: The equivalent signal in ``Domain.POLAR_FREQUENCY_HARMONIC``.
+        :rtype: PolarFrequencyHarmonicSignal
 
         """
         values = angular_dft(x=self.values, axis=Axis.ANGULAR)
-        return FrequencyHarmonicSignal(
+        return PolarFrequencyHarmonicSignal(
             values=values, grid=self.grid, batch_axis=self.batch_axis
         )

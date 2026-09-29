@@ -19,9 +19,9 @@ from matplotlib.figure import Figure
 
 from pypft.domains import (
     Domain,
-    FrequencyPolarSignal,
-    SpaceHarmonicSignal,
-    SpacePolarSignal,
+    PolarFrequencySignal,
+    PolarSpatialHarmonicSignal,
+    PolarSpatialSignal,
 )
 from pypft.grid import PolarGrid
 from pypft.transform import forward_pft, inverse_pft
@@ -55,27 +55,27 @@ def _grid() -> PolarGrid:
     return PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
 
 
-def _space_polar_signal() -> SpacePolarSignal:
+def _polar_spatial_signal() -> PolarSpatialSignal:
     grid = _grid()
-    return SpacePolarSignal(values=np.exp(-(grid.r.T**2)), grid=grid)
+    return PolarSpatialSignal(values=np.exp(-(grid.r.T**2)), grid=grid)
 
 
-def _space_harmonic_signal() -> SpaceHarmonicSignal:
+def _polar_spatial_harmonic_signal() -> PolarSpatialHarmonicSignal:
     grid = _grid()
-    return SpaceHarmonicSignal(values=np.exp(-(grid.r.T**2)), grid=grid)
+    return PolarSpatialHarmonicSignal(values=np.exp(-(grid.r.T**2)), grid=grid)
 
 
-def _frequency_polar_signal() -> FrequencyPolarSignal:
+def _polar_frequency_signal() -> PolarFrequencySignal:
     grid = _grid()
-    return FrequencyPolarSignal(
+    return PolarFrequencySignal(
         values=np.pi * np.exp(-(grid.rho.T**2) / 4.0), grid=grid
     )
 
 
-def _varying_phase_frequency_polar_signal() -> FrequencyPolarSignal:
-    """A ``FrequencyPolarSignal`` whose phase actually varies, unlike the fixture above.
+def _varying_phase_polar_frequency_signal() -> PolarFrequencySignal:
+    """A ``PolarFrequencySignal`` whose phase actually varies, unlike the fixture above.
 
-    ``_frequency_polar_signal`` (like ``_space_polar_signal``) is real-valued, so its
+    ``_polar_frequency_signal`` (like ``_polar_spatial_signal``) is real-valued, so its
     phase is exactly ``0.0`` everywhere -- useful for the degenerate-phase regression
     case, but useless for checking that a *non*-degenerate phase still gets the fixed
     ``[-pi, pi]`` color range rather than one auto-scaled to its own narrower spread.
@@ -83,7 +83,7 @@ def _varying_phase_frequency_polar_signal() -> FrequencyPolarSignal:
     grid = _grid()
     magnitude = np.exp(-(grid.rho.T**2) / 4.0)
     phase = np.linspace(-np.pi, np.pi, magnitude.size).reshape(magnitude.shape)
-    return FrequencyPolarSignal(values=magnitude * np.exp(1j * phase), grid=grid)
+    return PolarFrequencySignal(values=magnitude * np.exp(1j * phase), grid=grid)
 
 
 # ======================================================================================
@@ -91,17 +91,17 @@ def _varying_phase_frequency_polar_signal() -> FrequencyPolarSignal:
 # ======================================================================================
 
 
-def test_plot_signal_space_harmonic_domain_returns_two_axes():
-    """``Domain.SPACE_HARMONIC`` is assumed complex too, like every other domain."""
-    magnitude_ax, phase_ax = plot_signal(signal=_space_harmonic_signal())
+def test_plot_signal_polar_spatial_harmonic_domain_returns_two_axes():
+    """``Domain.POLAR_SPATIAL_HARMONIC`` is assumed complex, like every other domain."""
+    magnitude_ax, phase_ax = plot_signal(signal=_polar_spatial_harmonic_signal())
     assert isinstance(magnitude_ax, Axes)
     assert isinstance(phase_ax, Axes)
     assert magnitude_ax is not phase_ax
 
 
-def test_plot_signal_space_polar_domain_returns_two_axes():
-    """``Domain.SPACE_POLAR`` is assumed complex, rendered as a (magnitude, phase) pair."""
-    magnitude_ax, phase_ax = plot_signal(signal=_space_polar_signal())
+def test_plot_signal_polar_spatial_domain_returns_two_axes():
+    """``Domain.POLAR_SPATIAL`` is assumed complex: a (magnitude, phase) pair."""
+    magnitude_ax, phase_ax = plot_signal(signal=_polar_spatial_signal())
     assert isinstance(magnitude_ax, Axes)
     assert isinstance(phase_ax, Axes)
     assert magnitude_ax is not phase_ax
@@ -109,22 +109,22 @@ def test_plot_signal_space_polar_domain_returns_two_axes():
 
 def test_plot_signal_frequency_domain_returns_two_axes():
     """A frequency-domain signal renders as a (magnitude, phase) pair."""
-    magnitude_ax, phase_ax = plot_signal(signal=_frequency_polar_signal())
+    magnitude_ax, phase_ax = plot_signal(signal=_polar_frequency_signal())
     assert isinstance(magnitude_ax, Axes)
     assert isinstance(phase_ax, Axes)
     assert magnitude_ax is not phase_ax
 
 
-def test_plot_signal_space_polar_magnitude_uses_grayscale_colormap():
-    """``Domain.SPACE_POLAR`` is a photographic image, so its magnitude is grayscale."""
-    magnitude_ax, phase_ax = plot_signal(signal=_space_polar_signal())
+def test_plot_signal_polar_spatial_magnitude_uses_grayscale_colormap():
+    """``Domain.POLAR_SPATIAL`` is a photographic image, so it is grayscale."""
+    magnitude_ax, phase_ax = plot_signal(signal=_polar_spatial_signal())
     assert magnitude_ax.images[0].get_cmap().name == "gray"
     assert phase_ax.images[0].get_cmap().name != "gray"
 
 
-def test_plot_signal_frequency_polar_magnitude_keeps_default_colormap():
-    """A non-``SPACE_POLAR`` domain's magnitude keeps ``matplotlib``'s default colormap."""
-    magnitude_ax, _ = plot_signal(signal=_frequency_polar_signal())
+def test_plot_signal_polar_frequency_magnitude_keeps_default_colormap():
+    """A non-``POLAR_SPATIAL`` magnitude keeps ``matplotlib``'s default colormap."""
+    magnitude_ax, _ = plot_signal(signal=_polar_frequency_signal())
     assert magnitude_ax.images[0].get_cmap().name != "gray"
 
 
@@ -135,7 +135,7 @@ def test_plot_signal_phase_color_range_is_fixed_for_constant_phase():
     ``[-pi, pi]``," for why an unpinned range would collapse to
     ``get_clim() == (0.0, 0.0)`` here instead.
     """
-    _, phase_ax = plot_signal(signal=_space_polar_signal())
+    _, phase_ax = plot_signal(signal=_polar_spatial_signal())
     assert phase_ax.images[0].get_clim() == (-np.pi, np.pi)
 
 
@@ -146,7 +146,7 @@ def test_plot_signal_phase_color_range_is_fixed_for_varying_phase():
     because this signal's own phase happens to already span close to that range
     (unlike the constant-phase case above).
     """
-    _, phase_ax = plot_signal(signal=_varying_phase_frequency_polar_signal())
+    _, phase_ax = plot_signal(signal=_varying_phase_polar_frequency_signal())
     assert phase_ax.images[0].get_clim() == (-np.pi, np.pi)
 
 
@@ -154,7 +154,7 @@ def test_plot_signal_reuses_given_axes_for_a_frequency_domain_signal():
     """A caller-supplied ``(magnitude_ax, phase_ax)`` pair is used directly."""
     _, (given_magnitude_ax, given_phase_ax) = plt.subplots(nrows=1, ncols=2)
     magnitude_ax, phase_ax = plot_signal(
-        signal=_frequency_polar_signal(), ax=(given_magnitude_ax, given_phase_ax)
+        signal=_polar_frequency_signal(), ax=(given_magnitude_ax, given_phase_ax)
     )
     assert magnitude_ax is given_magnitude_ax
     assert phase_ax is given_phase_ax
@@ -170,7 +170,7 @@ def test_plot_signal_rejects_a_3d_signal():
     """``plot_signal`` only supports 2-D (unbatched) signals."""
     grid = _grid()
     values = np.zeros((_N_RADIAL, _N_ANGULAR, 3), dtype=complex)
-    signal = SpacePolarSignal(values=values, grid=grid)
+    signal = PolarSpatialSignal(values=values, grid=grid)
     with pytest.raises(ValueError):
         plot_signal(signal=signal)
 
@@ -178,7 +178,7 @@ def test_plot_signal_rejects_a_3d_signal():
 def test_plot_signal_rejects_a_non_axes_ax():
     """``plot_signal`` type-validates a given ``ax``."""
     with pytest.raises(TypeError):
-        plot_signal(signal=_space_polar_signal(), ax="not an axes")  # type: ignore[arg-type]
+        plot_signal(signal=_polar_spatial_signal(), ax="not an axes")  # type: ignore[arg-type]
 
 
 def test_plot_signal_rejects_a_wrong_length_tuple_ax():
@@ -191,12 +191,12 @@ def test_plot_signal_rejects_a_wrong_length_tuple_ax():
     """
     _, given_ax = plt.subplots()
     with pytest.raises(TypeError):
-        plot_signal(signal=_space_polar_signal(), ax=(given_ax,))  # type: ignore[arg-type]
+        plot_signal(signal=_polar_spatial_signal(), ax=(given_ax,))  # type: ignore[arg-type]
 
 
 def test_base_signal_plot_delegates_to_plot_signal():
     """``BaseSignal.plot`` is a thin delegate to ``pypft.viz.plot_signal``."""
-    signal = _space_harmonic_signal()
+    signal = _polar_spatial_harmonic_signal()
     magnitude_ax, phase_ax = signal.plot()
     assert isinstance(magnitude_ax, Axes)
     assert isinstance(phase_ax, Axes)
@@ -211,34 +211,34 @@ def test_render_cartesian_returns_the_given_axes():
     """``render_cartesian`` draws onto (and returns) a caller-supplied ``ax``."""
     _, given_ax = plt.subplots()
     returned_ax = render_cartesian(
-        signal=_space_polar_signal(), height=32, width=32, ax=given_ax
+        signal=_polar_spatial_signal(), height=32, width=32, ax=given_ax
     )
     assert returned_ax is given_ax
 
 
 def test_render_cartesian_creates_an_axes_when_none_given():
     """``render_cartesian`` creates its own ``Axes`` if ``ax`` is not given."""
-    ax = render_cartesian(signal=_frequency_polar_signal(), height=16, width=16)
+    ax = render_cartesian(signal=_polar_frequency_signal(), height=16, width=16)
     assert isinstance(ax, Axes)
 
 
-def test_render_cartesian_space_polar_uses_grayscale_colormap():
-    """``render_cartesian`` renders ``Domain.SPACE_POLAR`` in grayscale, like a photo."""
-    ax = render_cartesian(signal=_space_polar_signal(), height=16, width=16)
+def test_render_cartesian_polar_spatial_uses_grayscale_colormap():
+    """``render_cartesian`` renders ``Domain.POLAR_SPATIAL`` in grayscale."""
+    ax = render_cartesian(signal=_polar_spatial_signal(), height=16, width=16)
     assert ax.images[0].get_cmap().name == "gray"
 
 
-def test_render_cartesian_frequency_polar_keeps_default_colormap():
-    """``render_cartesian`` leaves ``Domain.FREQUENCY_POLAR`` at the default colormap."""
-    ax = render_cartesian(signal=_frequency_polar_signal(), height=16, width=16)
+def test_render_cartesian_polar_frequency_keeps_default_colormap():
+    """``render_cartesian`` keeps ``Domain.POLAR_FREQUENCY``'s default colormap."""
+    ax = render_cartesian(signal=_polar_frequency_signal(), height=16, width=16)
     assert ax.images[0].get_cmap().name != "gray"
 
 
 def test_render_cartesian_rejects_a_harmonic_domain_signal():
-    """Only the two ``POLAR`` domains have a physical angle axis to interpolate onto."""
+    """Only ``POLAR_SPATIAL``/``POLAR_FREQUENCY`` have a physical angle axis."""
     grid = _grid()
     values = np.zeros((_N_RADIAL, _N_ANGULAR), dtype=complex)
-    signal = SpaceHarmonicSignal(values=values, grid=grid)
+    signal = PolarSpatialHarmonicSignal(values=values, grid=grid)
     with pytest.raises(ValueError):
         render_cartesian(signal=signal, height=16, width=16)
 
@@ -246,7 +246,7 @@ def test_render_cartesian_rejects_a_harmonic_domain_signal():
 def test_render_cartesian_rejects_a_non_positive_height():
     """``render_cartesian`` validates ``height``/``width`` are positive."""
     with pytest.raises(ValueError):
-        render_cartesian(signal=_space_polar_signal(), height=0, width=16)
+        render_cartesian(signal=_polar_spatial_signal(), height=0, width=16)
 
 
 def test_render_cartesian_orientation_matches_image_convention():
@@ -267,7 +267,7 @@ def test_render_cartesian_orientation_matches_image_convention():
     near_theta0 = angular_distance < (2 * np.pi / grid.n_angular)
     values = np.zeros((grid.n_radial, grid.n_angular))
     values[grid.n_radial // 2 :, near_theta0] = 1.0  # a bright wedge near theta0
-    signal = SpacePolarSignal(values=values, grid=grid)
+    signal = PolarSpatialSignal(values=values, grid=grid)
 
     ax = render_cartesian(signal=signal, height=64, width=64)
 
@@ -297,10 +297,10 @@ def test_forward_pft_traced_values_match_forward_pft():
     expected = forward_pft(f=f, grid=grid)
     np.testing.assert_array_equal(trace.values, expected)
     assert [signal.domain for signal in trace.signals] == [
-        Domain.SPACE_POLAR,
-        Domain.SPACE_HARMONIC,
-        Domain.FREQUENCY_HARMONIC,
-        Domain.FREQUENCY_POLAR,
+        Domain.POLAR_SPATIAL,
+        Domain.POLAR_SPATIAL_HARMONIC,
+        Domain.POLAR_FREQUENCY_HARMONIC,
+        Domain.POLAR_FREQUENCY,
     ]
     assert trace.figures == ()
 
@@ -315,10 +315,10 @@ def test_inverse_pft_traced_values_match_inverse_pft():
     expected = inverse_pft(F=F, grid=grid)
     np.testing.assert_array_equal(trace.values, expected)
     assert [signal.domain for signal in trace.signals] == [
-        Domain.FREQUENCY_POLAR,
-        Domain.FREQUENCY_HARMONIC,
-        Domain.SPACE_HARMONIC,
-        Domain.SPACE_POLAR,
+        Domain.POLAR_FREQUENCY,
+        Domain.POLAR_FREQUENCY_HARMONIC,
+        Domain.POLAR_SPATIAL_HARMONIC,
+        Domain.POLAR_SPATIAL,
     ]
 
 
@@ -411,10 +411,10 @@ def test_pfttrace_save_writes_one_enumerated_file_per_figure(tmp_path):
     written = trace.save(directory=tmp_path)
 
     assert written == (
-        tmp_path / "00_step_space_polar.png",
-        tmp_path / "01_step_space_harmonic.png",
-        tmp_path / "02_step_frequency_harmonic.png",
-        tmp_path / "03_step_frequency_polar.png",
+        tmp_path / "00_step_polar_spatial.png",
+        tmp_path / "01_step_polar_spatial_harmonic.png",
+        tmp_path / "02_step_polar_frequency_harmonic.png",
+        tmp_path / "03_step_polar_frequency.png",
     )
     for path in written:
         assert path.is_file()
