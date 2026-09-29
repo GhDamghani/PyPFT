@@ -184,6 +184,24 @@ Every function signature carries type annotations, and every public input is val
 
 Docstrings follow [PEP 287](https://peps.python.org/pep-0287/) and are written in [reStructuredText](https://docutils.sourceforge.io/rst.html), using Sphinx's `:param:`/`:type:`/`:returns:`/`:raises:` fields. Don't use Sphinx cross-reference roles such as `:class:` or `:func:`; write names as double-backtick literals instead. Docstrings, comments, and notebooks describe the current design and its rationale only, not its history; a longer technical rationale belongs in `DESIGN_NOTES.md`, referenced by section from the code it explains.
 
+### Notebook citations
+
+A tutorial notebook that states a result from a paper cites it with a numbered link to a References section at the end of that notebook, so the citation renders without running anything, in JupyterLab, on GitHub, and in the docs:
+
+- In prose, write `[[1]](#ref-1)`, followed by any equation, figure, or appendix number in parentheses outside the link: `... is self-inverse [[1]](#ref-1) (Eq. 41).` Never write a bare "Eq. 21"; always pair it with the reference it belongs to.
+- Number the sources `1, 2, ...` in the order each is first cited in that notebook. A source cited again reuses its number.
+- End the notebook with a Markdown cell that starts with the heading `## References` and has one numbered entry per source, each starting with its anchor and ending with its DOI link:
+
+  ```markdown
+  ## References
+
+  1. <a id="ref-1"></a> N. Baddour, "The Discrete Hankel Transform," in *Fourier Transforms - Century of Digitalization and Increasing Expectations*, IntechOpen, 2019. [doi:10.5772/intechopen.84399](https://doi.org/10.5772/intechopen.84399)
+  ```
+
+- Every source a notebook cites must also be listed under `references:` in [`CITATION.cff`](CITATION.cff). When you cite a new paper, add it there too.
+
+`tests/test_notebook_citations.py` checks all of these rules for every notebook under `notebooks/`.
+
 ### Spelling
 
 Use American English.
