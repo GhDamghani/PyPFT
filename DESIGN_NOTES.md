@@ -73,3 +73,24 @@ the constant value actually was.
 required, not optional. `grid.theta` follows `pypft.geometry`'s image-coordinate convention (increasing
 angle rotates toward increasing row, i.e. downward on screen), but `imshow`'s own `origin="lower"` expects
 `y` to increase upward. A bare `np.sin(grid.theta)` without the negation renders every image upside down.
+
+## Notebooks: citations link to raw-HTML anchors in a References cell
+
+A tutorial notebook cites a source as `[[1]](#ref-1) (Eq. 41)` and ends with a Markdown cell headed
+`## References` whose entries start `1. <a id="ref-1"></a>`. The format needs no code cell to render, so it
+reads the same in JupyterLab, on GitHub, and in the Sphinx build, executed or not. JupyterLab stores each
+anchor's `id` as `data-jupyter-id` and resolves `#ref-<k>` links against it, the same way it handles its
+own heading anchors, so the links jump to their entries there. GitHub's renderer sanitizes `id`s, so there
+the links may not jump; the anchor is an empty element either way, so it adds no visible text.
+
+In the Sphinx build, MyST turns every `[text](#target)` link into a cross-reference and resolves it
+against headings and explicit targets only. A raw-HTML anchor is neither, so each citation raises a
+`myst.xref_missing` warning, which `sphinx-build -W` turns into an error. The link itself still works in
+the built page: MyST falls back to a plain `href="#ref-1"`, and the raw `<a id="ref-1">` is passed
+through to the same page. `docs/conf.py` therefore silences exactly the `ref-<k>` targets via
+`nitpick_ignore_regex`, which MyST's resolver consults before warning, and leaves every other
+cross-reference warning intact. The two alternatives MyST resolves natively both render badly
+elsewhere: a `(ref-1)=` target line shows up as literal text outside MyST, and heading-per-entry anchors
+are slugged differently by each viewer. Since the ignore disables Sphinx's own check for these links,
+`tests/test_notebook_citations.py` checks that every `#ref-<k>` link has a matching anchor in its own
+notebook.

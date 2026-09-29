@@ -21,6 +21,12 @@ html_theme = "furo"
 # not by Sphinx -- building the docs only renders their already-committed output.
 nb_execution_mode = "off"
 
+# A notebook's `[[k]](#ref-k)` citations link to raw-HTML anchors in its own
+# References cell, which the browser resolves but MyST cannot see; see
+# DESIGN_NOTES.md, "Notebooks: citations link to raw-HTML anchors in a References
+# cell". tests/test_notebook_citations.py checks every such link has its anchor.
+nitpick_ignore_regex = [("myst", r"ref-\d+")]
+
 # Tracked notebooks carry no metadata at all, so the docs copy is given the one
 # key myst-nb needs to pick a syntax highlighter for code cells.
 NOTEBOOK_METADATA = {"language_info": {"name": "python"}}

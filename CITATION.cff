@@ -1,0 +1,67 @@
+cff-version: 1.2.0
+message: "If you use PyPFT, please cite it using the metadata below, along with the papers it implements."
+type: software
+title: PyPFT
+abstract: >-
+  A Python toolkit for the polar Fourier transform (an angular DFT around a
+  discrete Hankel transform), with applications such as reconstructing
+  radially-sampled MR images from k-space.
+authors:
+  - alias: GhDamghani
+repository-code: "https://github.com/GhDamghani/PyPFT"
+license: BSD-3-Clause
+keywords:
+  - polar-fourier-transform
+  - hankel-transform
+  - fourier
+  - mri
+  - scientific-computing
+references:
+  - type: generic
+    title: The Discrete Hankel Transform
+    authors:
+      - family-names: Baddour
+        given-names: N.
+    collection-title: "Fourier Transforms - Century of Digitalization and Increasing Expectations"
+    collection-type: book
+    publisher:
+      name: IntechOpen
+    year: 2019
+    doi: 10.5772/intechopen.84399
+  - type: article
+    title: "Discrete Two-Dimensional Fourier Transform in Polar Coordinates Part I: Theory and Operational Rules"
+    authors:
+      - family-names: Baddour
+        given-names: N.
+    journal: Mathematics
+    volume: 7
+    issue: 8
+    start: 698
+    year: 2019
+    doi: 10.3390/math7080698
+  - type: article
+    title: "Discrete Two-Dimensional Fourier Transform in Polar Coordinates Part II: Numerical Computation and Approximation of the Continuous Transform"
+    authors:
+      - family-names: Yao
+        given-names: X.
+      - family-names: Baddour
+        given-names: N.
+    journal: PeerJ Computer Science
+    volume: 6
+    start: e257
+    year: 2020
+    doi: 10.7717/peerj-cs.257
+  - type: article
+    title: "Efficient Radial Tagging CMR Exam: A Coherent k-Space Reading and Image Reconstruction Approach"
+    authors:
+      - family-names: Golshani
+        given-names: S.
+      - family-names: Nasiraei-Moghaddam
+        given-names: A.
+    journal: Magnetic Resonance in Medicine
+    volume: 77
+    issue: 4
+    start: 1459
+    end: 1472
+    year: 2017
+    doi: 10.1002/mrm.26219
