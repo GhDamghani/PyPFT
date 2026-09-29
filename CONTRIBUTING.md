@@ -75,6 +75,7 @@ To add or upgrade a dependency, don't hand-edit the version pins; use `uv add "<
 - `pyment`: generates reStructuredText docstring templates from signatures.
 - `setuptools`, `wheel`: packaging.
 - `tqdm`: progress bars in development scripts.
+- `pillow`: reads and writes the image files of the test fixtures (`scripts/make_maze.py`).
 
 ### Recommended editor setup
 
@@ -119,6 +120,14 @@ The project does not ship editor configuration. If you use VS Code, these extens
   ```
 
   `benchmarks/run_dft_benchmarks.py` and `benchmarks/run_pft_benchmarks.py` work the same way.
+
+- Regenerate the maze test fixture (`tests/samples/maze_polar.tif`, with `maze_cartesian.png` and `maze_source.png` next to it). `scripts/make_maze.py` carves a perfect circular maze (concentric rings of cells around a courtyard) from a fixed seed, evaluates its walls directly at a `PolarGrid`'s own sample points, and writes all three files; its defaults reproduce the committed files exactly, which `tests/test_make_maze.py` checks:
+
+  ```bash
+  uv run python scripts/make_maze.py
+  ```
+
+  Run `uv run python scripts/make_maze.py --help` for the options (maze size `--rings` and `--inner-sectors`, `--seed`, `--wall-thickness`, the grid's `--n-radial`/`--n-angular`/`--radius`, `--maze-fraction`, `--image-size`, and `--output-dir`).
 
 Tests live under `tests/`, mirroring the package layout of `src/pypft/` (e.g. `tests/dht/` for `src/pypft/dht/`). Warnings are errors in the test suite, so any `warnings.warn` in `src/` needs a matching `pytest.warns` test.
 
