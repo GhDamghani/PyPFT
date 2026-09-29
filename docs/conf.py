@@ -21,6 +21,9 @@ html_theme = "furo"
 # not by Sphinx -- building the docs only renders their already-committed output.
 nb_execution_mode = "off"
 
+# Notebook Markdown writes math as `$...$` (inline) and `$$...$$` (display).
+myst_enable_extensions = ["dollarmath"]
+
 # A notebook's `[[k]](#ref-k)` citations link to raw-HTML anchors in its own
 # References cell, which the browser resolves but MyST cannot see; see
 # DESIGN_NOTES.md, "Notebooks: citations link to raw-HTML anchors in a References
