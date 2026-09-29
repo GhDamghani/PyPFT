@@ -34,9 +34,9 @@ def _copy_notebooks(app, config) -> None:
     one incremental tutorial sequence shared with `nbmake`. Copying at
     ``config-inited`` -- before Sphinx discovers its sources -- makes
     ``tutorials.rst``'s glob toctree see them, without a symlink (which
-    needs elevated privileges on Windows, one of CI's three platforms). Each
-    copy gains ``NOTEBOOK_METADATA``, since the tracked notebooks are stripped
-    of all metadata.
+    needs elevated privileges on Windows). Each copy gains
+    ``NOTEBOOK_METADATA``, since the tracked notebooks are stripped of all
+    metadata.
 
     :param app: The running Sphinx application.
     :type app: sphinx.application.Sphinx
