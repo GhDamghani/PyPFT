@@ -10,10 +10,10 @@ from .dht import (
 from .domains import (
     BaseSignal,
     Domain,
-    FrequencyHarmonicSignal,
-    FrequencyPolarSignal,
-    SpaceHarmonicSignal,
-    SpacePolarSignal,
+    PolarFrequencyHarmonicSignal,
+    PolarFrequencySignal,
+    PolarSpatialHarmonicSignal,
+    PolarSpatialSignal,
 )
 from .geometry import cartesian_to_polar, polar_to_cartesian
 from .grid import (
@@ -39,14 +39,14 @@ __all__ = [
     "DEFAULT_BATCH_AXIS",
     "DHTImplementation",
     "Domain",
-    "FrequencyHarmonicSignal",
-    "FrequencyPolarSignal",
     "LimitKind",
     "PFTTrace",
+    "PolarFrequencyHarmonicSignal",
+    "PolarFrequencySignal",
     "PolarGrid",
+    "PolarSpatialHarmonicSignal",
+    "PolarSpatialSignal",
     "Reference",
-    "SpaceHarmonicSignal",
-    "SpacePolarSignal",
     "bibliography",
     "cartesian_to_polar",
     "check_adequacy",

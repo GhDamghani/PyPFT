@@ -12,12 +12,15 @@ import numpy as np
 import pytest
 
 from pypft.domains import (
+    _CHAIN,
+    _STEP_BACKWARD,
+    _STEP_TOWARD,
     BaseSignal,
     Domain,
-    FrequencyHarmonicSignal,
-    FrequencyPolarSignal,
-    SpaceHarmonicSignal,
-    SpacePolarSignal,
+    PolarFrequencyHarmonicSignal,
+    PolarFrequencySignal,
+    PolarSpatialHarmonicSignal,
+    PolarSpatialSignal,
 )
 from pypft.grid import PolarGrid
 from pypft.transform import forward_pft, inverse_pft
@@ -42,14 +45,17 @@ def test_each_subclass_is_tagged_with_its_own_domain():
     """Every ``BaseSignal`` subclass fixes ``domain`` to its own ``Domain`` member."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     values = np.zeros((_N_RADIAL, _N_ANGULAR), dtype=complex)
-    assert SpacePolarSignal(values=values, grid=grid).domain is Domain.SPACE_POLAR
-    assert SpaceHarmonicSignal(values=values, grid=grid).domain is Domain.SPACE_HARMONIC
+    assert PolarSpatialSignal(values=values, grid=grid).domain is Domain.POLAR_SPATIAL
     assert (
-        FrequencyHarmonicSignal(values=values, grid=grid).domain
-        is Domain.FREQUENCY_HARMONIC
+        PolarSpatialHarmonicSignal(values=values, grid=grid).domain
+        is Domain.POLAR_SPATIAL_HARMONIC
     )
     assert (
-        FrequencyPolarSignal(values=values, grid=grid).domain is Domain.FREQUENCY_POLAR
+        PolarFrequencyHarmonicSignal(values=values, grid=grid).domain
+        is Domain.POLAR_FREQUENCY_HARMONIC
+    )
+    assert (
+        PolarFrequencySignal(values=values, grid=grid).domain is Domain.POLAR_FREQUENCY
     )
 
 
@@ -58,21 +64,21 @@ def test_construction_rejects_a_shape_mismatched_with_the_grid():
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     wrong = np.zeros((_N_RADIAL, _N_ANGULAR + 1), dtype=complex)
     with pytest.raises(ValueError):
-        SpacePolarSignal(values=wrong, grid=grid)
+        PolarSpatialSignal(values=wrong, grid=grid)
 
 
 def test_construction_rejects_a_non_ndarray_values_argument():
     """``BaseSignal.__post_init__`` type-validates ``values``."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     with pytest.raises(TypeError):
-        SpacePolarSignal(values=[[0.0]], grid=grid)  # type: ignore[arg-type]
+        PolarSpatialSignal(values=[[0.0]], grid=grid)  # type: ignore[arg-type]
 
 
 def test_construction_accepts_a_3d_batch():
     """``values`` may add a trailing batch axis on top of the plain 2-D case."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     values = np.zeros((_N_RADIAL, _N_ANGULAR, 3), dtype=complex)
-    signal = SpacePolarSignal(values=values, grid=grid)
+    signal = PolarSpatialSignal(values=values, grid=grid)
     assert signal.values.shape == (_N_RADIAL, _N_ANGULAR, 3)
 
 
@@ -81,7 +87,7 @@ def test_construction_rejects_a_batch_axis_on_2d_values():
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     values = np.zeros((_N_RADIAL, _N_ANGULAR), dtype=complex)
     with pytest.raises(ValueError):
-        SpacePolarSignal(values=values, grid=grid, batch_axis=0)
+        PolarSpatialSignal(values=values, grid=grid, batch_axis=0)
 
 
 def test_construction_rejects_a_batch_axis_that_is_not_last():
@@ -89,7 +95,32 @@ def test_construction_rejects_a_batch_axis_that_is_not_last():
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     values = np.zeros((_N_RADIAL, _N_ANGULAR, 3), dtype=complex)
     with pytest.raises(ValueError):
-        SpacePolarSignal(values=values, grid=grid, batch_axis=0)
+        PolarSpatialSignal(values=values, grid=grid, batch_axis=0)
+
+
+# ======================================================================================
+# The chain and its step-method names
+# ======================================================================================
+
+#: The PFT's domain chain, spatial to frequency, spelled out by name.
+_EXPECTED_CHAIN_NAMES = [
+    "POLAR_SPATIAL",
+    "POLAR_SPATIAL_HARMONIC",
+    "POLAR_FREQUENCY_HARMONIC",
+    "POLAR_FREQUENCY",
+]
+
+
+def test_the_chain_is_ordered_spatial_to_frequency():
+    """``_CHAIN`` lists every ``Domain`` member in the PFT's own step order."""
+    assert [domain.name for domain in _CHAIN] == _EXPECTED_CHAIN_NAMES
+
+
+@pytest.mark.parametrize("edge", range(len(_EXPECTED_CHAIN_NAMES) - 1))
+def test_every_step_method_is_named_after_its_destination_domain(edge: int):
+    """Each step method is ``to_<destination domain>``, in both directions."""
+    assert _STEP_TOWARD[edge] == f"to_{_CHAIN[edge + 1].name.lower()}"
+    assert _STEP_BACKWARD[edge] == f"to_{_CHAIN[edge].name.lower()}"
 
 
 # ======================================================================================
@@ -97,37 +128,37 @@ def test_construction_rejects_a_batch_axis_that_is_not_last():
 # ======================================================================================
 
 
-def test_the_polar_harmonic_edge_round_trips():
-    """``to_harmonics``/``to_angles`` (the angular DFT/IDFT edge) are inverses."""
+def test_the_spatial_angular_edge_round_trips():
+    """The spatial domain's angular DFT/IDFT edge is an inverse pair."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     rng = np.random.default_rng(0)
-    original = SpacePolarSignal(values=_random_values(rng), grid=grid)
+    original = PolarSpatialSignal(values=_random_values(rng), grid=grid)
 
-    round_tripped = original.to_harmonics().to_angles()
+    round_tripped = original.to_polar_spatial_harmonic().to_polar_spatial()
 
     np.testing.assert_allclose(round_tripped.values, original.values, atol=1e-10)
 
 
-def test_the_space_frequency_edge_round_trips():
-    """``to_frequency``/``to_space`` (the scaled Hankel transform edge) are inverses."""
+def test_the_scaled_hankel_edge_round_trips():
+    """The scaled Hankel transform edge, spatial to frequency, is an inverse pair."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     rng = np.random.default_rng(1)
-    original = SpaceHarmonicSignal(values=_random_values(rng), grid=grid)
+    original = PolarSpatialHarmonicSignal(values=_random_values(rng), grid=grid)
 
-    round_tripped = original.to_frequency().to_space()
+    round_tripped = original.to_polar_frequency_harmonic().to_polar_spatial_harmonic()
 
     # rtol matches the DHT's own order-dependent residual (tests/dht/tolerance.py):
     # the highest harmonic order here is n_angular // 2 == 7, not order 0.
     np.testing.assert_allclose(round_tripped.values, original.values, rtol=1e-4)
 
 
-def test_the_harmonic_polar_edge_round_trips():
+def test_the_frequency_angular_edge_round_trips():
     """The frequency domain's own angular DFT/IDFT edge is likewise an inverse pair."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     rng = np.random.default_rng(2)
-    original = FrequencyHarmonicSignal(values=_random_values(rng), grid=grid)
+    original = PolarFrequencyHarmonicSignal(values=_random_values(rng), grid=grid)
 
-    round_tripped = original.to_angles().to_harmonics()
+    round_tripped = original.to_polar_frequency().to_polar_frequency_harmonic()
 
     np.testing.assert_allclose(round_tripped.values, original.values, atol=1e-10)
 
@@ -138,29 +169,29 @@ def test_the_harmonic_polar_edge_round_trips():
 
 
 def test_to_composes_the_full_forward_chain_matching_forward_pft():
-    """Walking ``SPACE_POLAR`` to ``FREQUENCY_POLAR`` matches ``forward_pft`` exactly."""
+    """Walking ``POLAR_SPATIAL`` to ``POLAR_FREQUENCY`` matches ``forward_pft``."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     f = np.exp(-(grid.r.T**2))
-    signal = SpacePolarSignal(values=f, grid=grid)
+    signal = PolarSpatialSignal(values=f, grid=grid)
 
-    walked = signal.to(Domain.FREQUENCY_POLAR)
+    walked = signal.to(Domain.POLAR_FREQUENCY)
 
     expected = forward_pft(f=f, grid=grid)
     np.testing.assert_allclose(walked.values, expected)
-    assert walked.domain is Domain.FREQUENCY_POLAR
+    assert walked.domain is Domain.POLAR_FREQUENCY
 
 
 def test_to_composes_the_full_backward_chain_matching_inverse_pft():
-    """Walking ``FREQUENCY_POLAR`` to ``SPACE_POLAR`` matches ``inverse_pft`` exactly."""
+    """Walking ``POLAR_FREQUENCY`` to ``POLAR_SPATIAL`` matches ``inverse_pft``."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     F = np.pi * np.exp(-(grid.rho.T**2) / 4.0)
-    signal = FrequencyPolarSignal(values=F, grid=grid)
+    signal = PolarFrequencySignal(values=F, grid=grid)
 
-    walked = signal.to(Domain.SPACE_POLAR)
+    walked = signal.to(Domain.POLAR_SPATIAL)
 
     expected = inverse_pft(F=F, grid=grid)
     np.testing.assert_allclose(walked.values, expected)
-    assert walked.domain is Domain.SPACE_POLAR
+    assert walked.domain is Domain.POLAR_SPATIAL
 
 
 def test_to_composes_the_full_forward_chain_for_a_3d_batch():
@@ -169,9 +200,9 @@ def test_to_composes_the_full_forward_chain_for_a_3d_batch():
     f = np.broadcast_to(
         array=np.exp(-(grid.r.T**2))[..., np.newaxis], shape=(_N_RADIAL, _N_ANGULAR, 3)
     ).copy()
-    signal = SpacePolarSignal(values=f, grid=grid)
+    signal = PolarSpatialSignal(values=f, grid=grid)
 
-    walked = signal.to(Domain.FREQUENCY_POLAR)
+    walked = signal.to(Domain.POLAR_FREQUENCY)
 
     expected = forward_pft(f=f, grid=grid)
     np.testing.assert_allclose(walked.values, expected)
@@ -182,9 +213,9 @@ def test_to_a_signals_own_domain_is_a_no_op():
     """Walking to the domain a signal is already in returns it unchanged."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
     rng = np.random.default_rng(3)
-    signal = SpaceHarmonicSignal(values=_random_values(rng), grid=grid)
+    signal = PolarSpatialHarmonicSignal(values=_random_values(rng), grid=grid)
 
-    walked = signal.to(Domain.SPACE_HARMONIC)
+    walked = signal.to(Domain.POLAR_SPATIAL_HARMONIC)
 
     np.testing.assert_array_equal(walked.values, signal.values)
 
@@ -192,11 +223,11 @@ def test_to_a_signals_own_domain_is_a_no_op():
 def test_to_rejects_a_non_domain_type():
     """The dynamic ``to`` type-validates its ``domain`` argument."""
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
-    signal = SpacePolarSignal(
+    signal = PolarSpatialSignal(
         values=np.zeros((_N_RADIAL, _N_ANGULAR), dtype=complex), grid=grid
     )
     with pytest.raises(TypeError):
-        signal.to("FREQUENCY_POLAR")  # type: ignore[arg-type]
+        signal.to("POLAR_FREQUENCY")  # type: ignore[arg-type]
 
 
 def test_to_rejects_an_enum_member_of_the_wrong_type():
@@ -204,7 +235,7 @@ def test_to_rejects_an_enum_member_of_the_wrong_type():
     from pypft.transform import Direction
 
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
-    signal = SpacePolarSignal(
+    signal = PolarSpatialSignal(
         values=np.zeros((_N_RADIAL, _N_ANGULAR), dtype=complex), grid=grid
     )
     with pytest.raises(ValueError):
@@ -217,16 +248,17 @@ def test_to_rejects_an_enum_member_of_the_wrong_type():
 
 
 def test_a_hand_written_illegal_edge_is_not_a_valid_attribute():
-    """``SpacePolarSignal`` has no ``to_frequency`` -- an illegal, non-adjacent edge.
+    """``PolarSpatialSignal`` cannot skip the angular DFT to reach the frequency domain.
 
-    The ``# type: ignore[attr-defined]`` below marks exactly what ``pyright`` would
+    ``to_polar_frequency_harmonic`` is a non-adjacent edge from ``POLAR_SPATIAL``. The
+    ``# type: ignore[attr-defined]`` below marks exactly what ``pyright`` would
     otherwise reject on this hand-written chain: only the neighbouring subclass
-    (``SpaceHarmonicSignal``) defines ``to_frequency``. Removing the comment makes
-    the quality gate's own ``pyright`` step fail.
+    (``PolarSpatialHarmonicSignal``) defines ``to_polar_frequency_harmonic``. Removing
+    the comment makes the quality gate's own ``pyright`` step fail.
     """
     grid = PolarGrid(n_radial=_N_RADIAL, n_angular=_N_ANGULAR, R=_R)
-    signal: BaseSignal = SpacePolarSignal(
+    signal: BaseSignal = PolarSpatialSignal(
         values=np.zeros((_N_RADIAL, _N_ANGULAR), dtype=complex), grid=grid
     )
     with pytest.raises(AttributeError):
-        signal.to_frequency()  # type: ignore[attr-defined]
+        signal.to_polar_frequency_harmonic()  # type: ignore[attr-defined]

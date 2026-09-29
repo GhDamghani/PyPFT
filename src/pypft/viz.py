@@ -3,22 +3,23 @@
 ``plot_signal`` renders one ``pypft.domains.BaseSignal`` at a time as a
 (magnitude, phase) pair of images -- a gamma-enhanced magnitude
 (``matplotlib.colors.PowerNorm``, never a hand-rolled ``**gamma``) and a phase
-map. Every domain is assumed complex-valued, ``SPACE_POLAR`` and
-``SPACE_HARMONIC`` included: a full forward-then-inverse round trip can leave
-even a ``SPACE_POLAR`` signal with a non-trivial phase, and ``SPACE_HARMONIC``
+map. Every domain is assumed complex-valued, ``POLAR_SPATIAL`` and
+``POLAR_SPATIAL_HARMONIC`` included: a full forward-then-inverse round trip can leave
+even a ``POLAR_SPATIAL`` signal with a non-trivial phase, and ``POLAR_SPATIAL_HARMONIC``
 is an angular DFT's own coefficients -- generically complex even when the
 space-domain signal being transformed is real (a DFT of real input is only
-symmetric, not real, in general). ``SPACE_POLAR``'s own magnitude is
+symmetric, not real, in general). ``POLAR_SPATIAL``'s own magnitude is
 additionally rendered in grayscale rather than ``matplotlib``'s default
 colormap, everywhere it is drawn -- both ``plot_signal`` and
 ``render_cartesian`` -- since it is literally a photographic image (see
 ``pypft.grid.sample_cartesian``), unlike every other domain's more abstract
 magnitude. ``render_cartesian`` is the
-display-only counterpart for the two ``POLAR`` domains, whose angular axis is a
-physical angle rather than a harmonic order: it interpolates
+display-only counterpart for the two non-harmonic domains (``POLAR_SPATIAL``/
+``POLAR_FREQUENCY``), whose angular axis is a physical angle rather than a harmonic
+order: it interpolates
 ``pypft.grid.PolarGrid``'s own non-uniform sample points onto an ordinary Cartesian
-pixel grid via ``scipy.interpolate.griddata``, purely so a polar-domain signal can be
-shown next to an ordinary image -- its output is an approximation, never fed back
+pixel grid via ``scipy.interpolate.griddata``, purely so a physical-angle signal can
+be shown next to an ordinary image -- its output is an approximation, never fed back
 into ``pypft.transform.forward_pft``/``inverse_pft``.
 
 ``forward_pft_traced``/``inverse_pft_traced`` run the same three-step chain as
@@ -60,8 +61,8 @@ from pypft.axes import DEFAULT_BATCH_AXIS
 from pypft.domains import (
     BaseSignal,
     Domain,
-    FrequencyPolarSignal,
-    SpacePolarSignal,
+    PolarFrequencySignal,
+    PolarSpatialSignal,
     _type_is_base_signal,
 )
 from pypft.grid import PolarGrid, _type_is_polar_grid
@@ -75,19 +76,19 @@ from pypft.utils.validators import (
 #: The two ``Domain`` members whose angular axis is a physical angle rather than a
 #: harmonic order -- the only ones ``render_cartesian`` can meaningfully interpolate
 #: onto a Cartesian grid.
-_POLAR_DOMAINS = (Domain.SPACE_POLAR, Domain.FREQUENCY_POLAR)
+_PHYSICAL_ANGLE_DOMAINS = (Domain.POLAR_SPATIAL, Domain.POLAR_FREQUENCY)
 
 #: Gamma applied to every magnitude plot via ``matplotlib.colors.PowerNorm`` --
 #: compresses the large dynamic range typical of a complex-valued signal's
 #: magnitude so structure away from the peak stays visible.
 _MAGNITUDE_GAMMA = 0.3
 
-#: The magnitude colormap for ``Domain.SPACE_POLAR`` specifically -- unlike every
+#: The magnitude colormap for ``Domain.POLAR_SPATIAL`` specifically -- unlike every
 #: other domain's magnitude (an abstract Fourier/harmonic coefficient, left at
-#: ``matplotlib``'s own default colormap), a ``SPACE_POLAR`` magnitude is literally a
+#: ``matplotlib``'s own default colormap), a ``POLAR_SPATIAL`` magnitude is literally a
 #: photographic image (see ``pypft.grid.sample_cartesian``'s own image argument), so
 #: it renders in grayscale to look like one.
-_SPACE_POLAR_MAGNITUDE_CMAP = "gray"
+_POLAR_SPATIAL_MAGNITUDE_CMAP = "gray"
 
 #: The fixed color range for every phase plot -- ``np.angle``'s own output range,
 #: pinned explicitly rather than left to ``matplotlib``'s auto-scaling. See
@@ -99,16 +100,16 @@ _PHASE_VMAX = np.pi
 
 
 def _magnitude_cmap(domain: Domain) -> str | None:
-    """Resolve the magnitude colormap for ``domain`` -- grayscale for ``SPACE_POLAR``.
+    """Resolve the magnitude colormap for ``domain`` -- grayscale for ``POLAR_SPATIAL``.
 
     :param domain: The signal's own domain.
     :type domain: pypft.domains.Domain
-    :returns: ``_SPACE_POLAR_MAGNITUDE_CMAP`` for ``Domain.SPACE_POLAR``, else
+    :returns: ``_POLAR_SPATIAL_MAGNITUDE_CMAP`` for ``Domain.POLAR_SPATIAL``, else
         ``None`` (``matplotlib``'s own default colormap).
     :rtype: str | None
 
     """
-    return _SPACE_POLAR_MAGNITUDE_CMAP if domain is Domain.SPACE_POLAR else None
+    return _POLAR_SPATIAL_MAGNITUDE_CMAP if domain is Domain.POLAR_SPATIAL else None
 
 
 # ======================================================================================
@@ -128,8 +129,8 @@ def plot_signal(
     """Plot a signal as a (magnitude, phase) pair of images.
 
     Every domain is assumed complex-valued -- see this module's own docstring
-    for why neither ``Domain.SPACE_POLAR`` nor ``Domain.SPACE_HARMONIC`` is an
-    exception, despite both nominally being "space-domain."
+    for why neither ``Domain.POLAR_SPATIAL`` nor ``Domain.POLAR_SPATIAL_HARMONIC`` is an
+    exception, despite both nominally being "spatial."
 
     :param signal: The signal to render. Must be 2-D (no batch axis).
     :type signal: pypft.domains.BaseSignal
@@ -212,19 +213,19 @@ def _polar_sample_points(grid: PolarGrid) -> np.ndarray:
 def render_cartesian(
     signal: BaseSignal, *, height: int, width: int, ax: Axes | None = None
 ) -> Axes:
-    """Interpolate a polar-domain signal onto a Cartesian grid, for display only.
+    """Interpolate a physical-angle signal onto a Cartesian grid, for display only.
 
     Uses ``scipy.interpolate.griddata`` on ``signal.grid``'s own non-uniform,
     order-dependent sample points (``pypft.grid.PolarGrid.r``/``.theta`` -- the
     same points ``pypft.grid.sample_cartesian`` samples *from*), an
-    approximation reconstructed purely so a polar-domain signal can be shown
+    approximation reconstructed purely so a physical-angle signal can be shown
     next to an ordinary image. **Its output must never be fed back into
     ``pypft.transform.forward_pft``/``inverse_pft``**: interpolating onto a
     uniform Cartesian grid and back would not reproduce the original samples,
     unlike the exact transform chain.
 
-    :param signal: The polar-domain signal to render -- must be in
-        ``Domain.SPACE_POLAR`` or ``Domain.FREQUENCY_POLAR``, the two domains
+    :param signal: The physical-angle signal to render -- must be in
+        ``Domain.POLAR_SPATIAL`` or ``Domain.POLAR_FREQUENCY``, the two domains
         whose angular axis is a physical angle rather than a harmonic order.
         Must be 2-D (no batch axis).
     :type signal: pypft.domains.BaseSignal
@@ -238,15 +239,15 @@ def render_cartesian(
         onto it.
     :rtype: Axes
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``signal.domain`` is not one of the two polar
-        domains, ``signal.values`` is not 2-D, or ``height``/``width`` is not
-        positive.
+    :raises ValueError: If ``signal.domain`` is not one of the two
+        physical-angle domains, ``signal.values`` is not 2-D, or
+        ``height``/``width`` is not positive.
 
     """
     _type_is_base_signal(value=signal)
-    if signal.domain not in _POLAR_DOMAINS:
+    if signal.domain not in _PHYSICAL_ANGLE_DOMAINS:
         raise ValueError(
-            f"signal.domain must be SPACE_POLAR or FREQUENCY_POLAR (a physical "
+            f"signal.domain must be POLAR_SPATIAL or POLAR_FREQUENCY (a physical "
             f"angle axis), got {signal.domain.name}"
         )
     NumpyValidator.value_is_2d(value=signal.values)
@@ -411,7 +412,7 @@ class PFTTrace:
         The one explicit, opt-in place this module ever writes to disk --
         never called implicitly by ``forward_pft_traced``/``inverse_pft_traced``
         themselves. Each file is named ``"<index>_<label>.png"`` (e.g.
-        ``"00_step_space_polar.png"``), using this trace's own
+        ``"00_step_polar_spatial.png"``), using this trace's own
         ``figure_labels``.
 
         :param directory: Where to save each figure -- created, along with any
@@ -450,10 +451,11 @@ def forward_pft_traced(
 ) -> PFTTrace:
     """Compute the forward PFT, recording every domain it passes through.
 
-    Walks ``pypft.domains.SpacePolarSignal``'s own verified chain
-    (``to_harmonics`` -> ``to_frequency`` -> ``to_angles``) rather than
-    duplicating ``pypft.transform.forward_pft``'s pipeline, so ``values`` is
-    identical to calling ``forward_pft`` directly.
+    Walks ``pypft.domains.PolarSpatialSignal``'s own verified chain
+    (``to_polar_spatial_harmonic`` -> ``to_polar_frequency_harmonic`` ->
+    ``to_polar_frequency``) rather than duplicating
+    ``pypft.transform.forward_pft``'s pipeline, so ``values`` is identical to
+    calling ``forward_pft`` directly.
 
     :param f: The space-domain samples ``f(r, theta)``; see ``forward_pft``.
     :type f: np.ndarray
@@ -476,10 +478,10 @@ def forward_pft_traced(
 
     """
     _type_is_polar_grid(value=grid)
-    start = SpacePolarSignal(values=f, grid=grid, batch_axis=batch_axis)
-    harmonic = start.to_harmonics()
-    frequency = harmonic.to_frequency()
-    end = frequency.to_angles()
+    start = PolarSpatialSignal(values=f, grid=grid, batch_axis=batch_axis)
+    harmonic = start.to_polar_spatial_harmonic()
+    frequency = harmonic.to_polar_frequency_harmonic()
+    end = frequency.to_polar_frequency()
     signals = (start, harmonic, frequency, end)
     figures, figure_labels = _trace_figures(
         signals=signals,
@@ -502,9 +504,10 @@ def inverse_pft_traced(
     """Compute the inverse PFT, recording every domain it passes through.
 
     The exact mirror of ``forward_pft_traced``: walks
-    ``pypft.domains.FrequencyPolarSignal``'s own verified chain
-    (``to_harmonics`` -> ``to_space`` -> ``to_angles``), so ``values`` is
-    identical to calling ``pypft.transform.inverse_pft`` directly.
+    ``pypft.domains.PolarFrequencySignal``'s own verified chain
+    (``to_polar_frequency_harmonic`` -> ``to_polar_spatial_harmonic`` ->
+    ``to_polar_spatial``), so ``values`` is identical to calling
+    ``pypft.transform.inverse_pft`` directly.
 
     :param F: The frequency-domain samples ``F(rho, phi)``; see
         ``inverse_pft``.
@@ -528,10 +531,10 @@ def inverse_pft_traced(
 
     """
     _type_is_polar_grid(value=grid)
-    start = FrequencyPolarSignal(values=F, grid=grid, batch_axis=batch_axis)
-    harmonic = start.to_harmonics()
-    space = harmonic.to_space()
-    end = space.to_angles()
+    start = PolarFrequencySignal(values=F, grid=grid, batch_axis=batch_axis)
+    harmonic = start.to_polar_frequency_harmonic()
+    space = harmonic.to_polar_spatial_harmonic()
+    end = space.to_polar_spatial()
     signals = (start, harmonic, space, end)
     figures, figure_labels = _trace_figures(
         signals=signals,

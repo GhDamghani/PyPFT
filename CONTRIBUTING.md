@@ -30,10 +30,16 @@ PyPFT's dependencies are managed with [`uv`](https://docs.astral.sh/uv/), and `u
    uv sync
    ```
 
-4. Install the pre-commit hook, which strips every notebook under `notebooks/` to its bare form (no outputs, no execution counts, no metadata) on each commit:
+4. Install the pre-commit hook, which strips every notebook under `notebooks/` to its bare form (no outputs, no execution counts, no metadata, cell ids renumbered to each cell's index) on each commit:
 
    ```bash
    uv run pre-commit install
+   ```
+
+   When the hook changes a notebook, the commit stops so you can review and re-stage it. The hook runs `scripts/strip_notebook.py`, which uses only the standard library, so it works under a bare `python` even when the project environment is missing or out of date. To strip every notebook by hand, or only check them (`--check` exits 1 if any notebook would change):
+
+   ```bash
+   python scripts/strip_notebook.py --check
    ```
 
 Run `uv sync` again after every pull or branch switch, so your environment always matches `pyproject.toml`.
@@ -62,7 +68,7 @@ To add or upgrade a dependency, don't hand-edit the version pins; use `uv add "<
 - `pyright`: static type checking.
 - `vulture`, `pytest-vulture`: dead-code detection.
 - `pytest`, `pytest-benchmark`, `pytest-cov`: tests, benchmarks, and coverage.
-- `pre-commit`, `nbstripout`: the notebook-stripping commit hook (`.pre-commit-config.yaml`).
+- `pre-commit`: runs the notebook-stripping commit hook (`.pre-commit-config.yaml`, which calls `scripts/strip_notebook.py`).
 - `nbmake`: executes and checks every tutorial notebook as part of the test suite.
 - `sphinx`, `furo`, `myst-nb`: the documentation build.
 - `notebook`, `ipython`, `ipdb`: interactive work, notebook authoring, and debugging.

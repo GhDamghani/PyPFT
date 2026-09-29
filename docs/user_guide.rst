@@ -108,24 +108,33 @@ Typed domains and legal moves
 ``pypft.forward_pft``/``pypft.inverse_pft``. They add a *typed* way to name where a polar
 array sits along the chain, and to walk between those points one step at a time::
 
-   SPACE_POLAR --DFT--> SPACE_HARMONIC --DHT--> FREQUENCY_HARMONIC --IDFT--> FREQUENCY_POLAR
+   POLAR_SPATIAL --DFT--> POLAR_SPATIAL_HARMONIC
+                 --DHT--> POLAR_FREQUENCY_HARMONIC
+                 --IDFT--> POLAR_FREQUENCY
 
-Each ``Domain`` member's first word (``SPACE``/``FREQUENCY``) is the radial coordinate,
-changed only by the discrete Hankel transform; the second word (``POLAR``/``HARMONIC``) is
-the angular coordinate, changed only by the angular DFT/IDFT. ``pypft.BaseSignal``'s four
-subclasses (``SpacePolarSignal``, ``SpaceHarmonicSignal``, ``FrequencyHarmonicSignal``,
-``FrequencyPolarSignal``) -- one per ``Domain`` member -- wrap a ``(values, grid)`` pair
-with the domain it currently occupies, and know only the neighbouring domains they may
-legally step to:
+Every ``Domain`` member starts with ``POLAR``, since every point on the chain is sampled
+on the same ``pypft.PolarGrid``. The word after it (``SPATIAL``/``FREQUENCY``) is the
+radial coordinate, changed only by the discrete Hankel transform; a trailing ``HARMONIC``
+marks the angular coordinate as a harmonic order rather than a physical angle, changed
+only by the angular DFT/IDFT. ``pypft.BaseSignal``'s four subclasses
+(``PolarSpatialSignal``, ``PolarSpatialHarmonicSignal``,
+``PolarFrequencyHarmonicSignal``, ``PolarFrequencySignal``) -- one per ``Domain`` member
+-- wrap a ``(values, grid)`` pair with the domain it currently occupies, and know only
+the neighbouring domains they may legally step to. Each step method is named after the
+domain it moves *into*, so a hand-written chain reads as the chain itself:
 
 .. code-block:: python
 
-   signal = pypft.SpacePolarSignal(f, grid)
-   harmonic_signal = signal.to_harmonics()  # a SpaceHarmonicSignal
-   by_hand = signal.to_harmonics().to_frequency().to_angles()  # a FrequencyPolarSignal
+   signal = pypft.PolarSpatialSignal(f, grid)
+   harmonic_signal = signal.to_polar_spatial_harmonic()  # a PolarSpatialHarmonicSignal
+   by_hand = (  # a PolarFrequencySignal
+       signal.to_polar_spatial_harmonic()
+       .to_polar_frequency_harmonic()
+       .to_polar_frequency()
+   )
 
    # `to` walks the same chain dynamically, to any target domain:
-   walked = signal.to(pypft.Domain.FREQUENCY_POLAR)
+   walked = signal.to(pypft.Domain.POLAR_FREQUENCY)
 
 ``by_hand``/``walked`` both match ``pypft.forward_pft(f, grid)`` exactly, since each step
 method is a thin wrapper around the same calls ``forward_pft`` itself makes.
@@ -152,20 +161,20 @@ Visualization
 
 ``pypft.plot_signal``/``pypft.BaseSignal.plot`` render a signal as a ``matplotlib``
 ``(magnitude, phase)`` pair of ``Axes``, for every ``pypft.Domain`` member alike. The
-magnitude is gamma-enhanced, and ``SPACE_POLAR``'s magnitude is drawn in grayscale, since
-it is literally an image. ``pypft.render_cartesian`` interpolates a
-``SPACE_POLAR``/``FREQUENCY_POLAR`` signal's own non-uniform sample points onto an
+magnitude is gamma-enhanced, and ``POLAR_SPATIAL``'s magnitude is drawn in grayscale,
+since it is literally an image. ``pypft.render_cartesian`` interpolates a
+``POLAR_SPATIAL``/``POLAR_FREQUENCY`` signal's own non-uniform sample points onto an
 ordinary Cartesian grid -- for display only; its output must never be fed back into
 ``pypft.forward_pft``/``pypft.inverse_pft``:
 
 .. code-block:: python
 
    grid = pypft.PolarGrid(n_radial=96, n_angular=31, R=40.0)
-   signal = pypft.SpacePolarSignal(np.exp(-(grid.r.T**2)), grid)
+   signal = pypft.PolarSpatialSignal(np.exp(-(grid.r.T**2)), grid)
 
    signal.plot()
-   signal.to_harmonics().plot()
-   signal.to(pypft.Domain.FREQUENCY_POLAR).plot()
+   signal.to_polar_spatial_harmonic().plot()
+   signal.to(pypft.Domain.POLAR_FREQUENCY).plot()
    pypft.render_cartesian(signal, height=256, width=256)
 
 ``pypft.forward_pft_traced``/``pypft.inverse_pft_traced`` run the same pipeline as
