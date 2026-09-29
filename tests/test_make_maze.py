@@ -50,7 +50,7 @@ def test_default_ring_layout() -> None:
         inner_sectors=make_maze.DEFAULT_INNER_SECTORS,
         max_sectors=make_maze.DEFAULT_N_ANGULAR // make_maze.SAMPLES_PER_SECTOR,
     )
-    assert sectors == (8, 16, 16, 16)
+    assert sectors == (8,) + (16,) * 7
     assert make_maze.DEFAULT_N_ANGULAR % sectors[-1] == 0
 
 

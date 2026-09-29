@@ -35,7 +35,7 @@ Three files are written to ``--output-dir``, next to each other:
   rendering.
 
 Usage:
-    uv run python scripts/make_maze.py [--rings 4] [--inner-sectors 8] \
+    uv run python scripts/make_maze.py [--rings 8] [--inner-sectors 8] \
         [--seed 0] [--wall-thickness 0.25] [--n-radial 576] [--n-angular 48] \
         [--radius 1.0] [--maze-fraction 0.95] [--image-size 512] \
         [--output-dir tests/samples]
