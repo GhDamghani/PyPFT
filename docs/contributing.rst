@@ -45,10 +45,18 @@ Run ``uv sync`` afterwards to return to the floors.
 Install the commit hook
 -----------------------
 
-Notebooks are committed stripped -- no outputs, no execution counts, no metadata -- and the
-test suite checks this. Install the ``pre-commit`` hook that does the stripping for you::
+Notebooks are committed stripped -- no outputs, no execution counts, no metadata, cell ids
+renumbered to each cell's index -- and the test suite checks this. Install the
+``pre-commit`` hook that does the stripping for you::
 
    uv run pre-commit install
+
+The hook runs ``scripts/strip_notebook.py``, which uses only the standard library, so it
+also works when the project environment is missing or out of date. To strip every
+notebook by hand, drop ``--check`` (which only reports, exiting 1 if any notebook would
+change)::
+
+   python scripts/strip_notebook.py --check
 
 Run the quality gate
 --------------------

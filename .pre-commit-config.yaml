@@ -2,14 +2,15 @@
 repos:
   - repo: local
     hooks:
-      # Strip every tutorial notebook to its bare form: no outputs, no execution
-      # counts, and no notebook- or cell-level metadata.
-      - id: nbstripout
-        name: nbstripout
-        entry: uv run nbstripout
+      - id: strip-notebook
+        name: strip Jupyter notebooks to generic form
+        description: >-
+          Remove the kernelspec, interpreter version, outputs, execution counts and
+          cell metadata from every staged tutorial notebook, and renumber its cell ids.
+        entry: python scripts/strip_notebook.py
+        # "system" rather than "python": the script is standard-library only, so
+        # pre-commit does not need to build an isolated environment for it, and it
+        # runs even when the project environment is missing or out of date.
         language: system
-        files: ^notebooks/.*\.ipynb$
-        args:
-          - --drop-empty-cells
-          - --extra-keys
-          - metadata.kernelspec metadata.language_info
+        types: [jupyter]
+        files: ^notebooks/
