@@ -93,6 +93,11 @@ To edit a notebook interactively, start Jupyter from the project environment::
 
    uv run jupyter notebook
 
+A notebook that states a result from a paper cites it as ``[[1]](#ref-1) (Eq. 41)``: a
+numbered link to an entry of a ``## References`` Markdown cell at the end of that
+notebook. ``CONTRIBUTING.md``'s "Notebook citations" section has the full rules, which
+``tests/test_notebook_citations.py`` checks.
+
 Where the tests live
 --------------------
 

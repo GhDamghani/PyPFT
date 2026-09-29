@@ -198,13 +198,10 @@ of them:
 ``PFTTrace.save`` is the one place PyPFT ever writes to disk -- only when called
 explicitly, never as a side effect of tracing itself.
 
-Citing a result
----------------
+Citing PyPFT
+------------
 
-``pypft.Reference``/``pypft.cite``/``pypft.bibliography`` render the scientific sources
-behind PyPFT's math:
-
-.. code-block:: python
-
-   pypft.cite(pypft.Reference.BADDOUR_2019_DHT)
-   pypft.bibliography(pypft.Reference.BADDOUR_2019_DHT)
+The repository's `CITATION.cff <https://github.com/GhDamghani/PyPFT/blob/main/CITATION.cff>`_
+holds the metadata for citing PyPFT itself, and lists the papers behind its math as
+references. Each tutorial notebook cites the results it states with numbered links, such
+as ``[1] (Eq. 41)``, to a References section at its end.
