@@ -211,6 +211,18 @@ A tutorial notebook that states a result from a paper cites it with a numbered l
 
 `tests/test_notebook_citations.py` checks all of these rules for every notebook under `notebooks/`.
 
+### Notebook style
+
+Tutorial notebooks are read as documentation, top to bottom, so they follow a few more rules:
+
+- Write each Markdown paragraph and each list item on a single source line. Don't wrap lines by hand; the viewer wraps them.
+- Render math with `$...$` inline and `$$...$$` for display equations. Backticks are for Python identifiers only, such as `grid.r` or `forward_pft`, never for formulas.
+- Give every code cell a short comment per logical step (build the grid, sample, transform, compare, plot), so the cell reads on its own.
+- When a cell's point is a shape, a distribution, or an error pattern, plot it; a bare printed number only supplements a figure or serves as a pass/fail check.
+- Describe PyPFT's own conventions only. Don't name the libraries PyPFT uses internally for image resampling, or compare PyPFT's conventions to theirs.
+
+`tests/test_notebook_style.py` checks the first two rules, and `tests/test_no_backend_mentions.py` checks the last one, for each notebook listed in `STYLED_NOTEBOOK_NAMES` in `tests/conftest.py`. `tests/test_no_backend_mentions.py` also checks `README.md`, `CONTRIBUTING.md`, and the pages under `docs/`.
+
 ### Spelling
 
 Use American English.

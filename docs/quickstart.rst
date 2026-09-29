@@ -9,6 +9,7 @@ or add it to a `uv <https://docs.astral.sh/uv/>`_ project::
 
    uv add pypft
 
-For the 60-second tour -- installing, importing, and the first
-``cartesian_to_polar``/``polar_to_cartesian`` round trip -- see the first two
-notebooks in :doc:`tutorials`.
+PyPFT supports Python 3.12, 3.13, and 3.14. The first notebook in :doc:`tutorials`
+covers other setups (virtual environments, conda, installing from a clone) and then
+runs the whole pipeline once: building a ``PolarGrid``, sampling an image on it,
+transforming it forward and back, and plotting the result.
