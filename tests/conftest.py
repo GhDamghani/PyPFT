@@ -26,5 +26,7 @@ NOTEBOOKS_DIR = Path(__file__).resolve().parents[1] / "notebooks"
 STYLED_NOTEBOOK_NAMES = (
     "00_installation_and_quickstart.ipynb",
     "01_polar_images_and_grids.ipynb",
+    "02_sampling_grids.ipynb",
+    "03_discrete_hankel_transform.ipynb",
 )
 STYLED_NOTEBOOK_PATHS = tuple(NOTEBOOKS_DIR / name for name in STYLED_NOTEBOOK_NAMES)
