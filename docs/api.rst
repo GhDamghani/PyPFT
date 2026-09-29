@@ -25,12 +25,6 @@ pypft.grid
 .. automodule:: pypft.grid
    :members:
 
-pypft.references
------------------
-
-.. automodule:: pypft.references
-   :members:
-
 pypft.dht
 ---------
 

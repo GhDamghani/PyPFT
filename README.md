@@ -37,6 +37,8 @@ f_reconstructed = pypft.inverse_pft(F, grid)
 
 ## Citing
 
+To cite PyPFT itself, use [`CITATION.cff`](CITATION.cff) (on GitHub, the "Cite this repository" button in the sidebar renders it as APA or BibTeX). It also lists the papers below as references.
+
 PyPFT's discrete Hankel transform and polar Fourier transform follow:
 
 - Baddour, N. (2019). The Discrete Hankel Transform. In *Fourier Transforms - Century of Digitalization and Increasing Expectations*. IntechOpen. <https://doi.org/10.5772/intechopen.84399>
@@ -46,8 +48,6 @@ PyPFT's discrete Hankel transform and polar Fourier transform follow:
 The MR reconstruction application is based on:
 
 - Golshani, S., & Nasiraei‐Moghaddam, A. (2017). Efficient radial tagging CMR exam: A coherent k‐space reading and image reconstruction approach. *Magnetic Resonance in Medicine*, 77(4), 1459-1472. <https://doi.org/10.1002/mrm.26219>
-
-`pypft.Reference`, `pypft.cite`, and `pypft.bibliography` render the same sources programmatically.
 
 ## License
 
