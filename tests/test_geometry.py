@@ -66,6 +66,35 @@ def test_polar_to_cartesian_approximately_inverts_cartesian_to_polar():
     assert error.max() < 0.05
 
 
+#: How many times ``polar_to_cartesian`` is called on the same input when
+#: checking that its output is deterministic.
+_N_REPEATED_CALLS = 10
+
+
+def test_polar_to_cartesian_is_finite_and_zero_outside_the_inscribed_circle():
+    """Every output pixel is finite, and every pixel outside the disk is ``0``.
+
+    A high-contrast ring pattern is round-tripped repeatedly: each call must
+    produce the same, fully finite image, with nothing but zeros beyond the
+    largest inscribed circle, where no polar sample exists.
+
+    """
+    rows, cols = np.mgrid[0:_IMAGE_SIZE, 0:_IMAGE_SIZE]
+    r = np.hypot(cols - _IMAGE_SIZE / 2.0, rows - _IMAGE_SIZE / 2.0)
+    image = (np.sin(r / 6.0) > 0).astype(np.float64)
+    outside = r > _IMAGE_SIZE / 2.0
+
+    polar = cartesian_to_polar(image=image, n_radial=_N_RADIAL, n_angular=_N_ANGULAR)
+    first = polar_to_cartesian(polar=polar, height=_IMAGE_SIZE, width=_IMAGE_SIZE)
+    for _ in range(_N_REPEATED_CALLS):
+        reconstructed = polar_to_cartesian(
+            polar=polar, height=_IMAGE_SIZE, width=_IMAGE_SIZE
+        )
+        assert np.all(np.isfinite(reconstructed))
+        assert np.all(reconstructed[outside] == 0.0)
+        np.testing.assert_array_equal(reconstructed, first)
+
+
 #: ``(label, phi0)`` cases in OpenCV's own angle convention (this module's
 #: docstring). ``+pi/2``/``-pi/2`` are kept separate -- see the docstring.
 _WEDGE_CASES = [

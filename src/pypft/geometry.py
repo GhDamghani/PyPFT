@@ -34,6 +34,14 @@ from pypft.utils.validators import IntValidator, NumpyValidator
 #: axis, matching the DHT's own linearly-spaced sample points.
 _WARP_POLAR_FLAGS = cv2.WARP_POLAR_LINEAR
 
+#: ``cv2.warpPolar``'s inverse-map mode. ``WARP_FILL_OUTLIERS`` selects a
+#: constant (zero) border: without it the inverse map uses a transparent
+#: border, leaving every destination pixel it cannot interpolate as
+#: uninitialized memory.
+_WARP_POLAR_INVERSE_FLAGS = (
+    _WARP_POLAR_FLAGS | cv2.WARP_INVERSE_MAP | cv2.WARP_FILL_OUTLIERS
+)
+
 
 def _center_and_max_radius(
     height: int, width: int
@@ -52,6 +60,25 @@ def _center_and_max_radius(
     center = (width / 2.0, height / 2.0)
     max_radius = min(height, width) / 2.0
     return center, max_radius
+
+
+def _outside_inscribed_circle(height: int, width: int) -> np.ndarray:
+    """Mark the pixels that lie outside the largest inscribed circle.
+
+    :param height: The image height, in pixels.
+    :type height: int
+    :param width: The image width, in pixels.
+    :type width: int
+    :returns: A ``(height, width)`` boolean mask, ``True`` wherever a pixel's
+        distance from the image center exceeds the inscribed radius.
+    :rtype: np.ndarray
+
+    """
+    (center_x, center_y), max_radius = _center_and_max_radius(
+        height=height, width=width
+    )
+    rows, cols = np.ogrid[0:height, 0:width]
+    return np.hypot(cols - center_x, rows - center_y) > max_radius
 
 
 def cartesian_to_polar(image: np.ndarray, n_radial: int, n_angular: int) -> np.ndarray:
@@ -100,6 +127,9 @@ def polar_to_cartesian(polar: np.ndarray, height: int, width: int) -> np.ndarray
     own ``height``/``width`` -- both the layout transpose and the angular
     centering are undone before delegating to ``cv2.warpPolar``'s inverse map.
 
+    Pixels outside the largest inscribed circle have no polar samples behind
+    them and are always ``0``, so every output pixel is deterministic.
+
     :param polar: A ``(n_radial, n_angular[, channel])`` polar image, on
         PyPFT's ``(radial, angular)`` layout with a centered angular axis
         (i.e. as produced by ``cartesian_to_polar``).
@@ -127,10 +157,12 @@ def polar_to_cartesian(polar: np.ndarray, height: int, width: int) -> np.ndarray
     warped = np.moveaxis(
         a=uncentered, source=0, destination=1
     )  # back to warpPolar's own layout
-    return cv2.warpPolar(
+    cartesian = cv2.warpPolar(
         src=warped,
         dsize=(width, height),
         center=center,
         maxRadius=max_radius,
-        flags=_WARP_POLAR_FLAGS | cv2.WARP_INVERSE_MAP,
+        flags=_WARP_POLAR_INVERSE_FLAGS,
     )
+    cartesian[_outside_inscribed_circle(height=height, width=width)] = 0
+    return cartesian
