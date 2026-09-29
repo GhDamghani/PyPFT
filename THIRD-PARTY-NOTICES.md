@@ -16,7 +16,7 @@ attribution to the source rather than granting unrestricted reuse;
 a 256x256 square, and sampled that square onto a
 `pypft.PolarGrid(n_radial=576, n_angular=39, R=121.6)` via
 `pypft.sample_cartesian` to produce this file -- used as the sample
-`Domain.SPACE_POLAR` signal in `notebooks/07_visualization.ipynb`. This grid
+`Domain.POLAR_SPATIAL` signal in `notebooks/07_visualization.ipynb`. This grid
 size keeps the transform's own per-harmonic kernel stack under ~200MB while
 `pypft.check_adequacy` still raises no warning.
 

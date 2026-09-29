@@ -10,7 +10,7 @@ unlike ``pypft.cartesian_to_polar``'s uniform illustration grid. The
 intermediate square raster is never saved; only the final ``(n_radial,
 n_angular)`` polar-sampled array is written to ``--output``, as an
 uncompressed 8-bit grayscale TIFF -- ready to feed directly into
-``pypft.SpacePolarSignal``/``pypft.forward_pft`` without re-sampling.
+``pypft.PolarSpatialSignal``/``pypft.forward_pft`` without re-sampling.
 
 Usage:
     uv run python scripts/make_test_image.py --input <path> --output <path> \
