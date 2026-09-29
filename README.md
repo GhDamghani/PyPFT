@@ -51,4 +51,4 @@ The MR reconstruction application is based on:
 
 ## License
 
-BSD-3-Clause — see [`LICENSE`](LICENSE). Third-party material shipped with the test suite is attributed in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+BSD-3-Clause — see [`LICENSE`](LICENSE).
