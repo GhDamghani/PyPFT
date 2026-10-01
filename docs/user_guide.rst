@@ -78,6 +78,21 @@ what makes it exactly invertible:
 
    polar = pypft.sample_cartesian(image, grid)
 
+``pypft.resample_uniform_polar`` puts uniform polar data on the grid instead: a
+``cartesian_to_polar`` result, or an acquisition with equally spaced samples along each
+spoke. It interpolates each spoke along the radius with a cubic spline onto ``grid.r``
+(and across the spokes too, periodically, when the data has a different number of
+spokes), and returns ``forward_pft``'s ``(radial, angular[, batch])`` input directly.
+Its ``radius`` is the radius the uniform samples cover, in ``cartesian_to_polar``'s
+convention: sample ``k`` of ``n`` sits at ``k * radius / n``, so for a
+``cartesian_to_polar`` result ``radius`` is half the smaller side of the image:
+
+.. code-block:: python
+
+   uniform = pypft.cartesian_to_polar(image, n_radial=256, n_angular=grid.n_angular)
+   f = pypft.resample_uniform_polar(uniform, grid, radius=min(image.shape) / 2)
+   F = pypft.forward_pft(f, grid)
+
 ``pypft.check_adequacy``/``pypft.check_nyquist_adequacy`` warn (never raise) when a grid's
 ``n_radial`` is too small for its ``n_angular``, or violates the discrete Hankel
 transform's own Nyquist condition, respectively -- both are easy mistakes to make
@@ -88,9 +103,12 @@ silently, since neither failure mode raises an error on its own:
    pypft.check_adequacy(grid)  # silent for this grid
    pypft.check_adequacy(pypft.PolarGrid(n_radial=383, n_angular=64, R=40.0))  # warns
 
-``check_adequacy`` is fitted on the average dB error, which a grid can pass while its
-relative L2 error stays large (see "Which grid?" below), so its silence is necessary,
-not sufficient, for an accurate approximation.
+``check_adequacy`` predicts the forward transform's relative L2 error from a fit of a
+centered Gaussian's measured error to ``(n_angular, n_radial)`` at ``R = 40``, and warns
+when the prediction is worse than on Yao & Baddour's worked example
+(``n_radial=382, n_angular=15, R=40``). An off-center function, or an ``R`` small
+relative to the object, can still give a much larger error (see "Which grid?" below), so
+its silence is necessary, not sufficient, for an accurate approximation.
 
 Which grid?
 ~~~~~~~~~~~
@@ -104,8 +122,8 @@ Three grids play a role, and they answer different questions:
   spokes for the same ``n_angular``, but different radii on each spoke, so a row of
   constant radial index is not a ring.
 - **The bridge** between them is interpolation along each spoke, from the uniform radii
-  onto ``grid.r``. Measured, it gives the same transform as sampling on the grid
-  directly.
+  onto ``grid.r``: ``pypft.resample_uniform_polar``. Measured, it gives the same
+  transform as sampling on the grid directly.
 
 So, can the PFT be applied to a uniformly polar-sampled image?
 
@@ -113,7 +131,8 @@ So, can the PFT be applied to a uniformly polar-sampled image?
    ``(n_radial, n_angular)`` array and invert each other to rounding error, and every
    discrete rule (orthogonality, shift, convolution, Parseval) holds.
 2. *As an approximation of the continuous 2-D Fourier transform*, only after
-   interpolating it along each spoke onto ``grid.r``. Fed as-is, a uniform array is read
+   interpolating it along each spoke onto ``grid.r`` with
+   ``pypft.resample_uniform_polar``. Fed as-is, a uniform array is read
    as a function warped differently along each spoke.
 3. *Even on the grid*, the approximation carries the error of identifying a spoke with a
    harmonic. It is small only for content that varies slowly across the per-spoke radius
