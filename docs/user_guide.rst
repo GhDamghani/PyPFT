@@ -158,6 +158,56 @@ transpose a ``sample_cartesian`` result first:
    F = pypft.forward_pft(f, grid)  # the frequency-domain samples F(rho, phi)
    f_reconstructed = pypft.inverse_pft(F, grid)
 
+This is the **exact path**, and the default everywhere: square and exactly invertible for
+any array, with every discrete rule holding exactly, but as an approximation of the
+continuous transform it carries the spoke-to-harmonic identification error of "Which
+grid?" above.
+
+The ring-consistent route
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``pypft.forward_pft_ring``/``pypft.inverse_pft_ring`` are the alternative when the output
+must approximate the continuous Fourier transform. The route computes every harmonic from
+samples on true rings at its own radii, applies the same per-harmonic discrete Hankel
+transform, and evaluates every harmonic at each output spoke's own radii through the
+transform's Fourier-Bessel expansion, so no spoke is identified with a harmonic on either
+side. Its input is a Cartesian image, or, given ``radius``, uniform polar data in
+``resample_uniform_polar``'s convention; its output is on ``forward_pft``'s own frequency
+grid:
+
+.. code-block:: python
+
+   F = pypft.forward_pft_ring(image, grid)  # a Cartesian image, R in pixels
+   F = pypft.forward_pft_ring(uniform, grid, radius=40.0)  # uniform polar data
+   f = pypft.inverse_pft_ring(F, grid)  # an approximation, not an exact inverse
+
+Its pieces are public too: ``pypft.sample_harmonics_cartesian``/
+``pypft.sample_harmonics_uniform_polar`` return a spatial-harmonic array (the values of a
+``pypft.PolarSpatialHarmonicSignal``, entering the domain chain one step in),
+``pypft.evaluate_frequency`` replaces the chain's last step, and ``pypft.evaluate_space`` is
+its space-side mirror:
+
+.. code-block:: python
+
+   harmonics = pypft.sample_harmonics_cartesian(image, grid, n_quadrature=1024)
+   signal = pypft.PolarSpatialHarmonicSignal(values=harmonics, grid=grid)
+   F = pypft.evaluate_frequency(signal.to_polar_frequency_harmonic().values, grid)
+
+Use the route for accuracy, the exact path for exact invertibility. The route removes the
+identification error; what remains is set by its input stage. Where the grid's harmonics
+hold the function, uniform polar input measures ``1e-7`` to ``1e-5`` relative L2 error
+(the radial spline), where the exact path measures ``0.3`` to ``2``, and a smooth
+Cartesian image a few ``1e-3`` (the pixel interpolation), where the exact path is off by
+more than the transform's own size; otherwise the harmonics beyond the grid's range set
+the error. It is not
+exactly invertible, though: its inverse is accurate only when the frequency grid's central
+gap holds little of the transform (large ``R`` relative to the object, few spokes), and its
+output stage costs ``n_angular**2 / 4`` Bessel matrices of ``n_radial**2`` values each.
+Both directions support a trailing batch axis and ``LimitKind.SPACE_LIMITED`` grids only.
+``DESIGN_NOTES.md``, "PFT: the exact path and the ring-consistent route," has the
+measurements, and the ``05_pft_and_ipft`` tutorial's "Two paths" section compares the
+two.
+
 Typed domains and legal moves
 -----------------------------
 
