@@ -28,5 +28,9 @@ STYLED_NOTEBOOK_NAMES = (
     "01_polar_images_and_grids.ipynb",
     "02_sampling_grids.ipynb",
     "03_discrete_hankel_transform.ipynb",
+    "04_domains.ipynb",
+    "05_pft_and_ipft.ipynb",
+    "06_batches.ipynb",
+    "07_pft_properties.ipynb",
 )
 STYLED_NOTEBOOK_PATHS = tuple(NOTEBOOKS_DIR / name for name in STYLED_NOTEBOOK_NAMES)
