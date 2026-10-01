@@ -2,7 +2,7 @@
 
 Tutorials and top-level documentation describe PyPFT's own conventions only, never
 a backend library's: its name, import name, or function names. Every cell of a
-styled notebook (Markdown and code alike) is checked, along with ``README.md``,
+tutorial notebook (Markdown and code alike) is checked, along with ``README.md``,
 ``CONTRIBUTING.md``, and the hand-written ``docs/*.rst`` pages. The dependency's
 own distribution name in an install command is not a mention of its API and is
 not flagged.
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import STYLED_NOTEBOOK_PATHS
+from .conftest import NOTEBOOK_PATHS
 
 # ========================================================================================
 # Constants
@@ -72,10 +72,10 @@ def _mentions(text: str) -> list[str]:
 
 
 @pytest.mark.parametrize(
-    argnames="path", argvalues=STYLED_NOTEBOOK_PATHS, ids=lambda p: p.name
+    argnames="path", argvalues=NOTEBOOK_PATHS, ids=lambda p: p.name
 )
 def test_notebook_does_not_mention_the_backend(path: Path) -> None:
-    """No cell of a styled notebook names the backend."""
+    """No cell of a tutorial notebook names the backend."""
     mentions = _mentions(text=_notebook_text(path=path))
     assert not mentions, f"{path.name} names the backend: {mentions}"
 
