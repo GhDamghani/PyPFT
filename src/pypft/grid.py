@@ -1,24 +1,40 @@
 """The transform's own sampling grid: order-dependent, non-uniform, Bessel-zero based.
 
-Baddour's discrete Hankel transform (``pypft.dht``) does not sample a radial profile
-uniformly: each harmonic order ``n`` has its own radial sample positions ``r_nk``, tied
-to the zeros of ``J_n``. Composed with the angular DFT (``pypft.dft``), this means every
-*angular* index of a stored polar array carries its own radial grid, since the angular
-DFT/IDFT step is exactly what turns a "physical angle" index into a "harmonic order"
-index and back. ``PolarGrid`` is the frozen, hashable value object describing that grid
-for a given ``(n_radial, n_angular, R)``; ``sample_cartesian`` is the production sampler
-that resamples an ordinary image onto it (unlike
-``pypft.geometry.cartesian_to_polar``, which resamples onto a uniform grid purely for
-illustration); ``check_adequacy`` and ``check_nyquist_adequacy`` are empirical/
-analytical guards that warn when a grid's angular and radial sample counts are
-mismatched, since that mismatch degrades accuracy without ever raising an error on its
-own.
+``PolarGrid`` is the frozen, hashable value object describing the grid of PeerJ CS
+Part II, Eqs. 14-17, for a given ``(n_radial, n_angular, R)``. Its angles are uniform
+and centered; its radii are not. In the space domain, row ``i`` of ``PolarGrid.r`` is
+the spoke at angle ``theta_i``, and its radii are ``r_pk = j_{|p|k} R / j_{|p|N1}``,
+where ``p = harmonics(n_angular)[i]`` is the spoke's own *angular sample index* and
+``j_{|p|k}`` the ``k``-th zero of ``J_{|p|}``. Harmonics only exist after the angular
+DFT. The transform's derivation identifies the angular sample index with the harmonic
+order (Mathematics Part I, Eq. 18, a "key assumption" of the development; Appendix A.6
+compares it with the conventional alternative, Eq. A17), which is what makes the
+discrete transform square and exactly invertible.
+
+Two consequences matter to anyone sampling data for it:
+
+- **A row of constant radial index is not a ring.** Every spoke uses its own radii,
+  so the same index ``k`` sits at a different radius on different spokes, most of all
+  near the center. A uniform polar array (``pypft.geometry.cartesian_to_polar``) has
+  the same spokes but the same radii on every spoke: it is *not* on this grid, and
+  must be interpolated along each spoke onto ``PolarGrid.r`` before it is
+  transformed as an approximation of the continuous Fourier transform.
+- **On-grid samples still carry an approximation error** from the identification
+  itself, which the average dB error ``E_avg`` hides; the relative L2 error shows it.
+
+``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke, and the transform
+identifies it with a harmonic," has the measurements behind both. ``sample_cartesian``
+is the production sampler that evaluates an ordinary image at this grid's points;
+``check_adequacy`` and ``check_nyquist_adequacy`` are empirical/analytical guards that
+warn when a grid's angular and radial sample counts are mismatched, since that
+mismatch degrades accuracy without ever raising an error on its own.
 
 The angular axis is one-dimensional and shared by both the space and frequency domains
-(``theta``/``psi``): index ``i`` sits at physical angle/harmonic
+(``theta``/``psi``): index ``i`` sits at physical angle
 ``harmonics(n_angular)[i] * 2 * pi / n_angular``, i.e. the same centered convention
 every other stored PyPFT array uses, so a grid's row index lines up with the
-corresponding row of a centered angular array without any reordering at this boundary.
+corresponding column of a centered angular array without any reordering at this
+boundary.
 """
 
 import warnings
@@ -73,7 +89,14 @@ class NyquistWarning(UserWarning):
 
 @dataclass(frozen=True)
 class PolarGrid:
-    """The discrete Hankel transform's own ``(radial, angular)`` sampling grid.
+    """The polar Fourier transform's own sampling grid.
+
+    Row ``i`` of ``r`` (space domain) and ``rho`` (frequency domain) is the spoke at
+    angle ``theta[i]``, with radii from the zeros of ``J_{|p|}``, where
+    ``p = harmonics[i]`` is that spoke's angular sample index. The transform
+    identifies ``p`` with the harmonic order (see the module docstring), so the same
+    radial index sits at a different radius on each spoke: a uniform polar array is
+    not on this grid and must be interpolated along each spoke onto ``r`` first.
 
     Frozen and hashable (the default dataclass hash, since every field is itself
     hashable) so a grid can key a kernel cache the way ``pypft.dht``'s ``(n, size)``
@@ -115,7 +138,13 @@ class PolarGrid:
 
     @property
     def harmonics(self) -> np.ndarray:
-        """The centered harmonic index at each angular row, length ``n_angular``."""
+        """The centered angular sample index of each row, length ``n_angular``.
+
+        In the space domain this indexes spokes, not harmonics: ``harmonics[i]`` is
+        the index ``p`` whose Bessel order ``|p|`` places row ``i``'s radii. It names
+        the harmonic order only after the angular DFT, which the transform
+        identifies with ``p``. The name follows that identification.
+        """
         return _angular_harmonics(self.n_angular)
 
     @property
@@ -125,9 +154,11 @@ class PolarGrid:
 
     @property
     def theta(self) -> np.ndarray:
-        """The centered angular sample points, shared by both domains.
+        """The centered angle of each spoke, shared by both domains.
 
-        Length ``n_angular``.
+        Length ``n_angular``, uniform, ``harmonics * 2 * pi / n_angular``. A uniform
+        polar grid with the same ``n_angular`` has exactly these spokes; only the
+        radii along them differ.
         """
         return self.harmonics * (2.0 * np.pi / self.n_angular)
 
@@ -137,7 +168,7 @@ class PolarGrid:
         return self.theta
 
     def _radial_grids(self) -> tuple[np.ndarray, np.ndarray]:
-        """Build the space- and frequency-domain radial grids, one row per harmonic.
+        """Build the space- and frequency-domain radial grids, one row per spoke.
 
         :returns: The space-domain and frequency-domain radial grids, each
             ``(n_angular, n_radial)``.
@@ -147,8 +178,9 @@ class PolarGrid:
         space = np.empty((self.n_angular, self.n_radial))
         frequency = np.empty((self.n_angular, self.n_radial))
         for row, order in enumerate(self.harmonics):
-            # Each row's order is the harmonic's own |n| -- the DHT kernel only
-            # ever depends on the order's magnitude (Y^{(-n)N} = (-1)^n Y^{nN}).
+            # Each spoke's Bessel order is |p| of its own angular sample index --
+            # the DHT kernel only ever depends on the order's magnitude
+            # (Y^{(-n)N} = (-1)^n Y^{nN}).
             space[row, :], frequency[row, :] = sample_points(
                 n=int(abs(order)), size=self.n_radial, R=self.R
             )
@@ -156,15 +188,26 @@ class PolarGrid:
 
     @property
     def r(self) -> np.ndarray:
-        """The space-domain radial grid, ``(n_angular, n_radial)``."""
+        """The space-domain radii, ``(n_angular, n_radial)``: row ``i`` is one spoke.
+
+        Row ``i`` holds ``r_pk = j_{|p|k} R / j_{|p|N1}``, ``k = 1 .. n_radial``,
+        for ``p = harmonics[i]`` (space-limited case). Rows ``p`` and ``-p`` are
+        equal; every other pair differs, so a column of constant radial index is not
+        a ring. Near the outer edge the spacing along row ``i`` settles to about
+        ``pi * R / j_{|p|N1}``, close to uniform; near the center it is not, and the
+        innermost radius grows with ``|p|``.
+        """
         space, frequency = self._radial_grids()
         return space if self.limit_kind is LimitKind.SPACE_LIMITED else frequency
 
     @property
     def rho(self) -> np.ndarray:
-        """The frequency-domain radial grid, ``(n_angular, n_radial)``.
+        """The frequency-domain radii, ``(n_angular, n_radial)``: row ``i`` is a spoke.
 
-        For ``LimitKind.BAND_LIMITED``, this and ``r`` swap which of the two
+        Row ``i`` holds ``rho_pm = j_{|p|m} / R`` for ``p = harmonics[i]``
+        (space-limited case), at angle ``psi[i]``: a forward PFT output entry
+        approximates the continuous transform at that point. For
+        ``LimitKind.BAND_LIMITED``, this and ``r`` swap which of the two
         ``sample_points`` outputs they return -- PeerJ CS Part II notes the
         band-limited grid has "the same shape...but the domains are reversed"
         relative to the space-limited one.
@@ -196,7 +239,9 @@ def sample_cartesian(image: np.ndarray, grid: PolarGrid) -> np.ndarray:
 
     Unlike ``pypft.geometry.cartesian_to_polar`` (a *uniform* radial axis, used there
     only as the first illustration of what "polar" means for an image), this is the
-    sampler that actually feeds the transform: a single ``cv2.remap`` call at
+    sampler that actually feeds the transform -- each spoke is evaluated at its own
+    radii, so the result is on the grid rather than on uniform rings: a single
+    ``cv2.remap`` call at
     ``grid.r``/``grid.theta``, using the same angle convention as ``pypft.geometry``
     (measured directly on image coordinates, with no ``y``-flip).
 
@@ -280,6 +325,17 @@ def check_adequacy(grid: PolarGrid) -> None:
     This uses the measured relation (see ``_ADEQUACY_INTERCEPT_DB``'s docstring) to
     predict the average error and warns, with a suggested ``n_radial``, whenever that
     prediction is worse than the pipeline's own accuracy target.
+
+    The fit is on the average dB error ``E_avg`` of a *centered* Gaussian, and
+    ``E_avg`` is dominated by the many samples where both the computed and the exact
+    transform are essentially zero. A grid this check accepts can still give a
+    large relative L2 error: Yao & Baddour's own ``n_radial=382, n_angular=15,
+    R=40`` grid passes, yet transforms a Gaussian with a relative L2 error of about
+    0.24, centered or not; for the off-center one, doubling ``n_radial`` improves
+    ``E_avg`` by about 20 dB and leaves the relative L2 error at 0.24. Silence here
+    is necessary, not sufficient, for an accurate approximation. See
+    ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke, and the transform
+    identifies it with a harmonic."
 
     :param grid: The grid to check.
     :type grid: PolarGrid

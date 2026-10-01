@@ -2,13 +2,19 @@
 
 ``cartesian_to_polar``/``polar_to_cartesian`` wrap ``cv2.warpPolar`` (forward and
 inverse) so a plain image can be viewed on a polar grid and back, at whatever
-resolution the caller asks for. **This is not the transform's own sampling
-grid**: ``cv2.warpPolar`` produces a *uniformly* spaced radial axis, whereas the
-discrete Hankel transform's grid is order-dependent and non-uniform (Baddour's
-``r_nk``); ``pypft.grid.sample_cartesian`` is the production sampler. These
-two functions exist because
-``warpPolar`` is the natural first illustration of what "polar" means for an
-image, not because it feeds the transform.
+resolution the caller asks for. The result is on a **uniform** polar grid: the same
+equally spaced radii on every spoke, i.e. true rings. That is the ordinary polar
+grid an image or a polar acquisition naturally comes on.
+
+**It is not the transform's own sampling grid.** ``pypft.grid.PolarGrid`` has the
+same uniform, centered spokes for the same ``n_angular``, but places the radii
+along each spoke differently, from the zeros of ``J_{|p|}`` for that spoke's
+angular sample index ``p`` (``r_pk``), so a uniform polar array is not on it. To
+transform such data as an approximation of the continuous Fourier transform,
+interpolate it along each spoke onto ``PolarGrid.r`` first, or sample the source
+image there directly with ``pypft.grid.sample_cartesian``; see ``DESIGN_NOTES.md``,
+"Grid: the spatial row index is a spoke, and the transform identifies it with a
+harmonic."
 
 Two more things happen at this boundary, once per direction:
 
@@ -30,8 +36,8 @@ import numpy as np
 from pypft.axes import Axis, _center_angular, _uncenter_angular
 from pypft.utils.validators import IntValidator, NumpyValidator
 
-#: ``cv2.warpPolar``'s interpolation mode: a straight (non-logarithmic) radial
-#: axis, matching the DHT's own linearly-spaced sample points.
+#: ``cv2.warpPolar``'s interpolation mode: a straight (non-logarithmic), uniformly
+#: spaced radial axis.
 _WARP_POLAR_FLAGS = cv2.WARP_POLAR_LINEAR
 
 #: ``cv2.warpPolar``'s inverse-map mode. ``WARP_FILL_OUTLIERS`` selects a
@@ -83,6 +89,11 @@ def _outside_inscribed_circle(height: int, width: int) -> np.ndarray:
 
 def cartesian_to_polar(image: np.ndarray, n_radial: int, n_angular: int) -> np.ndarray:
     """Resample a Cartesian image onto a uniform polar grid.
+
+    The radii are equally spaced from the center out to the largest circle inscribed
+    in the image, and the same on every spoke, so each row is a ring. The result is
+    not on a ``pypft.grid.PolarGrid``; interpolate it along each spoke onto
+    ``PolarGrid.r`` before transforming it.
 
     :param image: A ``(height, width[, channel])`` Cartesian image.
     :type image: np.ndarray

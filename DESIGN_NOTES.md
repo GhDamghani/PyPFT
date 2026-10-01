@@ -54,6 +54,110 @@ whole stack on every call makes `STACKED_KERNEL` measure *slower* than `HARMONIC
 `(radial, angular, batch)` workload it is otherwise chosen for — the cache is load-bearing for
 `STACKED_KERNEL` being the default at all.
 
+## Grid: the spatial row index is a spoke, and the transform identifies it with a harmonic
+
+`pypft.grid.PolarGrid` is the space-limited grid of Yao & Baddour, Part II (PeerJ CS 6:e257), Eqs.
+14-15: $\theta_p = 2\pi p / N_2$, $r_{pk} = j_{|p|k} R / j_{|p|N_1}$, $\rho_{qm} = j_{|q|m} / R$. This
+section records how it relates to an ordinary, uniform polar grid, why a uniform polar array must be
+interpolated along each spoke before it is transformed, and why the average dB error alone cannot
+certify accuracy. `tests/test_grid_relationship.py` pins each fact on small grids.
+
+**Same spokes, different radii.** For equal `n_angular`, a uniform polar grid and `PolarGrid` have the
+same uniform, centered spokes. They differ only along each spoke: a uniform grid uses the same radii on
+every spoke; `PolarGrid` uses $r_{pk}$, which depends on the spoke. Away from the center the spacing
+settles to about $\pi R / j_{|p|N_1}$, close to uniform; near the center it is not, there is no sample
+at $r = 0$, and the innermost radius $j_{|p|1} R / j_{|p|N_1}$ grows with $|p|$. At `n_radial=382,
+n_angular=15, R=40`, radial index 10 sits at $r = 1.124$ on spoke $p = 0$ and at $r = 1.458$ on spokes
+$p = \pm 7$. A column of constant radial index is therefore not a ring; Part II itself notes that these
+grids "are not true polar grids in the sense of equispaced sampling".
+
+**The spatial row index is a spoke, not a harmonic.** Row `i` of `PolarGrid.r` holds the radii along
+spoke $\theta_i$, sampled with Bessel order $|p_i|$ of the spoke's own angular sample index $p_i$.
+Harmonics only exist after the angular DFT. The transform identifies the two indices: Part I
+(Mathematics 7(8):698), Eq. 18, computes harmonic $n$ at $r = j_{nk} R / j_{nN_1}$ from samples taken at
+$r = j_{pk} R / j_{pN_1}$, with $p$ the summation index, and calls this "a key assumption" of the
+development, the one that permits the invertibility of the discrete transforms. Appendix A.6 compares it
+with the conventional definition (Eq. A17), which samples harmonic $n$ at its own radii on every spoke
+and does not yield an invertible square transform. The output side mirrors this: frequency-domain spoke
+$q$, filed at $\rho_{qm}$, is assembled from harmonics $n$ evaluated at their own $\rho_{nm}$.
+`PolarGrid.harmonics` is named after this identification; in the space domain it indexes spokes.
+
+**Where the error comes from.** For the centered Gaussian $f = e^{-r^2}$ on the `n_radial=382,
+n_angular=15, R=40` grid, the angular DFT of the on-grid samples has a spurious harmonic $\pm 1$ of
+magnitude 0.060, and its harmonic 0 peaks at 0.939 instead of 1, because the samples of one radial index
+sit at different radii. A circularly symmetric function has no harmonic 1 at all. The discrete Hankel
+transform is not the problem: `hankel_transform` of the exact harmonic-0 samples $e^{-r_{0k}^2}$, scaled
+by $2\pi$, matches $\pi e^{-\rho^2/4}$ to $1.8 \times 10^{-16}$ of its peak.
+
+**Measurements.** A Gaussian centered at $\mathbf{x}_0$, $f = e^{-|\mathbf{x} - \mathbf{x}_0|^2}$, with
+exact transform $\pi e^{-\rho^2/4} e^{-i \boldsymbol{\rho} \cdot \mathbf{x}_0}$ on the grid's own
+$(\rho_{qm}, \psi_q)$. "On grid" samples $f$ at $(r_{pk}, \theta_p)$. "Uniform as-is" samples $f$ at
+`n_radial` uniform radii strictly inside $(0, R)$, the same on every spoke, and feeds them to
+`forward_pft` unchanged. "Uniform, spline" interpolates `n_radial + 1` uniform radii on $[0, R]$ along
+each spoke onto `PolarGrid.r` with a cubic spline (`scipy.interpolate.CubicSpline`). "Ring route" is the
+harmonic-consistent route described below, evaluated on seven spokes. `E_avg` is the mean of
+$20 \log_{10}(|F - F_\text{exact}| / \max|F|)$ over all samples; "rel. L2" is
+$\lVert F - F_\text{exact} \rVert / \lVert F_\text{exact} \rVert$.
+
+| `n_radial` | `n_angular` | `R` | $\mathbf{x}_0$ | on grid `E_avg` | on grid rel. L2 | uniform as-is rel. L2 | uniform, spline rel. L2 | ring route rel. L2 |
+| ---------- | ----------- | --- | -------------- | --------------- | --------------- | --------------------- | ----------------------- | ------------------ |
+| 382        | 15          | 40  | $(0, 0)$       | −63.80 dB       | 0.243           | 0.071                 | 0.243                   | 4.3e-16            |
+| 382        | 15          | 40  | $(2, -1)$      | −86.62 dB       | 0.244           | 0.242                 | 0.244                   | 2.0e-2             |
+| 764        | 15          | 40  | $(2, -1)$      | −106.43 dB      | 0.239           | 0.237                 | 0.239                   | 2.0e-2             |
+| 382        | 15          | 80  | $(2, -1)$      | −64.31 dB       | 0.172           | 0.175                 | 0.172                   | 1.9e-2             |
+| 764        | 15          | 80  | $(2, -1)$      | −86.49 dB       | 0.140           | 0.138                 | 0.140                   | 1.9e-2             |
+| 200        | 63          | 10  | $(0, 0)$       | −68.23 dB       | 1.07            | 1.73                  | 1.07                    | 1.0e-15            |
+| 200        | 63          | 10  | $(2, -1)$      | −98.20 dB       | 2.16            | 2.19                  | 2.16                    | 4.6e-13            |
+| 400        | 63          | 20  | $(2, -1)$      | −96.26 dB       | 1.43            | 1.45                  | 1.43                    | 3.4e-13            |
+| 800        | 63          | 40  | $(2, -1)$      | −95.33 dB       | 0.928           | 0.928                 | 0.928                   | 2.7e-13            |
+
+What the table shows:
+
+- **On-grid samples carry an error of 0.14 to 2.2 in relative L2**, against `E_avg` values between −64
+  and −106 dB. Doubling `n_radial` at fixed `R` improves `E_avg` by about 20 dB and leaves the relative
+  L2 error essentially unchanged (0.244 to 0.239): more radial samples cannot remove it.
+- **The error falls as `R` grows relative to a fixed object**, at a fixed radial sample density
+  (`n_radial / R` constant): 0.244 to 0.140 from `R=40` to `R=80` at `n_angular=15`, and 2.16 to 1.43 to 0.928
+  from `R=10` to `R=20` to `R=40` at `n_angular=63`: a factor of about 0.6 per doubling of `R`, more
+  slowly than $1/R$. For $m \gg |n|$, McMahon's expansion
+  $j_{nm} \approx (m + n/2 - 1/4)\pi$ gives a frequency-side radius offset between spoke $q$ and
+  harmonic $n$ of about $(|n| - |q|)\,\pi / (2R)$, independent of $N_1$, which explains the direction of
+  this trend but not its rate.
+- **Per-spoke interpolation is the bridge from a uniform polar array.** The spline column reproduces the
+  on-grid column to the digits shown in every case. Fed as-is, a uniform polar array is read as if sample
+  $(p, k)$ sat at $r_{pk}$, i.e. as a function warped differently along each spoke. For the centered
+  Gaussian at `n_angular=15` that happens to score *better* (0.071), only because identical radii on
+  every spoke avoid the spurious harmonics of a circularly symmetric function; at `n_angular=63` it
+  scores worse (1.73 against 1.07). Neither is a property of the data.
+- **The ring route shows the error is the identification, not the conventions.** It computes harmonic
+  $n$ from true rings at $r = r_{nk}$ (a 4096-point angular quadrature), applies the order-$|n|$ DHT,
+  and evaluates the result off-grid at each output spoke's own $\rho_{qm}$ through the DHT's
+  Fourier-Bessel expansion,
+  $F_n(\rho) \approx 2\pi i^{-n} s_n \frac{2R^2}{j_{nN}^2} \sum_k \frac{f_n(r_{nk}) J_{|n|}(\rho\, r_{nk})}{J_{|n|+1}^2(j_{|n|k})}$
+  ($s_n$ the negative-order sign), then sums $F_n(\rho_{qm}) e^{in\psi_q}$ over $n$. Every piece is
+  PyPFT's own DHT/DFT math; only the spoke-to-harmonic identification differs, and it reaches rounding
+  error wherever `n_angular` holds enough harmonics for the function (the `n_angular=15` off-center rows
+  stop at 2e-2 from angular truncation). It is not exactly invertible and is not part of the package.
+
+**Why `E_avg` alone is misleading.** `E_avg` averages a logarithm over all samples, so it is dominated by
+the many samples where both the computed and the exact transform are essentially zero. It reports
+−98.20 dB for a case whose relative L2 error is 2.16, an output that is no approximation at all. It
+reproduces Yao & Baddour's published figures and nothing more. `pypft.grid.check_adequacy` is fitted on
+`E_avg` and inherits this limitation. Accuracy statements in this package therefore report the relative
+L2 error alongside `E_avg`.
+
+**The three-part answer** to "can the PFT be applied to a uniformly polar-sampled image?":
+
+1. As a discrete transform, `forward_pft`/`inverse_pft` apply to any `(n_radial, n_angular)` array,
+   uniformly sampled or not: they invert each other exactly, and every discrete rule (orthogonality,
+   shift, convolution, Parseval) holds. Part II states that the transforms can be applied to any matrix.
+2. As an approximation of the continuous 2-D Fourier transform, the input must be samples at
+   $(r_{pk}, \theta_p)$, and the output approximates samples at $(\rho_{qm}, \psi_q)$. A uniform polar
+   image must be interpolated along each spoke onto `PolarGrid.r` first, never fed as-is.
+3. Even on the grid, the approximation carries the identification error above. It is small only when the
+   function's content varies slowly across the per-spoke radius offsets; the relative L2 error, not
+   `E_avg`, is the honest measure of it.
+
 ## Visualization: phase color range is pinned to `[-pi, pi]`
 
 Every phase `imshow` call in `src/pypft/viz.py` pins `vmin`/`vmax` to `[-pi, pi]` explicitly, rather than
