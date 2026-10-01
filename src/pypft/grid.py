@@ -23,11 +23,14 @@ Two consequences matter to anyone sampling data for it:
   itself, which the average dB error ``E_avg`` hides; the relative L2 error shows it.
 
 ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke, and the transform
-identifies it with a harmonic," has the measurements behind both. ``sample_cartesian``
-is the production sampler that evaluates an ordinary image at this grid's points;
-``check_adequacy`` and ``check_nyquist_adequacy`` are empirical/analytical guards that
-warn when a grid's angular and radial sample counts are mismatched, since that
-mismatch degrades accuracy without ever raising an error on its own.
+identifies it with a harmonic," has the measurements behind both. Two functions put
+data on this grid: ``sample_cartesian`` evaluates an ordinary image at the grid's
+points, and ``resample_uniform_polar`` interpolates uniform polar data (a
+``cartesian_to_polar`` result, or an acquisition with equally spaced samples along
+each spoke) along each spoke onto them. ``check_adequacy`` and
+``check_nyquist_adequacy`` are empirical/analytical guards that warn when a grid's
+angular and radial sample counts are mismatched, since that mismatch degrades accuracy
+without ever raising an error on its own.
 
 The angular axis is one-dimensional and shared by both the space and frequency domains
 (``theta``/``psi``): index ``i`` sits at physical angle
@@ -43,8 +46,10 @@ from enum import Enum, auto
 
 import cv2
 import numpy as np
+from scipy.interpolate import CubicSpline
 from scipy.special import jn_zeros
 
+from pypft.axes import Axis
 from pypft.dft import AngularParity, angular_parity
 from pypft.dft import harmonics as _angular_harmonics
 from pypft.dht import sample_points
@@ -55,8 +60,15 @@ from pypft.utils.validators import (
     NumpyValidator,
 )
 
+#: The ranks ``resample_uniform_polar`` accepts: a single ``(radial, angular)``
+#: sample, or a batch with a trailing batch axis.
+_UNIFORM_POLAR_NDIMS = (2, 3)
+
+#: The fewest uniform radial samples a cubic spline can be fitted through.
+_MIN_UNIFORM_RADIAL_SAMPLES = 2
+
 # ======================================================================================
-# The grid's own enum and warning types
+# The grid's own enum, warning and error types
 # ======================================================================================
 
 
@@ -80,6 +92,14 @@ class AdequacyWarning(UserWarning):
 
 class NyquistWarning(UserWarning):
     """Raised when a grid violates the discrete Hankel transform's Nyquist condition."""
+
+
+class AngularUpsamplingWarning(UserWarning):
+    """Raised when uniform polar data has fewer spokes than the grid it is put on."""
+
+
+class RadiusCoverageError(ValueError):
+    """Raised when a grid reaches past the radius that uniform polar data covers."""
 
 
 # ======================================================================================
@@ -276,42 +296,223 @@ def sample_cartesian(image: np.ndarray, grid: PolarGrid) -> np.ndarray:
     )
 
 
+def _uniform_polar_radii(n_radial: int, radius: float) -> np.ndarray:
+    """Compute the radii of a uniform polar array, in ``cartesian_to_polar``'s way.
+
+    ``pypft.geometry.cartesian_to_polar`` places radial sample ``k`` at
+    ``k * radius / n_radial``, ``k = 0 .. n_radial - 1``, with ``radius`` the largest
+    circle inscribed in the image (``min(height, width) / 2``): the first sample is
+    the center itself, and the last falls one step short of ``radius``.
+
+    :param n_radial: The number of uniform radial samples.
+    :type n_radial: int
+    :param radius: The radius the uniform samples cover.
+    :type radius: float
+    :returns: The ``(n_radial,)`` uniform radii.
+    :rtype: np.ndarray
+
+    """
+    return np.arange(n_radial) * (radius / n_radial)
+
+
+def _resample_matching_spokes(
+    values: np.ndarray, grid: PolarGrid, radii: np.ndarray
+) -> np.ndarray:
+    """Interpolate each spoke along the radius alone, onto that spoke's grid radii.
+
+    :param values: The uniform polar array, with exactly ``grid.n_angular`` spokes.
+    :type values: np.ndarray
+    :param grid: The grid to resample onto.
+    :type grid: PolarGrid
+    :param radii: The uniform radii of ``values``' radial axis.
+    :type radii: np.ndarray
+    :returns: The array resampled at ``grid.r``, in the ``(radial, angular[, batch])``
+        layout.
+    :rtype: np.ndarray
+
+    """
+    grid_radii = grid.r
+    spokes = [
+        # One cubic spline per spoke, fitted along the radius (axis 0) of that
+        # spoke's own samples; a complex array is fitted as one complex spline,
+        # so its real and imaginary parts are interpolated together.
+        CubicSpline(x=radii, y=values[:, spoke, ...], axis=0)(grid_radii[spoke])
+        for spoke in range(grid.n_angular)
+    ]
+    return np.stack(arrays=spokes, axis=Axis.ANGULAR)
+
+
+def _resample_other_spokes(
+    values: np.ndarray, grid: PolarGrid, radii: np.ndarray
+) -> np.ndarray:
+    """Interpolate along the radius and, periodically, across the spokes.
+
+    :param values: The uniform polar array, with any number of spokes.
+    :type values: np.ndarray
+    :param grid: The grid to resample onto.
+    :type grid: PolarGrid
+    :param radii: The uniform radii of ``values``' radial axis.
+    :type radii: np.ndarray
+    :returns: The array resampled at ``grid.r``/``grid.theta``, in the
+        ``(radial, angular[, batch])`` layout.
+    :rtype: np.ndarray
+
+    """
+    n_spokes = values.shape[Axis.ANGULAR]
+    # The data's own spokes, in the same centered order as every stored angular axis.
+    angles = _angular_harmonics(n_spokes) * (2.0 * np.pi / n_spokes)
+    # One radial spline through every data spoke (and batch element) at once.
+    radial = CubicSpline(x=radii, y=values, axis=Axis.RADIAL)
+    # A periodic spline needs its first spoke repeated one full turn later.
+    closed_angles = np.append(arr=angles, values=angles[0] + 2.0 * np.pi)
+
+    grid_radii = grid.r
+    spokes = []
+    for spoke, angle in enumerate(grid.theta):
+        # Every data spoke at this grid spoke's radii, then across the spokes at its
+        # angle; a periodic spline wraps any angle onto the data's own turn.
+        on_radii = radial(grid_radii[spoke])
+        closed = np.concatenate((on_radii, on_radii[:, :1, ...]), axis=Axis.ANGULAR)
+        angular = CubicSpline(
+            x=closed_angles, y=closed, axis=Axis.ANGULAR, bc_type="periodic"
+        )
+        spokes.append(angular(angle))
+    return np.stack(arrays=spokes, axis=Axis.ANGULAR)
+
+
+def resample_uniform_polar(
+    values: np.ndarray, grid: PolarGrid, *, radius: float
+) -> np.ndarray:
+    """Interpolate uniform polar data along each spoke onto ``grid``'s sample points.
+
+    ``values`` is on a uniform polar grid: the same equally spaced radii on every
+    spoke, in exactly ``pypft.geometry.cartesian_to_polar``'s convention -- radial
+    sample ``k`` at ``k * radius / n``, ``k = 0 .. n - 1`` for ``n`` uniform radial
+    samples -- and uniform spokes on a centered angular axis. For a
+    ``cartesian_to_polar`` result, ``radius`` is ``min(height, width) / 2`` of the
+    source image, so
+    ``resample_uniform_polar(cartesian_to_polar(image, ...), grid, radius=...)`` is
+    the documented path from a uniform polar image to ``forward_pft``. Sampling the
+    source image directly with ``sample_cartesian`` avoids the second interpolation
+    when the Cartesian image is at hand.
+
+    When ``values`` has exactly ``grid.n_angular`` spokes, they are the grid's own
+    spokes, and each one is interpolated along the radius alone with a cubic spline.
+    Otherwise the spokes are interpolated as well, with a periodic cubic spline
+    across the angle, which adds angular interpolation error on top of the radial
+    one. Either way a complex array is interpolated as one complex spline, its real
+    and imaginary parts together. Grid radii past the last uniform sample, by less
+    than one uniform radial step since the grid stays inside ``grid.R <= radius``,
+    are extrapolated from the outermost spline piece.
+
+    Measured, interpolating along each spoke gives the same ``forward_pft`` result as
+    sampling on the grid directly; see ``DESIGN_NOTES.md``, "Grid: the spatial row
+    index is a spoke, and the transform identifies it with a harmonic."
+
+    :param values: A uniform polar array, ``(radial, angular)`` or a batch
+        ``(radial, angular, batch)``, real or complex, with at least two radial
+        samples and a centered angular axis.
+    :type values: np.ndarray
+    :param grid: The space-limited grid to resample onto.
+    :type grid: PolarGrid
+    :param radius: The radius the uniform samples cover, in the same unit as
+        ``grid.R``.
+    :type radius: float
+    :returns: ``values`` resampled at ``grid.r``/``grid.theta``, of shape
+        ``(grid.n_radial, grid.n_angular[, batch])``: ``forward_pft``'s input shape.
+    :rtype: np.ndarray
+    :raises TypeError: If any argument has the wrong type.
+    :raises ValueError: If ``values`` is not 2-D or 3-D, has fewer than two radial
+        samples, no spokes, or a non-finite element, or ``radius`` is not strictly
+        positive.
+    :raises RadiusCoverageError: If ``grid.R`` exceeds ``radius``: the grid would need
+        samples the data does not have.
+    :raises NotImplementedError: If ``grid.limit_kind`` is not
+        ``LimitKind.SPACE_LIMITED``.
+
+    """
+    NumpyValidator.type_is_ndarray(value=values)
+    NumpyValidator.value_has_ndim_in(value=values, ndims=_UNIFORM_POLAR_NDIMS)
+    NumpyValidator.value_is_finite(value=values)
+    _type_is_polar_grid(value=grid)
+    FloatValidator.type_is_float(value=radius)
+    FloatValidator.value_is_positive(value=radius)
+    if grid.limit_kind is not LimitKind.SPACE_LIMITED:
+        raise NotImplementedError(
+            "resample_uniform_polar only supports LimitKind.SPACE_LIMITED grids"
+        )
+    n_radial, n_spokes = values.shape[Axis.RADIAL], values.shape[Axis.ANGULAR]
+    if n_radial < _MIN_UNIFORM_RADIAL_SAMPLES:
+        raise ValueError(
+            f"values must have at least {_MIN_UNIFORM_RADIAL_SAMPLES} radial samples, "
+            f"got {n_radial}"
+        )
+    if n_spokes == 0:
+        raise ValueError("values must have at least one spoke, got 0")
+    if grid.R > radius:
+        raise RadiusCoverageError(
+            f"grid.R={grid.R} exceeds the radius={radius} the uniform samples cover"
+        )
+    if n_spokes < grid.n_angular:
+        warnings.warn(
+            message=(
+                f"values has {n_spokes} spokes, fewer than grid.n_angular="
+                f"{grid.n_angular}: interpolating across spokes cannot add the "
+                f"angular detail the data does not hold."
+            ),
+            category=AngularUpsamplingWarning,
+            stacklevel=2,
+        )
+
+    radii = _uniform_polar_radii(n_radial=n_radial, radius=radius)
+    if n_spokes == grid.n_angular:
+        return _resample_matching_spokes(values=values, grid=grid, radii=radii)
+    return _resample_other_spokes(values=values, grid=grid, radii=radii)
+
+
 # ======================================================================================
 # Adequacy and Nyquist guards -- warnings, never errors
 # ======================================================================================
 
 #: Coefficients of a log-log least-squares fit of the forward Gaussian oracle's
-#: average dB error to ``(n_angular, n_radial)``, fitted from nine measured
-#: ``(n_angular, n_radial, E_avg)`` points spanning ``n_angular in (15, 32, 64)`` and
-#: ``n_radial in (383, 767, 1535)`` at ``R = 40``. The fit's residual is under 0.6 dB
-#: at every measured point, confirming the relationship is close to log-linear and
-#: separable in this regime: each doubling of ``n_radial`` improves ``E_avg`` by about
-#: 24.5 dB, and each doubling of ``n_angular`` worsens it by about 10.8 dB.
-_ADEQUACY_INTERCEPT_DB = 104.23
-_ADEQUACY_N_ANGULAR_COEFFICIENT_DB = 10.82
-_ADEQUACY_N_RADIAL_COEFFICIENT_DB = -24.51
+#: relative L2 error to ``(n_angular, n_radial)``:
+#: ``log2(error) = intercept + a * log2(n_angular) + b * log2(n_radial)``. Fitted from
+#: nine measured points, ``forward_pft`` of the centered ``exp(-r**2)`` on the grid
+#: against ``pi * exp(-rho**2 / 4)``, spanning ``n_angular in (15, 32, 64)`` and
+#: ``n_radial in (383, 767, 1535)`` at ``R = 40``; ``DESIGN_NOTES.md``, "Grid:
+#: ``check_adequacy`` is fitted on the relative L2 error," lists them. The fit is
+#: within a factor of 1.11 of every measured point (largest residual 0.152 in
+#: ``log2``): each doubling of ``n_radial`` divides the error by about 1.6, and each
+#: doubling of ``n_angular`` multiplies it by about 1.76.
+_ADEQUACY_INTERCEPT_LOG2 = 0.506
+_ADEQUACY_N_ANGULAR_COEFFICIENT = 0.818
+_ADEQUACY_N_RADIAL_COEFFICIENT = -0.687
 
-#: The predicted forward ``E_avg`` (dB) below which a grid is considered adequate --
-#: chosen to match the PFT pipeline's own forward-accuracy acceptance threshold, so
-#: the two stay consistent.
-_ADEQUACY_THRESHOLD_DB = -60.0
+#: The predicted forward relative L2 error above which a grid is reported: Yao &
+#: Baddour's own worked example, ``n_radial=382, n_angular=15, R=40``, measures 0.243
+#: (predicted 0.219), so a grid is flagged when it is predicted to approximate the
+#: continuous transform worse than that reference grid does.
+_ADEQUACY_THRESHOLD = 0.25
 
 
-def _predicted_forward_error_db(n_angular: int, n_radial: int) -> float:
-    """Predict the forward PFT's average dB error for a given grid size.
+def _predicted_forward_relative_l2(n_angular: int, n_radial: int) -> float:
+    """Predict the forward PFT's relative L2 error for a given grid size.
 
     :param n_angular: The number of angular samples.
     :type n_angular: int
     :param n_radial: The number of radial samples.
     :type n_radial: int
-    :returns: The predicted average dB error.
+    :returns: The predicted relative L2 error.
     :rtype: float
 
     """
-    return (
-        _ADEQUACY_INTERCEPT_DB
-        + _ADEQUACY_N_ANGULAR_COEFFICIENT_DB * np.log2(n_angular)
-        + _ADEQUACY_N_RADIAL_COEFFICIENT_DB * np.log2(n_radial)
+    return float(
+        2.0
+        ** (
+            _ADEQUACY_INTERCEPT_LOG2
+            + _ADEQUACY_N_ANGULAR_COEFFICIENT * np.log2(n_angular)
+            + _ADEQUACY_N_RADIAL_COEFFICIENT * np.log2(n_radial)
+        )
     )
 
 
@@ -319,23 +520,23 @@ def check_adequacy(grid: PolarGrid) -> None:
     """Warn if ``grid``'s ``n_radial`` is likely too small for its ``n_angular``.
 
     Raising angular resolution alone destroys accuracy: doubling ``n_angular``
-    without growing ``n_radial`` to match costs about 11 dB, to the point that a
-    high-``n_angular``, modest-``n_radial`` grid's *maximum* dB error can turn
-    positive -- meaning the reconstruction is worse than useless at its worst point.
-    This uses the measured relation (see ``_ADEQUACY_INTERCEPT_DB``'s docstring) to
-    predict the average error and warns, with a suggested ``n_radial``, whenever that
-    prediction is worse than the pipeline's own accuracy target.
+    without growing ``n_radial`` to match multiplies the error by about 1.76, to the
+    point that a high-``n_angular``, modest-``n_radial`` grid's *maximum* dB error can
+    turn positive -- meaning the reconstruction is worse than useless at its worst
+    point. This uses the measured relation (see ``_ADEQUACY_INTERCEPT_LOG2``'s
+    docstring) to predict the forward transform's relative L2 error and warns, with a
+    suggested ``n_radial``, whenever that prediction is worse than the threshold
+    (``_ADEQUACY_THRESHOLD``, the error of Yao & Baddour's own reference grid).
 
-    The fit is on the average dB error ``E_avg`` of a *centered* Gaussian, and
-    ``E_avg`` is dominated by the many samples where both the computed and the exact
-    transform are essentially zero. A grid this check accepts can still give a
-    large relative L2 error: Yao & Baddour's own ``n_radial=382, n_angular=15,
-    R=40`` grid passes, yet transforms a Gaussian with a relative L2 error of about
-    0.24, centered or not; for the off-center one, doubling ``n_radial`` improves
-    ``E_avg`` by about 20 dB and leaves the relative L2 error at 0.24. Silence here
-    is necessary, not sufficient, for an accurate approximation. See
-    ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke, and the transform
-    identifies it with a harmonic."
+    The fit is on the relative L2 error of a *centered* Gaussian of width 1 at
+    ``R = 40``, and the check sees only ``(n_angular, n_radial)``. An off-center
+    function, or an ``R`` that is small relative to the object, can give a larger
+    error than predicted, and that part of the error does not shrink with more radial
+    samples: for a Gaussian centered at ``(2, -1)`` on the ``n_radial=382,
+    n_angular=15, R=40`` grid, doubling ``n_radial`` leaves the relative L2 error at
+    about 0.24. Silence here is necessary, not sufficient, for an accurate
+    approximation. See ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke,
+    and the transform identifies it with a harmonic."
 
     :param grid: The grid to check.
     :type grid: PolarGrid
@@ -343,22 +544,23 @@ def check_adequacy(grid: PolarGrid) -> None:
 
     """
     _type_is_polar_grid(value=grid)
-    predicted = _predicted_forward_error_db(
+    predicted = _predicted_forward_relative_l2(
         n_angular=grid.n_angular, n_radial=grid.n_radial
     )
-    if predicted > _ADEQUACY_THRESHOLD_DB:
+    if predicted > _ADEQUACY_THRESHOLD:
+        # Solve the fit for the n_radial whose predicted error meets the threshold.
         needed_log2_n_radial = (
-            _ADEQUACY_INTERCEPT_DB
-            + _ADEQUACY_N_ANGULAR_COEFFICIENT_DB * np.log2(grid.n_angular)
-            - _ADEQUACY_THRESHOLD_DB
-        ) / -_ADEQUACY_N_RADIAL_COEFFICIENT_DB
+            _ADEQUACY_INTERCEPT_LOG2
+            + _ADEQUACY_N_ANGULAR_COEFFICIENT * np.log2(grid.n_angular)
+            - np.log2(_ADEQUACY_THRESHOLD)
+        ) / -_ADEQUACY_N_RADIAL_COEFFICIENT
         suggested_n_radial = int(np.ceil(2.0**needed_log2_n_radial))
         warnings.warn(
             message=(
                 f"n_radial={grid.n_radial} is likely inadequate for "
-                f"n_angular={grid.n_angular}: predicted forward average error is "
-                f"{predicted:.1f} dB, worse than the {_ADEQUACY_THRESHOLD_DB:.0f} dB "
-                f"target; try n_radial >= {suggested_n_radial}."
+                f"n_angular={grid.n_angular}: predicted forward relative L2 error is "
+                f"{predicted:.2f}, worse than the {_ADEQUACY_THRESHOLD:.2f} target; "
+                f"try n_radial >= {suggested_n_radial}."
             ),
             category=AdequacyWarning,
             stacklevel=2,

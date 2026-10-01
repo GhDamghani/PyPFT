@@ -10,6 +10,8 @@ import pytest
 from PIL import Image
 
 import pypft
+from pypft.dft import harmonics
+from pypft.grid import AdequacyWarning
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _SCRIPT_PATH = _REPO_ROOT / "scripts" / "make_maze.py"
@@ -201,20 +203,22 @@ def test_draw_maze_rejects_wall_thickness_of_a_full_ring() -> None:
         )
 
 
-def test_sample_maze_rejects_n_angular_not_a_multiple_of_the_outer_sectors() -> None:
+def test_sample_maze_on_grid_rejects_n_angular_not_a_sector_multiple() -> None:
     maze = _carve(max_sectors=16)
     grid = pypft.PolarGrid(n_radial=8, n_angular=40, R=1.0)
     with pytest.raises(ValueError):
-        make_maze.sample_maze(maze, grid=grid, maze_fraction=0.95, wall_thickness=0.25)
+        make_maze.sample_maze_on_grid(
+            maze, grid=grid, maze_fraction=0.95, wall_thickness=0.25
+        )
 
 
 @pytest.mark.parametrize("maze_fraction", [0.0, 1.5])
-def test_sample_maze_rejects_maze_fraction_outside_unit_interval(
+def test_sample_maze_on_grid_rejects_maze_fraction_outside_unit_interval(
     maze_fraction: float,
 ) -> None:
     grid = pypft.PolarGrid(n_radial=8, n_angular=48, R=1.0)
     with pytest.raises(ValueError):
-        make_maze.sample_maze(
+        make_maze.sample_maze_on_grid(
             _carve(max_sectors=16),
             grid=grid,
             maze_fraction=maze_fraction,
@@ -222,20 +226,105 @@ def test_sample_maze_rejects_maze_fraction_outside_unit_interval(
         )
 
 
+def _sample_uniform(**kwargs):
+    """Sample a small maze on a uniform polar grid, with overridable arguments."""
+    arguments = {
+        "n_radial": 64,
+        "n_angular": 48,
+        "radius": 1.0,
+        "maze_fraction": 0.95,
+        "wall_thickness": 0.25,
+    }
+    arguments.update(kwargs)
+    return make_maze.sample_maze_uniform_polar(_carve(max_sectors=16), **arguments)
+
+
+def test_sample_maze_uniform_polar_uses_cartesian_to_polar_radii() -> None:
+    """Every spoke holds the maze at ``k * radius / n_radial``, the same radii."""
+    maze = _carve(max_sectors=16)
+    uniform = _sample_uniform()
+    assert uniform.shape == (64, 48)
+    assert uniform.dtype == np.uint8
+    radii = np.arange(64) / 64
+    angles = harmonics(n_angular=48) * (2 * np.pi / 48)
+    expected = make_maze.draw_maze(
+        maze,
+        r=radii[:, np.newaxis],
+        theta=angles[np.newaxis, :],
+        maze_radius=0.95,
+        wall_thickness=0.25,
+    )
+    np.testing.assert_array_equal(uniform, np.round(expected * 255).astype(np.uint8))
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error"),
+    [
+        ({"n_angular": 40}, ValueError),
+        ({"maze_fraction": 1.5}, ValueError),
+        ({"n_radial": 0}, ValueError),
+        ({"n_radial": 64.0}, TypeError),
+        ({"radius": 1}, TypeError),
+        ({"radius": 0.0}, ValueError),
+    ],
+)
+def test_sample_maze_uniform_polar_rejects_invalid_input(
+    kwargs: dict, error: type
+) -> None:
+    with pytest.raises(error):
+        _sample_uniform(**kwargs)
+
+
 # ========================================================================================
 # The committed fixture
 # ========================================================================================
 
 
-def test_defaults_reproduce_committed_fixture(tmp_path: Path) -> None:
-    make_maze.main(argv=["--output-dir", str(tmp_path)])
+def _generate_defaults(output_dir: Path) -> None:
+    """Run the script with its defaults, whose grid ``check_adequacy`` warns about."""
+    with pytest.warns(AdequacyWarning):
+        make_maze.main(argv=["--output-dir", str(output_dir)])
 
-    for filename in (make_maze.POLAR_FILENAME, make_maze.SOURCE_FILENAME):
+
+def test_defaults_reproduce_committed_fixture(tmp_path: Path) -> None:
+    _generate_defaults(output_dir=tmp_path)
+
+    for filename in (
+        make_maze.POLAR_FILENAME,
+        make_maze.UNIFORM_POLAR_FILENAME,
+        make_maze.SOURCE_FILENAME,
+    ):
         generated = np.asarray(Image.open(tmp_path / filename))
         committed = np.asarray(Image.open(_SAMPLES_DIR / filename))
         np.testing.assert_array_equal(generated, committed)
 
-    polar = np.asarray(Image.open(tmp_path / make_maze.POLAR_FILENAME))
-    assert polar.dtype == np.uint8
-    assert polar.shape == (make_maze.DEFAULT_N_RADIAL, make_maze.DEFAULT_N_ANGULAR)
+    for filename in (make_maze.POLAR_FILENAME, make_maze.UNIFORM_POLAR_FILENAME):
+        polar = np.asarray(Image.open(tmp_path / filename))
+        assert polar.dtype == np.uint8
+        assert polar.shape == (make_maze.DEFAULT_N_RADIAL, make_maze.DEFAULT_N_ANGULAR)
     assert (tmp_path / make_maze.CARTESIAN_FILENAME).is_file()
+
+
+#: Measured relative L2 difference between ``forward_pft`` of the resampled uniform
+#: fixture and ``forward_pft`` of the on-grid fixture: 7.8e-3 (7.0e-2 between the
+#: two spatial arrays themselves). The walls are discontinuous, so a cubic spline
+#: rings at every wall a spoke crosses; that, not the transform, is the difference.
+#: Allowed here with a margin of ~2.6x.
+_UNIFORM_FIXTURE_RTOL = 2e-2
+
+
+def test_resampled_uniform_fixture_transforms_like_the_on_grid_fixture() -> None:
+    on_grid = np.asarray(Image.open(_SAMPLES_DIR / make_maze.POLAR_FILENAME))
+    uniform = np.asarray(Image.open(_SAMPLES_DIR / make_maze.UNIFORM_POLAR_FILENAME))
+    grid = pypft.PolarGrid(
+        n_radial=make_maze.DEFAULT_N_RADIAL,
+        n_angular=make_maze.DEFAULT_N_ANGULAR,
+        R=make_maze.DEFAULT_RADIUS,
+    )
+    resampled = pypft.resample_uniform_polar(
+        values=uniform, grid=grid, radius=make_maze.DEFAULT_RADIUS
+    )
+    from_uniform = pypft.forward_pft(f=resampled + 0j, grid=grid)
+    from_grid = pypft.forward_pft(f=on_grid + 0j, grid=grid)
+    difference = np.linalg.norm(from_uniform - from_grid) / np.linalg.norm(from_grid)
+    assert difference < _UNIFORM_FIXTURE_RTOL

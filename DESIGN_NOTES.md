@@ -124,11 +124,18 @@ What the table shows:
   harmonic $n$ of about $(|n| - |q|)\,\pi / (2R)$, independent of $N_1$, which explains the direction of
   this trend but not its rate.
 - **Per-spoke interpolation is the bridge from a uniform polar array.** The spline column reproduces the
-  on-grid column to the digits shown in every case. Fed as-is, a uniform polar array is read as if sample
+  on-grid column to the digits shown in every case. `pypft.grid.resample_uniform_polar` is this
+  interpolation, on uniform radii in `pypft.geometry.cartesian_to_polar`'s convention ($k R / n$,
+  $k = 0, \dots, n - 1$): on the `n_radial=382, n_angular=15, R=40` grid it reproduces the on-grid
+  relative L2 error to three digits (0.243 centered, 0.244 off-center), and on `n_radial=64,
+  n_angular=15, R=10` its `forward_pft` result is within $1.1 \times 10^{-5}$ (relative L2) of the
+  on-grid one. Fed as-is, a uniform polar array is read as if sample
   $(p, k)$ sat at $r_{pk}$, i.e. as a function warped differently along each spoke. For the centered
   Gaussian at `n_angular=15` that happens to score *better* (0.071), only because identical radii on
   every spoke avoid the spurious harmonics of a circularly symmetric function; at `n_angular=63` it
-  scores worse (1.73 against 1.07). Neither is a property of the data.
+  scores worse (1.73 against 1.07). Even the uniform radii matter: with `cartesian_to_polar`'s radii,
+  which start at the center, the same centered case scores 0.196 as-is, and the off-center one 0.249.
+  None of this is a property of the data.
 - **The ring route shows the error is the identification, not the conventions.** It computes harmonic
   $n$ from true rings at $r = r_{nk}$ (a 4096-point angular quadrature), applies the order-$|n|$ DHT,
   and evaluates the result off-grid at each output spoke's own $\rho_{qm}$ through the DHT's
@@ -142,9 +149,9 @@ What the table shows:
 **Why `E_avg` alone is misleading.** `E_avg` averages a logarithm over all samples, so it is dominated by
 the many samples where both the computed and the exact transform are essentially zero. It reports
 −98.20 dB for a case whose relative L2 error is 2.16, an output that is no approximation at all. It
-reproduces Yao & Baddour's published figures and nothing more. `pypft.grid.check_adequacy` is fitted on
-`E_avg` and inherits this limitation. Accuracy statements in this package therefore report the relative
-L2 error alongside `E_avg`.
+reproduces Yao & Baddour's published figures and nothing more, which is why `pypft.grid.check_adequacy`
+is fitted on the relative L2 error instead (next section). Accuracy statements in this package report
+the relative L2 error alongside `E_avg`.
 
 **The three-part answer** to "can the PFT be applied to a uniformly polar-sampled image?":
 
@@ -153,10 +160,43 @@ L2 error alongside `E_avg`.
    shift, convolution, Parseval) holds. Part II states that the transforms can be applied to any matrix.
 2. As an approximation of the continuous 2-D Fourier transform, the input must be samples at
    $(r_{pk}, \theta_p)$, and the output approximates samples at $(\rho_{qm}, \psi_q)$. A uniform polar
-   image must be interpolated along each spoke onto `PolarGrid.r` first, never fed as-is.
+   image must be interpolated along each spoke onto `PolarGrid.r` first
+   (`pypft.grid.resample_uniform_polar`), never fed as-is.
 3. Even on the grid, the approximation carries the identification error above. It is small only when the
    function's content varies slowly across the per-spoke radius offsets; the relative L2 error, not
    `E_avg`, is the honest measure of it.
+
+## Grid: `check_adequacy` is fitted on the relative L2 error
+
+`pypft.grid.check_adequacy` predicts the forward transform's relative L2 error from
+`(n_angular, n_radial)` alone, with a log-log least-squares fit
+$\log_2 e = c_0 + c_1 \log_2 n_\text{angular} + c_2 \log_2 n_\text{radial}$, and warns when the
+prediction exceeds a threshold. The measured quantity is the relative L2 error of `forward_pft` of the
+centered Gaussian $e^{-r^2}$ sampled on the grid, against $\pi e^{-\rho^2/4}$ on the grid's own
+$(\rho_{qm}, \psi_q)$, at `R=40`:
+
+| `n_angular` | `n_radial` = 383 | `n_radial` = 767 | `n_radial` = 1535 |
+| ----------- | ---------------- | ---------------- | ----------------- |
+| 15          | 0.2422           | 0.1261           | 0.0784            |
+| 32          | 0.4343           | 0.2477           | 0.1619            |
+| 64          | 0.6439           | 0.4265           | 0.3052            |
+
+The fit is $c_0 = 0.506$, $c_1 = 0.818$, $c_2 = -0.687$: each doubling of `n_angular` multiplies the
+error by about 1.76, and each doubling of `n_radial` divides it by about 1.6. Its largest residual is
+0.152 in $\log_2$, a factor of 1.11. Smaller grids leave the log-linear regime as the error approaches 1
+(0.67 at `n_radial=95, n_angular=15`, 0.92 at `n_radial=95, n_angular=64`), so they are not fitted.
+
+The threshold is 0.25: Yao & Baddour's own worked example, `n_radial=382, n_angular=15, R=40`, measures
+0.243 (predicted 0.219), so a grid is reported when it is predicted to approximate the continuous
+transform worse than that reference grid does. `n_radial=383, n_angular=64` (predicted 0.72, and
+measured to give a positive `E_max`) warns; the suggested `n_radial` solves the fit for the threshold.
+
+For the centered Gaussian, the error falls with `n_radial`: its exact transform has harmonic 0 alone,
+so only the space-side radius offsets between spokes contribute, and they shrink as the grid gets
+denser. The fit cannot see what the check has no input for. An off-center function also carries the
+frequency-side offset of about $(|n| - |q|)\,\pi / (2R)$, which does not shrink with `n_radial` (0.244
+to 0.239 from doubling it at `R=40`, previous section), and the check does not know `R` relative to the
+object. A grid it accepts can therefore still give a large error; silence is necessary, not sufficient.
 
 ## Visualization: phase color range is pinned to `[-pi, pi]`
 

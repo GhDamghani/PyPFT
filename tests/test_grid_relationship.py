@@ -260,8 +260,8 @@ def test_per_spoke_interpolation_matches_on_grid_sampling(
 #: ``E_avg`` -94.5 dB, relative L2 error 2.14.
 _HIDDEN_ERROR_GRID = PolarGrid(n_radial=64, n_angular=31, R=5.0)
 
-#: The ``E_avg`` the case must stay below: far better than the -60 dB accuracy
-#: target ``pypft.grid.check_adequacy`` uses, with a 14.5 dB margin to the
+#: The ``E_avg`` the case must stay below: far better than the -60 dB forward
+#: accuracy gate of ``tests/test_transform.py``, with a 14.5 dB margin to the
 #: measured value.
 _HIDDEN_ERROR_MAX_DB = -80.0
 
