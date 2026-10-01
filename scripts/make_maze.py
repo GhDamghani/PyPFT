@@ -22,14 +22,28 @@ is naturally described, and best sampled, in polar coordinates. Every sector
 count divides ``n_angular``, so every radial wall lies exactly on a sample
 angle and even the thinnest one is hit by at least one angular sample.
 
-Three files are written to ``--output-dir``, next to each other:
+The maze is sampled twice, once per kind of polar data:
+
+- ``sample_maze_on_grid`` evaluates it at the ``PolarGrid``'s own points, every
+  spoke at its own radii ``grid.r``. This is the exact path: the samples feed
+  ``pypft.forward_pft`` directly, and they are the mainstream fixture.
+- ``sample_maze_uniform_polar`` evaluates it on a uniform polar grid with the
+  same spokes: the same equally spaced radii on every spoke, in
+  ``pypft.cartesian_to_polar``'s convention. This is what uniform polar data
+  looks like, and it goes through ``pypft.resample_uniform_polar`` before
+  ``pypft.forward_pft``.
+
+Four files are written to ``--output-dir``, next to each other:
 
 - ``maze_polar.tif``: the fixture itself, the ``(n_radial, n_angular)`` polar
-  array (walls ``0``, everything else ``255``) as an uncompressed 8-bit
-  grayscale TIFF, ready to feed directly into ``pypft.PolarSpatialSignal``/
-  ``pypft.forward_pft``.
-- ``maze_cartesian.png``: ``pypft.render_cartesian``'s display of that polar
-  signal, for visual reference.
+  array on the ``PolarGrid`` (walls ``0``, everything else ``255``) as an
+  uncompressed 8-bit grayscale TIFF, ready to feed directly into
+  ``pypft.PolarSpatialSignal``/``pypft.forward_pft``.
+- ``maze_uniform_polar.tif``: the same maze on the uniform polar grid with the
+  same ``n_radial``, ``n_angular`` and radius ``R``, in the same format, to be
+  resampled with ``pypft.resample_uniform_polar`` first.
+- ``maze_cartesian.png``: ``pypft.render_cartesian``'s display of the
+  ``PolarGrid`` signal, for visual reference.
 - ``maze_source.png``: the same maze evaluated analytically on an ordinary
   square pixel grid, as an 8-bit grayscale PNG, for comparison against the
   rendering.
@@ -40,13 +54,15 @@ Usage:
         [--radius 1.0] [--maze-fraction 0.95] [--image-size 512] \
         [--output-dir tests/samples]
 
-The committed fixture ``tests/samples/maze_polar.tif`` (with its two PNGs) is
-exactly the output of the defaults:
+The committed fixtures in ``tests/samples/`` are exactly the output of the
+defaults:
 
     uv run python scripts/make_maze.py
 
 ``pypft.check_adequacy`` runs on the requested grid and warns if ``n_radial``
-is too small for ``n_angular``; the default grid raises no warning.
+is too small for ``n_angular``. The default grid warns: the maze is a sharp,
+discontinuous display and regression image, not an accuracy reference, and its
+grid is fixed by the committed fixture.
 """
 
 import argparse
@@ -58,6 +74,7 @@ from matplotlib.figure import Figure
 from PIL import Image
 
 import pypft
+from pypft.dft import harmonics
 from pypft.utils.validators import (
     FloatValidator,
     IntValidator,
@@ -102,6 +119,9 @@ DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[1] / "tests" / "samples"
 
 #: File name of the polar-sampled fixture.
 POLAR_FILENAME = "maze_polar.tif"
+
+#: File name of the maze sampled on a uniform polar grid.
+UNIFORM_POLAR_FILENAME = "maze_uniform_polar.tif"
 
 #: File name of the ``render_cartesian`` display of the fixture.
 CARTESIAN_FILENAME = "maze_cartesian.png"
@@ -424,7 +444,49 @@ def draw_maze(
     return np.where(wall, WALL_VALUE, CORRIDOR_VALUE)
 
 
-def sample_maze(
+def _check_polar_sampling(
+    maze: CircularMaze, *, n_angular: int, maze_fraction: float
+) -> None:
+    """Validate the arguments shared by both polar samplers.
+
+    :param maze: The maze to sample.
+    :type maze: CircularMaze
+    :param n_angular: The number of spokes to sample on.
+    :type n_angular: int
+    :param maze_fraction: Radius of the maze's outer wall, as a fraction of the
+        sampled radius, in ``(0, 1]``.
+    :type maze_fraction: float
+    :raises TypeError: If ``maze_fraction`` is not a float.
+    :raises ValueError: If a sector count of ``maze`` does not divide
+        ``n_angular``, or ``maze_fraction`` is not in ``(0, 1]``.
+
+    """
+    FloatValidator.type_is_float(value=maze_fraction)
+    FloatValidator.value_is_positive(value=maze_fraction)
+    if maze_fraction > 1.0:
+        raise ValueError(
+            f"maze_fraction must be at most 1 (maze inside R), got {maze_fraction}"
+        )
+    if n_angular % maze.sectors[-1] != 0:
+        raise ValueError(
+            f"n_angular={n_angular} must be a multiple of the outermost ring's "
+            f"{maze.sectors[-1]} sectors, so every radial wall lies on a sample angle"
+        )
+
+
+def _to_uint8(values: np.ndarray) -> np.ndarray:
+    """Scale a ``[0, 1]`` maze image to ``[0, 255]`` and cast it to ``uint8``.
+
+    :param values: The maze image, ``WALL_VALUE`` or ``CORRIDOR_VALUE`` everywhere.
+    :type values: np.ndarray
+    :returns: The 8-bit image.
+    :rtype: np.ndarray
+
+    """
+    return np.round(values * _UINT8_MAX).astype(np.uint8)
+
+
+def sample_maze_on_grid(
     maze: CircularMaze,
     *,
     grid: pypft.PolarGrid,
@@ -432,6 +494,9 @@ def sample_maze(
     wall_thickness: float,
 ) -> np.ndarray:
     """Evaluate a maze at a ``PolarGrid``'s own sample points, as an 8-bit array.
+
+    This is the exact path's sampling: every spoke at its own radii ``grid.r``,
+    so the result feeds ``pypft.forward_pft`` directly.
 
     :param maze: The maze to sample.
     :type maze: CircularMaze
@@ -451,17 +516,7 @@ def sample_maze(
         ``grid.n_angular``, or any other argument has an invalid value.
 
     """
-    FloatValidator.type_is_float(value=maze_fraction)
-    FloatValidator.value_is_positive(value=maze_fraction)
-    if maze_fraction > 1.0:
-        raise ValueError(
-            f"maze_fraction must be at most 1 (maze inside R), got {maze_fraction}"
-        )
-    if grid.n_angular % maze.sectors[-1] != 0:
-        raise ValueError(
-            f"n_angular={grid.n_angular} must be a multiple of the outermost ring's "
-            f"{maze.sectors[-1]} sectors, so every radial wall lies on a sample angle"
-        )
+    _check_polar_sampling(maze, n_angular=grid.n_angular, maze_fraction=maze_fraction)
 
     # grid.r is (n_angular, n_radial), one row per sample angle; the fixture is
     # stored in PyPFT's own (radial, angular) layout.
@@ -472,7 +527,68 @@ def sample_maze(
         maze_radius=maze_fraction * grid.R,
         wall_thickness=wall_thickness,
     ).T
-    return np.round(values * _UINT8_MAX).astype(np.uint8)
+    return _to_uint8(values=values)
+
+
+def sample_maze_uniform_polar(
+    maze: CircularMaze,
+    *,
+    n_radial: int,
+    n_angular: int,
+    radius: float,
+    maze_fraction: float,
+    wall_thickness: float,
+) -> np.ndarray:
+    """Evaluate a maze on a uniform polar grid, as an 8-bit array.
+
+    The radii are ``pypft.cartesian_to_polar``'s: sample ``k`` at
+    ``k * radius / n_radial``, ``k = 0 .. n_radial - 1``, the same on every
+    spoke, and the spokes are centered and uniform, so the result is what
+    uniform polar data of this maze looks like. It goes through
+    ``pypft.resample_uniform_polar`` before ``pypft.forward_pft``.
+
+    :param maze: The maze to sample.
+    :type maze: CircularMaze
+    :param n_radial: The number of uniform radial samples.
+    :type n_radial: int
+    :param n_angular: The number of spokes; every sector count of ``maze`` must
+        divide it.
+    :type n_angular: int
+    :param radius: The radius the uniform samples cover.
+    :type radius: float
+    :param maze_fraction: Radius of the maze's outer wall, as a fraction of
+        ``radius``, in ``(0, 1]``.
+    :type maze_fraction: float
+    :param wall_thickness: Wall thickness, as a fraction of one ring's depth.
+    :type wall_thickness: float
+    :returns: The ``(n_radial, n_angular)`` polar array, scaled to ``[0, 255]``
+        and cast to ``uint8``.
+    :rtype: np.ndarray
+    :raises TypeError: If any argument has the wrong type.
+    :raises ValueError: If a sector count of ``maze`` does not divide
+        ``n_angular``, or any other argument has an invalid value.
+
+    """
+    IntValidator.type_is_int(value=n_radial)
+    IntValidator.value_is_positive(value=n_radial)
+    IntValidator.type_is_int(value=n_angular)
+    IntValidator.value_is_positive(value=n_angular)
+    FloatValidator.type_is_float(value=radius)
+    FloatValidator.value_is_positive(value=radius)
+    _check_polar_sampling(maze, n_angular=n_angular, maze_fraction=maze_fraction)
+
+    # Uniform radii down the rows and centered spoke angles across the columns:
+    # PyPFT's (radial, angular) layout, as cartesian_to_polar returns it.
+    radii = np.arange(n_radial) * (radius / n_radial)
+    angles = harmonics(n_angular=n_angular) * (_TURN / n_angular)
+    values = draw_maze(
+        maze,
+        r=radii[:, np.newaxis],
+        theta=angles[np.newaxis, :],
+        maze_radius=maze_fraction * radius,
+        wall_thickness=wall_thickness,
+    )
+    return _to_uint8(values=values)
 
 
 def draw_maze_cartesian(
@@ -522,7 +638,7 @@ def draw_maze_cartesian(
         maze_radius=maze_fraction * radius,
         wall_thickness=wall_thickness,
     )
-    return np.round(values * _UINT8_MAX).astype(np.uint8)
+    return _to_uint8(values=values)
 
 
 # ========================================================================================
@@ -542,11 +658,13 @@ def make_maze(
     maze_fraction: float,
     image_size: int,
     output_dir: Path,
-) -> tuple[Path, Path, Path]:
-    """Generate a maze on a ``PolarGrid`` and write all three files.
+) -> tuple[Path, Path, Path, Path]:
+    """Generate a maze on a ``PolarGrid`` and write all four files.
 
-    Runs ``pypft.check_adequacy`` on the grid, which warns if ``n_radial`` is
-    too small for ``n_angular``.
+    The uniform polar file uses the grid's own ``n_radial``, ``n_angular`` and
+    ``R``, so both polar files hold the same number of samples. Runs
+    ``pypft.check_adequacy`` on the grid, which warns if ``n_radial`` is too
+    small for ``n_angular``.
 
     :param rings: Rings of cells around the courtyard.
     :type rings: int
@@ -569,12 +687,13 @@ def make_maze(
     :type maze_fraction: float
     :param image_size: Side length, in pixels, of the two PNG files.
     :type image_size: int
-    :param output_dir: Directory the three files are written to, created if
+    :param output_dir: Directory the four files are written to, created if
         missing.
     :type output_dir: Path
-    :returns: The paths of ``POLAR_FILENAME``, ``CARTESIAN_FILENAME``, and
-        ``SOURCE_FILENAME`` under ``output_dir``, in that order.
-    :rtype: tuple[Path, Path, Path]
+    :returns: The paths of ``POLAR_FILENAME``, ``UNIFORM_POLAR_FILENAME``,
+        ``CARTESIAN_FILENAME``, and ``SOURCE_FILENAME`` under ``output_dir``, in
+        that order.
+    :rtype: tuple[Path, Path, Path, Path]
     :raises TypeError: If any argument has the wrong type.
     :raises ValueError: If any argument has an invalid value.
     :raises PermissionError: If ``output_dir`` is not writable.
@@ -587,15 +706,24 @@ def make_maze(
     grid = pypft.PolarGrid(n_radial=n_radial, n_angular=n_angular, R=radius)
     pypft.check_adequacy(grid=grid)
 
-    # Carve the maze, then evaluate it on the polar grid and on a pixel grid.
+    # Carve the maze, then evaluate it on the polar grid, on a uniform polar grid
+    # with the same sample counts, and on a pixel grid.
     maze = carve_maze(
         rings=rings,
         inner_sectors=inner_sectors,
         max_sectors=n_angular // SAMPLES_PER_SECTOR,
         seed=seed,
     )
-    polar = sample_maze(
+    polar = sample_maze_on_grid(
         maze, grid=grid, maze_fraction=maze_fraction, wall_thickness=wall_thickness
+    )
+    uniform_polar = sample_maze_uniform_polar(
+        maze,
+        n_radial=n_radial,
+        n_angular=n_angular,
+        radius=radius,
+        maze_fraction=maze_fraction,
+        wall_thickness=wall_thickness,
     )
     source = draw_maze_cartesian(
         maze,
@@ -607,11 +735,15 @@ def make_maze(
 
     output_dir.mkdir(parents=True, exist_ok=True)
     polar_path = output_dir / POLAR_FILENAME
+    uniform_polar_path = output_dir / UNIFORM_POLAR_FILENAME
     cartesian_path = output_dir / CARTESIAN_FILENAME
     source_path = output_dir / SOURCE_FILENAME
 
     # The fixture: an uncompressed 8-bit grayscale TIFF, (n_radial, n_angular).
     Image.fromarray(polar).save(polar_path)
+
+    # The same maze on a uniform polar grid, in the same format.
+    Image.fromarray(uniform_polar).save(uniform_polar_path)
 
     # The Cartesian display of the polar signal. Dropping the "Software" PNG
     # metadata keeps the file independent of the installed matplotlib version.
@@ -624,11 +756,11 @@ def make_maze(
 
     # The maze evaluated directly on the pixel grid.
     Image.fromarray(source).save(source_path)
-    return polar_path, cartesian_path, source_path
+    return polar_path, uniform_polar_path, cartesian_path, source_path
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Parse CLI arguments, generate the maze, and write the three files.
+    """Parse CLI arguments, generate the maze, and write the four files.
 
     :param argv: The command-line arguments, or ``None`` to read
         ``sys.argv[1:]``.
@@ -702,7 +834,7 @@ def main(argv: list[str] | None = None) -> None:
         "--output-dir",
         type=Path,
         default=DEFAULT_OUTPUT_DIR,
-        help="Directory the three files are written to (default: tests/samples/).",
+        help="Directory the four files are written to (default: tests/samples/).",
     )
     args = parser.parse_args(args=argv)
 
