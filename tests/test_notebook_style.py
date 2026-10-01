@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from .conftest import STYLED_NOTEBOOK_PATHS
+from .conftest import NOTEBOOK_PATHS
 
 # ========================================================================================
 # Constants
@@ -133,16 +133,13 @@ def _prose_outside_fences(source: str) -> str:
 # ========================================================================================
 
 
-@pytest.mark.parametrize(
-    argnames="path", argvalues=STYLED_NOTEBOOK_PATHS, ids=lambda p: p.name
-)
-def test_styled_notebook_exists(path: Path) -> None:
-    """Every notebook the style rules name is a real, tracked notebook."""
-    assert path.is_file(), f"{path.name} is listed in STYLED_NOTEBOOK_NAMES but missing"
+def test_notebooks_are_found() -> None:
+    """The notebook glob finds the tutorials, so the lints below never run empty."""
+    assert NOTEBOOK_PATHS, "no notebooks found under notebooks/"
 
 
 @pytest.mark.parametrize(
-    argnames="path", argvalues=STYLED_NOTEBOOK_PATHS, ids=lambda p: p.name
+    argnames="path", argvalues=NOTEBOOK_PATHS, ids=lambda p: p.name
 )
 def test_markdown_is_not_hard_wrapped(path: Path) -> None:
     """Each Markdown paragraph and list item is a single source line."""
@@ -155,7 +152,7 @@ def test_markdown_is_not_hard_wrapped(path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    argnames="path", argvalues=STYLED_NOTEBOOK_PATHS, ids=lambda p: p.name
+    argnames="path", argvalues=NOTEBOOK_PATHS, ids=lambda p: p.name
 )
 def test_math_is_not_typed_as_code(path: Path) -> None:
     """No backticked span in Markdown contains ``^`` or ``_{``."""

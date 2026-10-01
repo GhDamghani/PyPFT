@@ -221,7 +221,7 @@ Tutorial notebooks are read as documentation, top to bottom, so they follow a fe
 - When a cell's point is a shape, a distribution, or an error pattern, plot it; a bare printed number only supplements a figure or serves as a pass/fail check.
 - Describe PyPFT's own conventions only. Don't name the libraries PyPFT uses internally for image resampling, or compare PyPFT's conventions to theirs.
 
-`tests/test_notebook_style.py` checks the first two rules, and `tests/test_no_backend_mentions.py` checks the last one, for each notebook listed in `STYLED_NOTEBOOK_NAMES` in `tests/conftest.py`. `tests/test_no_backend_mentions.py` also checks `README.md`, `CONTRIBUTING.md`, and the pages under `docs/`.
+`tests/test_notebook_style.py` checks the first two rules, and `tests/test_no_backend_mentions.py` checks the last one, for every notebook under `notebooks/`. `tests/test_no_backend_mentions.py` also checks `README.md`, `CONTRIBUTING.md`, and the pages under `docs/`.
 
 ### Spelling
 
