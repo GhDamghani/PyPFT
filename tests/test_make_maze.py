@@ -328,3 +328,74 @@ def test_resampled_uniform_fixture_transforms_like_the_on_grid_fixture() -> None
     from_grid = pypft.forward_pft(f=on_grid + 0j, grid=grid)
     difference = np.linalg.norm(from_uniform - from_grid) / np.linalg.norm(from_grid)
     assert difference < _UNIFORM_FIXTURE_RTOL
+
+
+# ========================================================================================
+# The ring-consistent route's input
+# ========================================================================================
+
+#: Measured relative L2 difference between ``sample_maze_rings`` (the maze evaluated
+#: analytically on true rings) and ``pypft.sample_harmonics_cartesian`` of the same
+#: maze drawn on a 512-pixel grid by ``draw_maze_cartesian``: 0.119. The walls are
+#: discontinuous and a few pixels thick, so bilinear pixel interpolation, and the
+#: half-pixel offset between the drawn grid's center and the sampler's, dominate.
+#: Allowed here with a margin of ~1.7x.
+_RINGS_CARTESIAN_RTOL = 0.2
+
+
+def test_sample_maze_rings_agrees_with_the_cartesian_ring_sampler() -> None:
+    maze = _carve(rings=4, max_sectors=16)
+    n_radial, n_angular, size = 64, 48, 512
+    rings = make_maze.sample_maze_rings(
+        maze,
+        grid=pypft.PolarGrid(n_radial=n_radial, n_angular=n_angular, R=1.0),
+        maze_fraction=0.95,
+        wall_thickness=0.25,
+        n_quadrature=512,
+    )
+    image = make_maze.draw_maze_cartesian(
+        maze, size=size, radius=1.0, maze_fraction=0.95, wall_thickness=0.25
+    )
+    # The same rings in pixels: draw_maze_cartesian spans [-R, R] over size pixels.
+    pixel_grid = pypft.PolarGrid(
+        n_radial=n_radial, n_angular=n_angular, R=(size - 1) / 2
+    )
+    cartesian = pypft.sample_harmonics_cartesian(
+        image=image.astype(np.float64), grid=pixel_grid
+    )
+    assert rings.shape == (n_radial, n_angular)
+    assert rings.dtype == complex
+    difference = np.linalg.norm(cartesian - rings) / np.linalg.norm(rings)
+    assert difference < _RINGS_CARTESIAN_RTOL
+
+
+def test_sample_maze_rings_of_a_real_maze_is_conjugate_symmetric() -> None:
+    grid = pypft.PolarGrid(n_radial=16, n_angular=48, R=1.0)
+    rings = make_maze.sample_maze_rings(
+        _carve(rings=4, max_sectors=16),
+        grid=grid,
+        maze_fraction=0.95,
+        wall_thickness=0.25,
+        n_quadrature=256,
+    )
+    # A real function's harmonics -n and n are complex conjugates; the even grid's
+    # unpaired harmonic -n_angular // 2 is skipped.
+    for column, harmonic in enumerate(grid.harmonics[1:], start=1):
+        partner = int(np.flatnonzero(grid.harmonics == -harmonic)[0])
+        np.testing.assert_allclose(
+            rings[:, column], np.conj(rings[:, partner]), rtol=0, atol=1e-9
+        )
+
+
+@pytest.mark.parametrize(("n_quadrature", "error"), [(0, ValueError), (8.0, TypeError)])
+def test_sample_maze_rings_rejects_invalid_quadrature(
+    n_quadrature: object, error: type
+) -> None:
+    with pytest.raises(error):
+        make_maze.sample_maze_rings(
+            _carve(rings=4, max_sectors=16),
+            grid=pypft.PolarGrid(n_radial=8, n_angular=48, R=1.0),
+            maze_fraction=0.95,
+            wall_thickness=0.25,
+            n_quadrature=n_quadrature,
+        )

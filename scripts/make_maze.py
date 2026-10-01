@@ -33,6 +33,11 @@ The maze is sampled twice, once per kind of polar data:
   looks like, and it goes through ``pypft.resample_uniform_polar`` before
   ``pypft.forward_pft``.
 
+A third helper, ``sample_maze_rings``, computes the maze's angular harmonics on
+each harmonic's own true rings, the input of the ring-consistent route
+(``pypft.forward_pft_ring``). It writes no file: the route's input is generated
+on the fly, so the exact path's ``maze_polar.tif`` stays the only maze fixture.
+
 Four files are written to ``--output-dir``, next to each other:
 
 - ``maze_polar.tif``: the fixture itself, the ``(n_radial, n_angular)`` polar
@@ -128,6 +133,10 @@ CARTESIAN_FILENAME = "maze_cartesian.png"
 
 #: File name of the maze evaluated on a square pixel grid.
 SOURCE_FILENAME = "maze_source.png"
+
+#: Angles evaluated around every ring by ``sample_maze_rings``: the thinnest radial
+#: wall spans a few of them on the outermost ring.
+DEFAULT_RING_QUADRATURE = 1024
 
 #: Angular samples per sector of the outermost ring, at the most: one on the
 #: radial wall at the sector's start, the rest in its corridor.
@@ -589,6 +598,69 @@ def sample_maze_uniform_polar(
         wall_thickness=wall_thickness,
     )
     return _to_uint8(values=values)
+
+
+def sample_maze_rings(
+    maze: CircularMaze,
+    *,
+    grid: pypft.PolarGrid,
+    maze_fraction: float,
+    wall_thickness: float,
+    n_quadrature: int = DEFAULT_RING_QUADRATURE,
+) -> np.ndarray:
+    """Compute a maze's angular harmonics on each harmonic's own true rings.
+
+    This is the ring-consistent route's input (``pypft.forward_pft_ring``'s first
+    stage): harmonic ``n = grid.harmonics[i]`` from the maze evaluated
+    analytically at ``n_quadrature`` equally spaced angles on rings at its own
+    radii (row ``i`` of ``grid.r``), on ``pypft.dft.angular_dft``'s scale, so the
+    result is the values of a ``pypft.PolarSpatialHarmonicSignal``. The maze is on
+    ``sample_maze_on_grid``'s ``[0, 255]`` scale (walls ``0``), so the two routes'
+    results compare directly. Nothing is written to disk: the exact path's
+    ``maze_polar.tif`` stays the only maze fixture.
+
+    :param maze: The maze to sample.
+    :type maze: CircularMaze
+    :param grid: The grid whose harmonics and rings to sample; every sector count
+        of ``maze`` must divide ``grid.n_angular``.
+    :type grid: pypft.PolarGrid
+    :param maze_fraction: Radius of the maze's outer wall, as a fraction of
+        ``grid.R``, in ``(0, 1]``.
+    :type maze_fraction: float
+    :param wall_thickness: Wall thickness, as a fraction of one ring's depth.
+    :type wall_thickness: float
+    :param n_quadrature: The number of angles evaluated around every ring.
+    :type n_quadrature: int
+    :returns: The ``(n_radial, n_angular)`` complex spatial-harmonic array.
+    :rtype: np.ndarray
+    :raises TypeError: If any argument has the wrong type.
+    :raises ValueError: If a sector count of ``maze`` does not divide
+        ``grid.n_angular``, or any other argument has an invalid value.
+
+    """
+    _check_polar_sampling(maze, n_angular=grid.n_angular, maze_fraction=maze_fraction)
+    IntValidator.type_is_int(value=n_quadrature)
+    IntValidator.value_is_positive(value=n_quadrature)
+
+    angles = np.arange(n_quadrature) * (_TURN / n_quadrature)
+    result = np.empty((grid.n_radial, grid.n_angular), dtype=complex)
+    radii = grid.r
+    orders = np.abs(grid.harmonics)
+    for order in np.unique(ar=orders):
+        # Harmonics n and -n share their rings: evaluate the maze once per order,
+        # at every quadrature angle, (radial, angle).
+        rows = np.flatnonzero(a=orders == order)
+        rings = _UINT8_MAX * draw_maze(
+            maze,
+            r=radii[rows[0]][:, np.newaxis],
+            theta=angles[np.newaxis, :],
+            maze_radius=maze_fraction * grid.R,
+            wall_thickness=wall_thickness,
+        )
+        # The quadrature of exp(-i n phi), scaled to an n_angular-point DFT.
+        phases = np.exp(-1j * np.outer(a=angles, b=grid.harmonics[rows]))
+        result[:, rows] = rings @ phases * (grid.n_angular / n_quadrature)
+    return result
 
 
 def draw_maze_cartesian(
