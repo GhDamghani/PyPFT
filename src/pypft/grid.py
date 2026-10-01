@@ -27,7 +27,8 @@ identifies it with a harmonic," has the measurements behind both. Two functions 
 data on this grid: ``sample_cartesian`` evaluates an ordinary image at the grid's
 points, and ``resample_uniform_polar`` interpolates uniform polar data (a
 ``cartesian_to_polar`` result, or an acquisition with equally spaced samples along
-each spoke) along each spoke onto them. ``check_adequacy`` and
+each spoke) along each spoke onto them. ``pypft.ring`` samples on true rings instead,
+for the ring-consistent route that avoids the identification. ``check_adequacy`` and
 ``check_nyquist_adequacy`` are empirical/analytical guards that warn when a grid's
 angular and radial sample counts are mismatched, since that mismatch degrades accuracy
 without ever raising an error on its own.
@@ -315,6 +316,75 @@ def _uniform_polar_radii(n_radial: int, radius: float) -> np.ndarray:
     return np.arange(n_radial) * (radius / n_radial)
 
 
+def _validate_uniform_polar(
+    values: np.ndarray,
+    grid: PolarGrid,
+    radius: float,
+    *,
+    caller: str,
+    stacklevel: int,
+) -> None:
+    """Validate uniform polar data against the grid it is put on.
+
+    Shared by every function that reads uniform polar data onto a grid
+    (``resample_uniform_polar`` here, and ``pypft.ring``'s uniform-polar sampler),
+    so both accept exactly the same input.
+
+    :param values: A uniform polar array, ``(radial, angular)`` or a batch
+        ``(radial, angular, batch)``.
+    :type values: np.ndarray
+    :param grid: The grid the data is put on.
+    :type grid: PolarGrid
+    :param radius: The radius the uniform samples cover.
+    :type radius: float
+    :param caller: The public function's name, for the error messages.
+    :type caller: str
+    :param stacklevel: The ``warnings.warn`` stack level that reaches the user's
+        call: one for this helper, plus one per function between it and that call.
+    :type stacklevel: int
+    :raises TypeError: If any argument has the wrong type.
+    :raises ValueError: If ``values`` is not 2-D or 3-D, has fewer than two radial
+        samples, no spokes, or a non-finite element, or ``radius`` is not strictly
+        positive.
+    :raises RadiusCoverageError: If ``grid.R`` exceeds ``radius``.
+    :raises NotImplementedError: If ``grid.limit_kind`` is not
+        ``LimitKind.SPACE_LIMITED``.
+
+    """
+    NumpyValidator.type_is_ndarray(value=values)
+    NumpyValidator.value_has_ndim_in(value=values, ndims=_UNIFORM_POLAR_NDIMS)
+    NumpyValidator.value_is_finite(value=values)
+    _type_is_polar_grid(value=grid)
+    FloatValidator.type_is_float(value=radius)
+    FloatValidator.value_is_positive(value=radius)
+    if grid.limit_kind is not LimitKind.SPACE_LIMITED:
+        raise NotImplementedError(
+            f"{caller} only supports LimitKind.SPACE_LIMITED grids"
+        )
+    n_radial, n_spokes = values.shape[Axis.RADIAL], values.shape[Axis.ANGULAR]
+    if n_radial < _MIN_UNIFORM_RADIAL_SAMPLES:
+        raise ValueError(
+            f"values must have at least {_MIN_UNIFORM_RADIAL_SAMPLES} radial samples, "
+            f"got {n_radial}"
+        )
+    if n_spokes == 0:
+        raise ValueError("values must have at least one spoke, got 0")
+    if grid.R > radius:
+        raise RadiusCoverageError(
+            f"grid.R={grid.R} exceeds the radius={radius} the uniform samples cover"
+        )
+    if n_spokes < grid.n_angular:
+        warnings.warn(
+            message=(
+                f"values has {n_spokes} spokes, fewer than grid.n_angular="
+                f"{grid.n_angular}: interpolating across spokes cannot add the "
+                f"angular detail the data does not hold."
+            ),
+            category=AngularUpsamplingWarning,
+            stacklevel=stacklevel,
+        )
+
+
 def _resample_matching_spokes(
     values: np.ndarray, grid: PolarGrid, radii: np.ndarray
 ) -> np.ndarray:
@@ -431,39 +501,15 @@ def resample_uniform_polar(
         ``LimitKind.SPACE_LIMITED``.
 
     """
-    NumpyValidator.type_is_ndarray(value=values)
-    NumpyValidator.value_has_ndim_in(value=values, ndims=_UNIFORM_POLAR_NDIMS)
-    NumpyValidator.value_is_finite(value=values)
-    _type_is_polar_grid(value=grid)
-    FloatValidator.type_is_float(value=radius)
-    FloatValidator.value_is_positive(value=radius)
-    if grid.limit_kind is not LimitKind.SPACE_LIMITED:
-        raise NotImplementedError(
-            "resample_uniform_polar only supports LimitKind.SPACE_LIMITED grids"
-        )
+    # stacklevel=3: past the helper and this function, at the user's call.
+    _validate_uniform_polar(
+        values=values,
+        grid=grid,
+        radius=radius,
+        caller="resample_uniform_polar",
+        stacklevel=3,
+    )
     n_radial, n_spokes = values.shape[Axis.RADIAL], values.shape[Axis.ANGULAR]
-    if n_radial < _MIN_UNIFORM_RADIAL_SAMPLES:
-        raise ValueError(
-            f"values must have at least {_MIN_UNIFORM_RADIAL_SAMPLES} radial samples, "
-            f"got {n_radial}"
-        )
-    if n_spokes == 0:
-        raise ValueError("values must have at least one spoke, got 0")
-    if grid.R > radius:
-        raise RadiusCoverageError(
-            f"grid.R={grid.R} exceeds the radius={radius} the uniform samples cover"
-        )
-    if n_spokes < grid.n_angular:
-        warnings.warn(
-            message=(
-                f"values has {n_spokes} spokes, fewer than grid.n_angular="
-                f"{grid.n_angular}: interpolating across spokes cannot add the "
-                f"angular detail the data does not hold."
-            ),
-            category=AngularUpsamplingWarning,
-            stacklevel=2,
-        )
-
     radii = _uniform_polar_radii(n_radial=n_radial, radius=radius)
     if n_spokes == grid.n_angular:
         return _resample_matching_spokes(values=values, grid=grid, radii=radii)

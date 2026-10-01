@@ -24,6 +24,14 @@ from .grid import (
     resample_uniform_polar,
     sample_cartesian,
 )
+from .ring import (
+    evaluate_frequency,
+    evaluate_space,
+    forward_pft_ring,
+    inverse_pft_ring,
+    sample_harmonics_cartesian,
+    sample_harmonics_uniform_polar,
+)
 from .transform import forward_pft, inverse_pft
 from .viz import (
     PFTTrace,
@@ -49,16 +57,22 @@ __all__ = [
     "cartesian_to_polar",
     "check_adequacy",
     "check_nyquist_adequacy",
+    "evaluate_frequency",
+    "evaluate_space",
     "forward_pft",
+    "forward_pft_ring",
     "forward_pft_traced",
     "hankel_transform",
     "inverse_hankel_transform",
     "inverse_pft",
+    "inverse_pft_ring",
     "inverse_pft_traced",
     "plot_signal",
     "polar_to_cartesian",
     "render_cartesian",
     "resample_uniform_polar",
     "sample_cartesian",
+    "sample_harmonics_cartesian",
+    "sample_harmonics_uniform_polar",
     "sample_points",
 ]
