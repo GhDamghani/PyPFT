@@ -33,7 +33,8 @@ As a discrete transform, ``forward_pft``/``inverse_pft`` apply to any
 ``(n_radial, n_angular)`` array and invert each other to rounding error. As an
 approximation of the continuous 2-D Fourier transform, the input must be
 samples at the grid's own ``(r_pk, theta_p)`` -- not a uniform polar array,
-which must first be interpolated along each spoke onto ``PolarGrid.r`` -- and
+which must first be interpolated along each spoke onto ``PolarGrid.r``
+(``pypft.grid.resample_uniform_polar``) -- and
 the output then approximates the transform at ``(rho_qm, psi_q)``. Even on the
 grid, that approximation carries the error of the transform's identification
 of a spoke's angular sample index with a harmonic order, measured by the
@@ -477,7 +478,8 @@ def forward_pft(
     The result is exactly invertible by ``inverse_pft`` for any input. It
     approximates the continuous 2-D Fourier transform at ``grid.rho.T``,
     ``grid.psi`` only when ``f`` holds samples at ``grid.r.T``, ``grid.theta``
-    (a uniform polar array must be interpolated along each spoke first), and
+    (a uniform polar array must be interpolated along each spoke first, with
+    ``pypft.grid.resample_uniform_polar``), and
     even then with the error of identifying each spoke's angular sample index
     with a harmonic order: small for content that varies slowly across the
     per-spoke radius offsets, large otherwise, and hidden by the average dB

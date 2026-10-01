@@ -21,6 +21,7 @@ from .grid import (
     PolarGrid,
     check_adequacy,
     check_nyquist_adequacy,
+    resample_uniform_polar,
     sample_cartesian,
 )
 from .transform import forward_pft, inverse_pft
@@ -57,6 +58,7 @@ __all__ = [
     "plot_signal",
     "polar_to_cartesian",
     "render_cartesian",
+    "resample_uniform_polar",
     "sample_cartesian",
     "sample_points",
 ]

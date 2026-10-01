@@ -11,8 +11,9 @@ same uniform, centered spokes for the same ``n_angular``, but places the radii
 along each spoke differently, from the zeros of ``J_{|p|}`` for that spoke's
 angular sample index ``p`` (``r_pk``), so a uniform polar array is not on it. To
 transform such data as an approximation of the continuous Fourier transform,
-interpolate it along each spoke onto ``PolarGrid.r`` first, or sample the source
-image there directly with ``pypft.grid.sample_cartesian``; see ``DESIGN_NOTES.md``,
+interpolate it along each spoke onto ``PolarGrid.r`` first, with
+``pypft.grid.resample_uniform_polar``, or sample the source image there directly
+with ``pypft.grid.sample_cartesian``; see ``DESIGN_NOTES.md``,
 "Grid: the spatial row index is a spoke, and the transform identifies it with a
 harmonic."
 
@@ -91,9 +92,12 @@ def cartesian_to_polar(image: np.ndarray, n_radial: int, n_angular: int) -> np.n
     """Resample a Cartesian image onto a uniform polar grid.
 
     The radii are equally spaced from the center out to the largest circle inscribed
-    in the image, and the same on every spoke, so each row is a ring. The result is
-    not on a ``pypft.grid.PolarGrid``; interpolate it along each spoke onto
-    ``PolarGrid.r`` before transforming it.
+    in the image, and the same on every spoke, so each row is a ring: radial sample
+    ``k`` sits at ``k * radius / n_radial``, ``k = 0 .. n_radial - 1``, with
+    ``radius = min(height, width) / 2``. The result is not on a
+    ``pypft.grid.PolarGrid``;
+    ``pypft.grid.resample_uniform_polar(polar, grid, radius=min(height, width) / 2)``
+    interpolates it along each spoke onto ``PolarGrid.r`` before transforming it.
 
     :param image: A ``(height, width[, channel])`` Cartesian image.
     :type image: np.ndarray

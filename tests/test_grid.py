@@ -22,10 +22,12 @@ from pypft.grid import (
     LimitKind,
     NyquistWarning,
     PolarGrid,
+    _predicted_forward_relative_l2,
     check_adequacy,
     check_nyquist_adequacy,
     sample_cartesian,
 )
+from pypft.transform import forward_pft
 
 _R = 40.0
 _N_RADIAL = 383
@@ -134,17 +136,44 @@ def test_polar_grid_rejects_wrong_field_types(field, value):
         PolarGrid(**kwargs)
 
 
-def test_check_adequacy_is_silent_for_a_grid_matching_the_pft_forward_gate():
-    """No warning for ``N2=15, N1=383`` -- the forward gate's own parameters."""
+def test_check_adequacy_is_silent_for_the_papers_reference_grid():
+    """No warning for ``N2=15, N1=383``, the reference grid that sets the threshold."""
     check_adequacy(
-        grid=PolarGrid(n_radial=383, n_angular=15, R=_R)
+        grid=PolarGrid(n_radial=382, n_angular=15, R=_R)
     )  # filterwarnings=error catches any warning
 
 
 def test_check_adequacy_warns_for_a_grid_with_positive_measured_e_max():
     """Warns for ``N2=64, N1=383``, the combination measured to give positive E_max."""
-    with pytest.warns(AdequacyWarning, match="n_radial"):
+    with pytest.warns(AdequacyWarning, match="relative L2"):
         check_adequacy(grid=PolarGrid(n_radial=383, n_angular=64, R=_R))
+
+
+def test_check_adequacy_is_silent_at_the_n_radial_it_suggests():
+    """The suggested ``n_radial`` meets the threshold the warning reports."""
+    with pytest.warns(AdequacyWarning) as caught:
+        check_adequacy(grid=PolarGrid(n_radial=383, n_angular=64, R=_R))
+    suggested = int(str(caught[0].message).rsplit(">= ", maxsplit=1)[1].rstrip("."))
+    check_adequacy(grid=PolarGrid(n_radial=suggested, n_angular=64, R=_R))
+
+
+#: The fit's largest measured residual is a factor of 1.11; this allows 1.2.
+_ADEQUACY_FIT_FACTOR = 1.2
+
+
+@pytest.mark.parametrize(
+    argnames=("n_angular", "n_radial"), argvalues=[(15, 383), (32, 383), (15, 767)]
+)
+def test_check_adequacy_fit_predicts_the_measured_relative_l2_error(
+    n_angular: int, n_radial: int
+) -> None:
+    """The fit reproduces a fresh measurement of the centered Gaussian's error."""
+    grid = PolarGrid(n_radial=n_radial, n_angular=n_angular, R=_R)
+    computed = forward_pft(f=np.exp(-(grid.r.T**2)) + 0j, grid=grid)
+    exact = np.pi * np.exp(-(grid.rho.T**2) / 4)
+    measured = np.linalg.norm(computed - exact) / np.linalg.norm(exact)
+    predicted = _predicted_forward_relative_l2(n_angular=n_angular, n_radial=n_radial)
+    assert 1 / _ADEQUACY_FIT_FACTOR < predicted / measured < _ADEQUACY_FIT_FACTOR
 
 
 def test_check_nyquist_adequacy_is_silent_within_the_oracle_band_limit():
