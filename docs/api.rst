@@ -43,6 +43,12 @@ pypft.transform
 .. automodule:: pypft.transform
    :members:
 
+pypft.ring
+----------
+
+.. automodule:: pypft.ring
+   :members:
+
 pypft.domains
 -------------
 
