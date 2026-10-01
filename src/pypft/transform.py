@@ -24,10 +24,22 @@ docstring for the derivation):
 batch])`` array layout (``pypft.axes.Axis``), matching
 ``pypft.geometry.cartesian_to_polar``'s convention -- **not**
 ``pypft.grid.PolarGrid.r``'s/``pypft.grid.sample_cartesian``'s own
-``(angular, radial)`` layout (each row of ``PolarGrid.r`` is one harmonic's
+``(angular, radial)`` layout (each row of ``PolarGrid.r`` is one spoke's
 own radial samples, the natural shape for *building* the grid, not for
 storing a transformed image). Transpose a ``sample_cartesian`` result before
 passing it to ``forward_pft``.
+
+As a discrete transform, ``forward_pft``/``inverse_pft`` apply to any
+``(n_radial, n_angular)`` array and invert each other to rounding error. As an
+approximation of the continuous 2-D Fourier transform, the input must be
+samples at the grid's own ``(r_pk, theta_p)`` -- not a uniform polar array,
+which must first be interpolated along each spoke onto ``PolarGrid.r`` -- and
+the output then approximates the transform at ``(rho_qm, psi_q)``. Even on the
+grid, that approximation carries the error of the transform's identification
+of a spoke's angular sample index with a harmonic order, measured by the
+relative L2 error rather than by the average dB error; see ``DESIGN_NOTES.md``,
+"Grid: the spatial row index is a spoke, and the transform identifies it with
+a harmonic."
 
 Both directions also accept a 3-D ``(radial, angular, batch)`` array, batch
 axis last (``pypft.axes.DEFAULT_BATCH_AXIS``) -- the angular DFT/IDFT already
@@ -462,6 +474,16 @@ def forward_pft(
     transform, and an angular IDFT turns the harmonic axis back into a
     physical angle -- this time the frequency domain's own ``phi``.
 
+    The result is exactly invertible by ``inverse_pft`` for any input. It
+    approximates the continuous 2-D Fourier transform at ``grid.rho.T``,
+    ``grid.psi`` only when ``f`` holds samples at ``grid.r.T``, ``grid.theta``
+    (a uniform polar array must be interpolated along each spoke first), and
+    even then with the error of identifying each spoke's angular sample index
+    with a harmonic order: small for content that varies slowly across the
+    per-spoke radius offsets, large otherwise, and hidden by the average dB
+    error. See ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke,
+    and the transform identifies it with a harmonic."
+
     :param f: The space-domain samples ``f(r, theta)``, on ``grid``'s
         ``(n_radial, n_angular)`` layout (``pypft.axes.Axis``), or a 3-D
         ``(n_radial, n_angular, batch)`` stack of those.
@@ -498,6 +520,12 @@ def inverse_pft(
 
     The exact mirror of ``forward_pft``: ``F(rho, phi) --DFT_phi--> F_n(rho)
     --H_n--> f_n(r) --IDFT_theta--> f(r, theta)``.
+
+    ``inverse_pft(forward_pft(f, grid), grid)`` returns ``f`` to rounding error
+    for any ``f``, which certifies invertibility, never accuracy. Given samples
+    of a continuous transform at ``grid.rho.T``, ``grid.psi``, the result
+    approximates the continuous inverse at ``grid.r.T``, ``grid.theta``, with
+    the same spoke-to-harmonic identification error as ``forward_pft``.
 
     :param F: The frequency-domain samples ``F(rho, phi)``, on ``grid``'s
         ``(n_radial, n_angular)`` layout (``pypft.axes.Axis``), or a 3-D
