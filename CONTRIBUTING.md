@@ -219,9 +219,11 @@ Tutorial notebooks are read as documentation, top to bottom, so they follow a fe
 - Render math with `$...$` inline and `$$...$$` for display equations. Backticks are for Python identifiers only, such as `grid.r` or `forward_pft`, never for formulas.
 - Give every code cell a short comment per logical step (build the grid, sample, transform, compare, plot), so the cell reads on its own.
 - When a cell's point is a shape, a distribution, or an error pattern, plot it; a bare printed number only supplements a figure or serves as a pass/fail check.
+- In a notebook that draws figures, start the first code cell with `%matplotlib inline`, after a one-line comment saying it draws each figure below the cell that makes it, so figures appear inline whatever backend the viewer's kernel defaults to.
+- Label both axes of every plot that shows a quantity. An image panel whose axes carry no quantity, such as a photograph, may leave them unlabeled, as long as its title says what it shows.
 - Describe PyPFT's own conventions only. Don't name the libraries PyPFT uses internally for image resampling, or compare PyPFT's conventions to theirs.
 
-`tests/test_notebook_style.py` checks the first two rules, and `tests/test_no_backend_mentions.py` checks the last one, for every notebook under `notebooks/`. `tests/test_no_backend_mentions.py` also checks `README.md`, `CONTRIBUTING.md`, and the pages under `docs/`.
+`tests/test_notebook_style.py` checks the first two rules and the `%matplotlib inline` rule, and `tests/test_no_backend_mentions.py` checks the last one, for every notebook under `notebooks/`. `tests/test_no_backend_mentions.py` also checks `README.md`, `CONTRIBUTING.md`, and the pages under `docs/`.
 
 ### Spelling
 
