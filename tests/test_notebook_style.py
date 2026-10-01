@@ -1,4 +1,4 @@
-"""Machine-checks two Markdown style rules of the tutorial notebooks.
+"""Machine-checks the style rules of the tutorial notebooks.
 
 - **No hard-wrapped Markdown.** Every paragraph and every list item is one source
   line, so a notebook reads the same whatever width it is displayed at. Two
@@ -8,6 +8,9 @@
 - **Math is rendered, never typed as code.** Backticks mark Python identifiers
   only; a backticked span containing ``^`` or ``_{`` is math that belongs between
   ``$...$`` instead.
+- **Figures are drawn inline.** A notebook that draws figures starts its first code
+  cell with ``%matplotlib inline`` (after any comment lines), whatever backend the
+  viewer's kernel would otherwise default to.
 """
 
 import json
@@ -30,6 +33,13 @@ _TABLE_ROW_PREFIX = "|"
 # A single-backtick inline code span (double-backtick spans are not used in notebooks).
 _CODE_SPAN_PATTERN = re.compile(r"(?<!`)`([^`\n]+)`(?!`)")
 _MATH_IN_CODE_MARKERS = ("^", "_{")
+_INLINE_MAGIC = "%matplotlib inline"
+_COMMENT_PREFIX = "#"
+# Any of these in a code cell means the notebook draws figures.
+_PLOTTING_PATTERN = re.compile(
+    r"\bimport matplotlib\b|\bfrom matplotlib\b|\bplot_signal\(|\.plot\("
+    r"|\brender_cartesian\(|\bvisualize_(?:steps|pipeline)\s*=\s*True"
+)
 
 
 # ========================================================================================
@@ -52,6 +62,46 @@ def _markdown_sources(path: Path) -> list[str]:
         for cell in notebook["cells"]
         if cell["cell_type"] == "markdown"
     ]
+
+
+def _code_sources(notebook: dict) -> list[str]:
+    """Collect the source of every code cell of one parsed notebook.
+
+    :param notebook: A notebook, as parsed from its ``.ipynb`` JSON.
+    :type notebook: dict
+    :returns: One source string per code cell, in cell order.
+    :rtype: list[str]
+
+    """
+    return [
+        "".join(cell["source"])
+        for cell in notebook["cells"]
+        if cell["cell_type"] == "code"
+    ]
+
+
+def _lacks_inline_magic(notebook: dict) -> bool:
+    """Tell whether a notebook draws figures without ``%matplotlib inline`` first.
+
+    :param notebook: A notebook, as parsed from its ``.ipynb`` JSON.
+    :type notebook: dict
+    :returns: ``True`` if some code cell draws figures and the first non-comment,
+        non-blank line of the first code cell is not ``%matplotlib inline``.
+    :rtype: bool
+
+    """
+    sources = _code_sources(notebook=notebook)
+    if not any(_PLOTTING_PATTERN.search(source) for source in sources):
+        return False
+    first_statement = next(
+        (
+            line.strip()
+            for line in sources[0].splitlines()
+            if line.strip() and not line.strip().startswith(_COMMENT_PREFIX)
+        ),
+        None,
+    )
+    return first_statement != _INLINE_MAGIC
 
 
 def _classified_lines(source: str) -> list[tuple[str, str]]:
@@ -193,6 +243,65 @@ def test_math_is_not_typed_as_code(path: Path) -> None:
 def test_wrap_detection(source: str, expected: list[str]) -> None:
     """The wrap check flags only prose continuation lines."""
     assert _wrapped_lines(source=source) == expected
+
+
+@pytest.mark.parametrize(
+    argnames="path", argvalues=NOTEBOOK_PATHS, ids=lambda p: p.name
+)
+def test_figures_are_drawn_inline(path: Path) -> None:
+    """A notebook that draws figures opens with ``%matplotlib inline``."""
+    notebook = json.loads(path.read_text(encoding="utf-8"))
+    assert not _lacks_inline_magic(
+        notebook=notebook
+    ), f"{path.name} draws figures; start its first code cell with {_INLINE_MAGIC}"
+
+
+def _notebook_of(*sources: str) -> dict:
+    """Build a minimal parsed notebook whose code cells hold the given sources.
+
+    :param sources: The source of each code cell, in order.
+    :type sources: str
+    :returns: A notebook dictionary with one code cell per source.
+    :rtype: dict
+
+    """
+    return {
+        "cells": [
+            {"cell_type": "code", "source": source.splitlines(keepends=True)}
+            for source in sources
+        ]
+    }
+
+
+@pytest.mark.parametrize(
+    argnames=("sources", "expected"),
+    argvalues=[
+        (("import matplotlib.pyplot as plt", "plt.show()"), True),
+        (("import numpy as np", "pypft.plot_signal(signal=s)"), True),
+        (("import numpy as np", "signal.plot(ax=ax)"), True),
+        (
+            ("x = 1", "pypft.forward_pft_traced(f=v, grid=g, visualize_steps=True)"),
+            True,
+        ),
+        (("%matplotlib inline\nimport matplotlib.pyplot as plt",), False),
+        (("# Draw figures inline\n%matplotlib inline\n\nimport matplotlib",), False),
+        (("import matplotlib\n%matplotlib inline",), True),
+        (("import numpy as np", "print(np.pi)"), False),
+    ],
+    ids=[
+        "matplotlib-without-magic",
+        "plot-signal-without-magic",
+        "signal-plot-without-magic",
+        "traced-figures-without-magic",
+        "magic-first",
+        "comment-then-magic",
+        "magic-after-import",
+        "no-figures",
+    ],
+)
+def test_inline_magic_detection(sources: tuple[str, ...], expected: bool) -> None:
+    """The inline check flags only figure-drawing notebooks missing the magic."""
+    assert _lacks_inline_magic(notebook=_notebook_of(*sources)) is expected
 
 
 def test_math_in_code_detection_ignores_fences() -> None:
