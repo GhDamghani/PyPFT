@@ -59,9 +59,12 @@ with a centered angular axis: index ``n_angular // 2`` holds angle ``0``.
 The transform's own sampling grid
 ---------------------------------
 
-``pypft.PolarGrid`` is the discrete Hankel transform's *actual* sampling grid --
-order-dependent and non-uniform. Every angular row has its own radial sample positions,
-tied to the zeros of a Bessel function of that row's harmonic order:
+``pypft.PolarGrid`` is the transform's *actual* sampling grid -- uniform in angle,
+non-uniform in radius. Row ``i`` of ``grid.r`` is the spoke at angle ``grid.theta[i]``,
+and its radii come from the zeros of the Bessel function of order
+``abs(grid.harmonics[i])``, the spoke's own angular sample index. The transform
+identifies that index with the harmonic order (Mathematics Part I, Eq. 18), which is
+what makes it exactly invertible:
 
 .. code-block:: python
 
@@ -84,6 +87,41 @@ silently, since neither failure mode raises an error on its own:
 
    pypft.check_adequacy(grid)  # silent for this grid
    pypft.check_adequacy(pypft.PolarGrid(n_radial=383, n_angular=64, R=40.0))  # warns
+
+``check_adequacy`` is fitted on the average dB error, which a grid can pass while its
+relative L2 error stays large (see "Which grid?" below), so its silence is necessary,
+not sufficient, for an accurate approximation.
+
+Which grid?
+~~~~~~~~~~~
+
+Three grids play a role, and they answer different questions:
+
+- **The uniform polar grid** (``cartesian_to_polar``) is what your data is on: the same
+  equally spaced radii on every spoke, i.e. true rings.
+- **The transform's grid** (``PolarGrid``) is where the transform needs its samples if
+  its output is meant to approximate the continuous Fourier transform. It has the same
+  spokes for the same ``n_angular``, but different radii on each spoke, so a row of
+  constant radial index is not a ring.
+- **The bridge** between them is interpolation along each spoke, from the uniform radii
+  onto ``grid.r``. Measured, it gives the same transform as sampling on the grid
+  directly.
+
+So, can the PFT be applied to a uniformly polar-sampled image?
+
+1. *As a discrete transform*, yes: ``forward_pft``/``inverse_pft`` apply to any
+   ``(n_radial, n_angular)`` array and invert each other to rounding error, and every
+   discrete rule (orthogonality, shift, convolution, Parseval) holds.
+2. *As an approximation of the continuous 2-D Fourier transform*, only after
+   interpolating it along each spoke onto ``grid.r``. Fed as-is, a uniform array is read
+   as a function warped differently along each spoke.
+3. *Even on the grid*, the approximation carries the error of identifying a spoke with a
+   harmonic. It is small only for content that varies slowly across the per-spoke radius
+   offsets; report the relative L2 error, not only the average dB error, to see it.
+
+``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke, and the transform
+identifies it with a harmonic," has the measurements, and the
+``02_sampling_grids`` tutorial shows them.
 
 The full PFT/IPFT pipeline
 --------------------------
