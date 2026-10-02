@@ -3,19 +3,19 @@
 ``plot_signal`` renders one ``pypft.domains.BaseSignal`` at a time as a
 (magnitude, phase) pair of images -- a gamma-enhanced magnitude
 (``matplotlib.colors.PowerNorm``, never a hand-rolled ``**gamma``) and a phase
-map. Every domain is assumed complex-valued, ``POLAR_SPATIAL`` and
-``POLAR_SPATIAL_HARMONIC`` included: a full forward-then-inverse round trip can leave
-even a ``POLAR_SPATIAL`` signal with a non-trivial phase, and ``POLAR_SPATIAL_HARMONIC``
+map. Every domain is assumed complex-valued, ``SPATIAL_ANGULAR`` and
+``SPATIAL_HARMONIC`` included: a full forward-then-inverse round trip can leave
+even a ``SPATIAL_ANGULAR`` signal with a non-trivial phase, and ``SPATIAL_HARMONIC``
 is an angular DFT's own coefficients -- generically complex even when the
 space-domain signal being transformed is real (a DFT of real input is only
-symmetric, not real, in general). ``POLAR_SPATIAL``'s own magnitude is
+symmetric, not real, in general). ``SPATIAL_ANGULAR``'s own magnitude is
 additionally rendered in grayscale rather than ``matplotlib``'s default
 colormap, everywhere it is drawn -- both ``plot_signal`` and
 ``render_cartesian`` -- since it is literally a photographic image (see
 ``pypft.grid.sample_cartesian``), unlike every other domain's more abstract
 magnitude. ``render_cartesian`` is the
-display-only counterpart for the two non-harmonic domains (``POLAR_SPATIAL``/
-``POLAR_FREQUENCY``), whose angular axis is a physical angle rather than a harmonic
+display-only counterpart for the two ``*_ANGULAR`` domains (``SPATIAL_ANGULAR``/
+``FREQUENCY_ANGULAR``), whose angular axis is a physical angle rather than a harmonic
 order: it interpolates
 ``pypft.grid.PolarGrid``'s own non-uniform sample points onto an ordinary Cartesian
 pixel grid via ``scipy.interpolate.griddata``, purely so a physical-angle signal can
@@ -57,12 +57,12 @@ from matplotlib.colors import PowerNorm
 from matplotlib.figure import Figure
 from scipy.interpolate import griddata
 
-from pypft.axes import DEFAULT_BATCH_AXIS
+from pypft.axes import DEFAULT_BATCH_AXIS, POLAR_SAMPLE_NDIM
 from pypft.domains import (
     BaseSignal,
-    Domain,
-    PolarFrequencySignal,
-    PolarSpatialSignal,
+    PolarDomain,
+    PolarFrequencyAngularSignal,
+    PolarSpatialAngularSignal,
     _type_is_base_signal,
 )
 from pypft.grid import PolarGrid, _type_is_polar_grid
@@ -73,22 +73,27 @@ from pypft.utils.validators import (
     PathValidator,
 )
 
-#: The two ``Domain`` members whose angular axis is a physical angle rather than a
-#: harmonic order -- the only ones ``render_cartesian`` can meaningfully interpolate
-#: onto a Cartesian grid.
-_PHYSICAL_ANGLE_DOMAINS = (Domain.POLAR_SPATIAL, Domain.POLAR_FREQUENCY)
+#: The two ``PolarDomain`` members whose angular axis is a physical angle rather
+#: than a harmonic order -- the only ones ``render_cartesian`` can meaningfully
+#: interpolate onto a Cartesian grid.
+_PHYSICAL_ANGLE_DOMAINS = (PolarDomain.SPATIAL_ANGULAR, PolarDomain.FREQUENCY_ANGULAR)
+
+#: The suffix every per-system domain enum's class name ends with
+#: (``PolarDomain``); what precedes it names the coordinate system in a trace
+#: label.
+_DOMAIN_ENUM_SUFFIX = "Domain"
 
 #: Gamma applied to every magnitude plot via ``matplotlib.colors.PowerNorm`` --
 #: compresses the large dynamic range typical of a complex-valued signal's
 #: magnitude so structure away from the peak stays visible.
 _MAGNITUDE_GAMMA = 0.3
 
-#: The magnitude colormap for ``Domain.POLAR_SPATIAL`` specifically -- unlike every
-#: other domain's magnitude (an abstract Fourier/harmonic coefficient, left at
-#: ``matplotlib``'s own default colormap), a ``POLAR_SPATIAL`` magnitude is literally a
-#: photographic image (see ``pypft.grid.sample_cartesian``'s own image argument), so
-#: it renders in grayscale to look like one.
-_POLAR_SPATIAL_MAGNITUDE_CMAP = "gray"
+#: The magnitude colormap for ``PolarDomain.SPATIAL_ANGULAR`` specifically --
+#: unlike every other domain's magnitude (an abstract Fourier/harmonic coefficient,
+#: left at ``matplotlib``'s own default colormap), a ``SPATIAL_ANGULAR`` magnitude
+#: is literally a photographic image (see ``pypft.grid.sample_cartesian``'s own
+#: image argument), so it renders in grayscale to look like one.
+_SPATIAL_ANGULAR_MAGNITUDE_CMAP = "gray"
 
 #: The fixed color range for every phase plot -- ``np.angle``'s own output range,
 #: pinned explicitly rather than left to ``matplotlib``'s auto-scaling. See
@@ -99,17 +104,38 @@ _PHASE_VMIN = -np.pi
 _PHASE_VMAX = np.pi
 
 
-def _magnitude_cmap(domain: Domain) -> str | None:
-    """Resolve the magnitude colormap for ``domain`` -- grayscale for ``POLAR_SPATIAL``.
+def _magnitude_cmap(domain: PolarDomain) -> str | None:
+    """Resolve the magnitude colormap for ``domain``: grayscale for one domain only.
 
     :param domain: The signal's own domain.
-    :type domain: pypft.domains.Domain
-    :returns: ``_POLAR_SPATIAL_MAGNITUDE_CMAP`` for ``Domain.POLAR_SPATIAL``, else
-        ``None`` (``matplotlib``'s own default colormap).
+    :type domain: pypft.domains.PolarDomain
+    :returns: ``_SPATIAL_ANGULAR_MAGNITUDE_CMAP`` for
+        ``PolarDomain.SPATIAL_ANGULAR``, else ``None`` (``matplotlib``'s own
+        default colormap).
     :rtype: str | None
 
     """
-    return _POLAR_SPATIAL_MAGNITUDE_CMAP if domain is Domain.POLAR_SPATIAL else None
+    if domain is PolarDomain.SPATIAL_ANGULAR:
+        return _SPATIAL_ANGULAR_MAGNITUDE_CMAP
+    return None
+
+
+def _domain_label(domain: PolarDomain) -> str:
+    """Name ``domain`` uniquely across coordinate systems, for a trace label.
+
+    The coordinate system comes from the domain enum's own class name
+    (``PolarDomain`` -> ``polar``), since a member name alone
+    (``SPATIAL_ANGULAR``) carries no system prefix.
+
+    :param domain: The domain to name.
+    :type domain: pypft.domains.PolarDomain
+    :returns: ``"<system>_<lower-cased member name>"``, e.g.
+        ``"polar_spatial_angular"``.
+    :rtype: str
+
+    """
+    system = type(domain).__name__.removesuffix(_DOMAIN_ENUM_SUFFIX).lower()
+    return f"{system}_{domain.name.lower()}"
 
 
 # ======================================================================================
@@ -129,10 +155,12 @@ def plot_signal(
     """Plot a signal as a (magnitude, phase) pair of images.
 
     Every domain is assumed complex-valued -- see this module's own docstring
-    for why neither ``Domain.POLAR_SPATIAL`` nor ``Domain.POLAR_SPATIAL_HARMONIC`` is an
-    exception, despite both nominally being "spatial."
+    for why neither ``PolarDomain.SPATIAL_ANGULAR`` nor
+    ``PolarDomain.SPATIAL_HARMONIC`` is an exception, despite both nominally
+    being "spatial."
 
-    :param signal: The signal to render. Must be 2-D (no batch axis).
+    :param signal: The signal to render. Must be a single sample (no batch
+        axis).
     :type signal: pypft.domains.BaseSignal
     :param ax: The ``(magnitude_ax, phase_ax)`` pair to render onto, or
         ``None`` to create both.
@@ -140,11 +168,11 @@ def plot_signal(
     :returns: The ``(magnitude_ax, phase_ax)`` pair used.
     :rtype: tuple[Axes, Axes]
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``signal.values`` is not 2-D.
+    :raises ValueError: If ``signal.values`` is not a single sample.
 
     """
     _type_is_base_signal(value=signal)
-    NumpyValidator.value_is_2d(value=signal.values)
+    NumpyValidator.value_has_ndim_in(value=signal.values, ndims=(POLAR_SAMPLE_NDIM,))
     if ax is None:
         _, (magnitude_ax, phase_ax) = plt.subplots(nrows=1, ncols=2, figsize=(8, 4))
     else:
@@ -225,9 +253,9 @@ def render_cartesian(
     unlike the exact transform chain.
 
     :param signal: The physical-angle signal to render -- must be in
-        ``Domain.POLAR_SPATIAL`` or ``Domain.POLAR_FREQUENCY``, the two domains
-        whose angular axis is a physical angle rather than a harmonic order.
-        Must be 2-D (no batch axis).
+        ``PolarDomain.SPATIAL_ANGULAR`` or ``PolarDomain.FREQUENCY_ANGULAR``, the
+        two domains whose angular axis is a physical angle rather than a harmonic
+        order. Must be a single sample (no batch axis).
     :type signal: pypft.domains.BaseSignal
     :param height: The rendered image's height, in pixels.
     :type height: int
@@ -240,17 +268,17 @@ def render_cartesian(
     :rtype: Axes
     :raises TypeError: If any argument has the wrong type.
     :raises ValueError: If ``signal.domain`` is not one of the two
-        physical-angle domains, ``signal.values`` is not 2-D, or
+        physical-angle domains, ``signal.values`` is not a single sample, or
         ``height``/``width`` is not positive.
 
     """
     _type_is_base_signal(value=signal)
     if signal.domain not in _PHYSICAL_ANGLE_DOMAINS:
         raise ValueError(
-            f"signal.domain must be POLAR_SPATIAL or POLAR_FREQUENCY (a physical "
-            f"angle axis), got {signal.domain.name}"
+            f"signal.domain must be SPATIAL_ANGULAR or FREQUENCY_ANGULAR (a "
+            f"physical angle axis), got {signal.domain.name}"
         )
-    NumpyValidator.value_is_2d(value=signal.values)
+    NumpyValidator.value_has_ndim_in(value=signal.values, ndims=(POLAR_SAMPLE_NDIM,))
     IntValidator.type_is_int(value=height)
     IntValidator.value_is_positive(value=height)
     IntValidator.type_is_int(value=width)
@@ -339,7 +367,8 @@ def _trace_figures(
     :param visualize_pipeline: Whether to render one holistic mosaic figure.
     :type visualize_pipeline: bool
     :returns: The figures created and a same-length tuple of labels naming
-        each one (``"step_<domain>"`` or ``"pipeline"``), in the order: the
+        each one (``"step_<system>_<domain>"``, e.g.
+        ``"step_polar_spatial_angular"``, or ``"pipeline"``), in the order: the
         steps (if any), then the pipeline mosaic (if any).
     :rtype: tuple[tuple[Figure, ...], tuple[str, ...]]
 
@@ -349,7 +378,7 @@ def _trace_figures(
     if visualize_steps:
         for signal in signals:
             figures.append(_step_figure(signal=signal))
-            labels.append(f"step_{signal.domain.name.lower()}")
+            labels.append(f"step_{_domain_label(domain=signal.domain)}")
     if visualize_pipeline:
         figures.append(_pipeline_mosaic(signals=signals))
         labels.append("pipeline")
@@ -412,7 +441,7 @@ class PFTTrace:
         The one explicit, opt-in place this module ever writes to disk --
         never called implicitly by ``forward_pft_traced``/``inverse_pft_traced``
         themselves. Each file is named ``"<index>_<label>.png"`` (e.g.
-        ``"00_step_polar_spatial.png"``), using this trace's own
+        ``"00_step_polar_spatial_angular.png"``), using this trace's own
         ``figure_labels``.
 
         :param directory: Where to save each figure -- created, along with any
@@ -451,9 +480,9 @@ def forward_pft_traced(
 ) -> PFTTrace:
     """Compute the forward PFT, recording every domain it passes through.
 
-    Walks ``pypft.domains.PolarSpatialSignal``'s own verified chain
-    (``to_polar_spatial_harmonic`` -> ``to_polar_frequency_harmonic`` ->
-    ``to_polar_frequency``) rather than duplicating
+    Walks ``pypft.domains.PolarSpatialAngularSignal``'s own verified chain
+    (``to_spatial_harmonic`` -> ``to_frequency_harmonic`` ->
+    ``to_frequency_angular``) rather than duplicating
     ``pypft.transform.forward_pft``'s pipeline, so ``values`` is identical to
     calling ``forward_pft`` directly.
 
@@ -462,7 +491,7 @@ def forward_pft_traced(
     :param grid: The sampling grid ``f`` is defined on.
     :type grid: pypft.grid.PolarGrid
     :param batch_axis: The axis of ``f`` holding the batch dimension, only
-        meaningful for a 3-D ``f``.
+        meaningful for a batch.
     :type batch_axis: int
     :param visualize_steps: Whether to render one figure per domain.
     :type visualize_steps: bool
@@ -473,15 +502,15 @@ def forward_pft_traced(
         visualization keywords were set.
     :rtype: PFTTrace
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``f`` is not 2-D or 3-D, or its shape does not
-        match ``grid``.
+    :raises ValueError: If ``f`` is neither a single sample nor a batch, or its
+        shape does not match ``grid``.
 
     """
     _type_is_polar_grid(value=grid)
-    start = PolarSpatialSignal(values=f, grid=grid, batch_axis=batch_axis)
-    harmonic = start.to_polar_spatial_harmonic()
-    frequency = harmonic.to_polar_frequency_harmonic()
-    end = frequency.to_polar_frequency()
+    start = PolarSpatialAngularSignal(values=f, grid=grid, batch_axis=batch_axis)
+    harmonic = start.to_spatial_harmonic()
+    frequency = harmonic.to_frequency_harmonic()
+    end = frequency.to_frequency_angular()
     signals = (start, harmonic, frequency, end)
     figures, figure_labels = _trace_figures(
         signals=signals,
@@ -504,9 +533,9 @@ def inverse_pft_traced(
     """Compute the inverse PFT, recording every domain it passes through.
 
     The exact mirror of ``forward_pft_traced``: walks
-    ``pypft.domains.PolarFrequencySignal``'s own verified chain
-    (``to_polar_frequency_harmonic`` -> ``to_polar_spatial_harmonic`` ->
-    ``to_polar_spatial``), so ``values`` is identical to calling
+    ``pypft.domains.PolarFrequencyAngularSignal``'s own verified chain
+    (``to_frequency_harmonic`` -> ``to_spatial_harmonic`` ->
+    ``to_spatial_angular``), so ``values`` is identical to calling
     ``pypft.transform.inverse_pft`` directly.
 
     :param F: The frequency-domain samples ``F(rho, phi)``; see
@@ -515,7 +544,7 @@ def inverse_pft_traced(
     :param grid: The sampling grid ``F`` is defined on.
     :type grid: pypft.grid.PolarGrid
     :param batch_axis: The axis of ``F`` holding the batch dimension, only
-        meaningful for a 3-D ``F``.
+        meaningful for a batch.
     :type batch_axis: int
     :param visualize_steps: Whether to render one figure per domain.
     :type visualize_steps: bool
@@ -526,15 +555,15 @@ def inverse_pft_traced(
         visualization keywords were set.
     :rtype: PFTTrace
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``F`` is not 2-D or 3-D, or its shape does not
-        match ``grid``.
+    :raises ValueError: If ``F`` is neither a single sample nor a batch, or its
+        shape does not match ``grid``.
 
     """
     _type_is_polar_grid(value=grid)
-    start = PolarFrequencySignal(values=F, grid=grid, batch_axis=batch_axis)
-    harmonic = start.to_polar_frequency_harmonic()
-    space = harmonic.to_polar_spatial_harmonic()
-    end = space.to_polar_spatial()
+    start = PolarFrequencyAngularSignal(values=F, grid=grid, batch_axis=batch_axis)
+    harmonic = start.to_frequency_harmonic()
+    space = harmonic.to_spatial_harmonic()
+    end = space.to_spatial_angular()
     signals = (start, harmonic, space, end)
     figures, figure_labels = _trace_figures(
         signals=signals,

@@ -1,6 +1,13 @@
 """Axis vocabulary and the centered-angular boundary convention.
 
-``Axis`` names PyPFT's ``(radial, angular[, batch])`` array axes.
+``PolarAxis`` names the two sample axes of a polar array, ``(radial,
+angular)``; a batch of samples adds one more axis after them, ``(radial,
+angular, batch)``. The batch axis is not a coordinate of the sample, so it has no
+member of its own: it is always the axis after the sample axes, named only by
+``DEFAULT_BATCH_AXIS``. ``POLAR_SAMPLE_NDIM`` is the rank of a single polar
+sample, which is what tells a sample from a batch; ``_value_is_polar_sample_or_batch``
+is the one rank check every polar-layer entry point shares.
+
 ``_center_angular``/``_uncenter_angular`` implement the one centering
 convention every stored array follows on its angular axis: index ``i`` holds
 the sample whose angle -- or, once transformed, whose harmonic -- is
@@ -16,35 +23,65 @@ from enum import IntEnum
 
 import numpy as np
 
+from pypft.utils.validators import NumpyValidator
 
-class Axis(IntEnum):
-    """Semantic names for PyPFT's array axes.
+
+class PolarAxis(IntEnum):
+    """Semantic names for the sample axes of a polar array.
 
     ``IntEnum`` because the value *is* the ``numpy`` axis index: passing
-    ``Axis.RADIAL`` anywhere a plain ``int`` axis is expected just works.
-    ``isinstance(Axis.RADIAL, int)`` is ``True``, so
+    ``PolarAxis.RADIAL`` anywhere a plain ``int`` axis is expected just works.
+    ``isinstance(PolarAxis.RADIAL, int)`` is ``True``, so
     ``pypft.utils.validators.IntValidator.type_is_int`` already covers every
-    ``axis: Axis | int`` parameter -- such a parameter must not be validated
+    ``axis: PolarAxis | int`` parameter -- such a parameter must not be validated
     with ``EnumValidator.type_is_enum`` first, since that raises on a bare
     ``int``.
+
+    There is deliberately no batch member: the batch axis is the axis after the
+    sample axes, ``DEFAULT_BATCH_AXIS``.
     """
 
     RADIAL = 0
     ANGULAR = 1
-    BATCH = 2
 
+
+POLAR_SAMPLE_NDIM: int = len(PolarAxis)
+"""The rank of a single polar sample, ``(radial, angular)``.
+
+A batch of samples has rank ``POLAR_SAMPLE_NDIM + 1``, ``(radial, angular,
+batch)``, and its batch axis sits at index ``POLAR_SAMPLE_NDIM``.
+"""
 
 DEFAULT_BATCH_AXIS: int = -1
 """The only axis a polar-layer entry point ever defaults.
 
-``-1 == 2 == Axis.BATCH`` for a 3-D ``(radial, angular, batch)`` array, so
-"default to the last axis" and "default to the batch axis" coincide exactly
-where doing so is unambiguous. Low-level generic transforms (e.g.
-``pypft.dht``) separately default their own ``axis`` to ``-1`` for a
-different, purely conventional reason; polar layers never default a
-*transform* axis -- ``Axis.RADIAL``/``Axis.ANGULAR`` are always passed
-explicitly.
+The batch axis is the axis after the sample axes, which on a batch of polar
+samples is also the last axis, so "default to the last axis" and "default to the
+batch axis" coincide. Low-level generic transforms (e.g. ``pypft.dht``)
+separately default their own ``axis`` to ``-1`` for a different, purely
+conventional reason; polar layers never default a *transform* axis --
+``PolarAxis.RADIAL``/``PolarAxis.ANGULAR`` are always passed explicitly.
 """
+
+
+def _value_is_polar_sample_or_batch(value: np.ndarray) -> None:
+    """Value-validator for a single polar sample or a batch of them.
+
+    :param value: The value to be validated.
+    :type value: np.ndarray
+    :raises ValueError: If ``value`` is neither a single sample ``(radial,
+        angular)`` nor a batch ``(radial, angular, batch)``.
+
+    """
+    try:
+        NumpyValidator.value_has_ndim_in(
+            value=value, ndims=(POLAR_SAMPLE_NDIM, POLAR_SAMPLE_NDIM + 1)
+        )
+    except ValueError as error:
+        raise ValueError(
+            "value must be a single sample (radial, angular) or a batch (radial, "
+            f"angular, batch), got a {value.ndim}-D array"
+        ) from error
 
 
 def _center_angular(values: np.ndarray, axis: int) -> np.ndarray:

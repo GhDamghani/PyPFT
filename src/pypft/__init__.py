@@ -1,6 +1,6 @@
 """PyPFT: a polar Fourier transform toolkit for polar-coordinate MR images."""
 
-from .axes import DEFAULT_BATCH_AXIS, Axis
+from .axes import DEFAULT_BATCH_AXIS, POLAR_SAMPLE_NDIM, PolarAxis
 from .dht import (
     DHTImplementation,
     hankel_transform,
@@ -9,11 +9,11 @@ from .dht import (
 )
 from .domains import (
     BaseSignal,
-    Domain,
+    PolarDomain,
+    PolarFrequencyAngularSignal,
     PolarFrequencyHarmonicSignal,
-    PolarFrequencySignal,
+    PolarSpatialAngularSignal,
     PolarSpatialHarmonicSignal,
-    PolarSpatialSignal,
 )
 from .geometry import cartesian_to_polar, polar_to_cartesian
 from .grid import (
@@ -42,18 +42,19 @@ from .viz import (
 )
 
 __all__ = [
-    "Axis",
     "BaseSignal",
     "DEFAULT_BATCH_AXIS",
     "DHTImplementation",
-    "Domain",
     "LimitKind",
     "PFTTrace",
+    "POLAR_SAMPLE_NDIM",
+    "PolarAxis",
+    "PolarDomain",
+    "PolarFrequencyAngularSignal",
     "PolarFrequencyHarmonicSignal",
-    "PolarFrequencySignal",
     "PolarGrid",
+    "PolarSpatialAngularSignal",
     "PolarSpatialHarmonicSignal",
-    "PolarSpatialSignal",
     "cartesian_to_polar",
     "check_adequacy",
     "check_nyquist_adequacy",

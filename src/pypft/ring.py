@@ -32,8 +32,8 @@ invertible: a round trip is an approximation, and the discrete rules of the exac
 measurements and the trade-off.
 
 Every function takes and returns PyPFT's ``(radial, angular[, batch])`` layout
-(``pypft.axes.Axis``), batch axis last, with a centered angular axis, and supports
-``LimitKind.SPACE_LIMITED`` grids only.
+(``pypft.axes.PolarAxis``), batch axis last, with a centered angular axis, and
+supports ``LimitKind.SPACE_LIMITED`` grids only.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -43,7 +43,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.special import jv
 
-from pypft.axes import DEFAULT_BATCH_AXIS, Axis
+from pypft.axes import DEFAULT_BATCH_AXIS, PolarAxis
 from pypft.dft import harmonics as _angular_harmonics
 from pypft.dht._cached import CachedBesselDHT
 from pypft.grid import (
@@ -131,8 +131,8 @@ def _harmonic_coefficients(
     phases = np.exp(-1j * np.outer(a=angles, b=harmonics)) * (n_angular / len(angles))
     # tensordot contracts the ring axis and appends the harmonic axis last;
     # moving it back to position 1 restores the (radial, angular[, batch]) layout.
-    coefficients = np.tensordot(a=rings, b=phases, axes=(Axis.ANGULAR, 0))
-    return np.moveaxis(a=coefficients, source=-1, destination=Axis.ANGULAR)
+    coefficients = np.tensordot(a=rings, b=phases, axes=(PolarAxis.ANGULAR, 0))
+    return np.moveaxis(a=coefficients, source=-1, destination=PolarAxis.ANGULAR)
 
 
 def _off_grid_kernel(
@@ -216,7 +216,7 @@ def _evaluate_on_spokes(
     for order, columns in orders:
         kernel, zeros[order] = CachedBesselDHT._bessel_kernel(n=order, size=size)
         expansion[:, columns, ...] = np.tensordot(
-            a=kernel, b=values[:, columns, ...], axes=(1, Axis.RADIAL)
+            a=kernel, b=values[:, columns, ...], axes=(1, PolarAxis.RADIAL)
         )
 
     result = np.empty(values.shape, dtype=complex)
@@ -240,7 +240,7 @@ def _evaluate_on_spokes(
             )
             # Every harmonic of order_in at the spokes' radii, (radial, k[, batch]).
             at_radii = np.tensordot(
-                a=off_grid, b=expansion[:, columns, ...], axes=(1, Axis.RADIAL)
+                a=off_grid, b=expansion[:, columns, ...], axes=(1, PolarAxis.RADIAL)
             )
             # The inverse angular DFT's own terms, e^{i n psi_q} / n_angular, for
             # these harmonics (rows) at these spokes (columns).
@@ -248,8 +248,8 @@ def _evaluate_on_spokes(
                 np.exp(1j * np.outer(a=harmonics[columns], b=grid.psi[spokes]))
                 / grid.n_angular
             )
-            summed = np.tensordot(a=at_radii, b=phases, axes=(Axis.ANGULAR, 0))
-            total += np.moveaxis(a=summed, source=-1, destination=Axis.ANGULAR)
+            summed = np.tensordot(a=at_radii, b=phases, axes=(PolarAxis.ANGULAR, 0))
+            total += np.moveaxis(a=summed, source=-1, destination=PolarAxis.ANGULAR)
         result[:, spokes, ...] = total
 
     with ThreadPoolExecutor() as pool:
@@ -333,8 +333,8 @@ def sample_harmonics_cartesian(
         batch])``, complex.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``image`` is not 2-D or 3-D or has a non-finite element,
-        or ``n_quadrature`` is not strictly positive.
+    :raises ValueError: If ``image`` is neither a single image nor a batch of them
+        or has a non-finite element, or ``n_quadrature`` is not strictly positive.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
@@ -409,9 +409,9 @@ def sample_harmonics_uniform_polar(
         batch])``, complex.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``values`` is not 2-D or 3-D, has fewer than two radial
-        samples, no spokes, or a non-finite element, or ``radius`` is not strictly
-        positive.
+    :raises ValueError: If ``values`` is neither a single sample nor a batch, has fewer
+        than two radial samples, no spokes, or a non-finite element, or ``radius``
+        is not strictly positive.
     :raises pypft.grid.RadiusCoverageError: If ``grid.R`` exceeds ``radius``.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
@@ -449,12 +449,12 @@ def _sample_harmonics_uniform_polar(
     _validate_uniform_polar(
         values=values, grid=grid, radius=radius, caller=caller, stacklevel=4
     )
-    n_radial, n_spokes = values.shape[Axis.RADIAL], values.shape[Axis.ANGULAR]
+    n_radial, n_spokes = values.shape[PolarAxis.RADIAL], values.shape[PolarAxis.ANGULAR]
     uniform_radii = _uniform_polar_radii(n_radial=n_radial, radius=radius)
     # The data's own spokes, in the same centered order as every stored angular axis.
     angles = _angular_harmonics(n_spokes) * (_TURN / n_spokes)
     # One radial spline through every spoke (and batch element) at once.
-    spline = CubicSpline(x=uniform_radii, y=values, axis=Axis.RADIAL)
+    spline = CubicSpline(x=uniform_radii, y=values, axis=PolarAxis.RADIAL)
 
     result = np.empty((grid.n_radial, grid.n_angular) + values.shape[2:], dtype=complex)
     radii = grid.r
@@ -499,7 +499,7 @@ def _harmonics_from_spokes(values: np.ndarray, grid: PolarGrid) -> np.ndarray:
     """
     radii = grid.rho
     splines = [
-        CubicSpline(x=radii[spoke], y=values[:, spoke, ...], axis=Axis.RADIAL)
+        CubicSpline(x=radii[spoke], y=values[:, spoke, ...], axis=PolarAxis.RADIAL)
         for spoke in range(grid.n_angular)
     ]
     result = np.empty(values.shape, dtype=complex)
@@ -516,7 +516,7 @@ def _harmonics_from_spokes(values: np.ndarray, grid: PolarGrid) -> np.ndarray:
                 )
                 for spoke, spline in enumerate(splines)
             ],
-            axis=Axis.ANGULAR,
+            axis=PolarAxis.ANGULAR,
         )
         result[:, columns, ...] = _harmonic_coefficients(
             rings=rings,
@@ -564,8 +564,8 @@ def evaluate_frequency(
         layout, complex.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``harmonics`` is not 2-D or 3-D, or its shape does not
-        match ``grid``.
+    :raises ValueError: If ``harmonics`` is neither a single sample nor a batch, or
+        its shape does not match ``grid``.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
@@ -602,8 +602,8 @@ def evaluate_space(
         complex.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``harmonics`` is not 2-D or 3-D, or its shape does not
-        match ``grid``.
+    :raises ValueError: If ``harmonics`` is neither a single sample nor a batch, or
+        its shape does not match ``grid``.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
@@ -635,7 +635,7 @@ def forward_pft_ring(
     For control over the input stage (e.g. ``sample_harmonics_cartesian``'s
     ``n_quadrature``), call a sampler directly, step its result along the domain
     chain with ``pypft.domains.PolarSpatialHarmonicSignal``'s
-    ``to_polar_frequency_harmonic``, and pass that signal's values to
+    ``to_frequency_harmonic``, and pass that signal's values to
     ``evaluate_frequency``.
 
     :param values: A Cartesian image ``(height, width[, batch])`` when ``radius`` is
@@ -668,8 +668,8 @@ def forward_pft_ring(
         values=f_n,
         grid=grid,
         direction=Direction.FORWARD,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
     )
     return _evaluate_on_spokes(values=F_n, grid=grid, output=Direction.FORWARD)
 
@@ -711,8 +711,8 @@ def inverse_pft_ring(
         complex.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``F`` is not 2-D or 3-D, has a non-finite element, or its
-        shape does not match ``grid``.
+    :raises ValueError: If ``F`` is neither a single sample nor a batch, has a
+        non-finite element, or its shape does not match ``grid``.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
@@ -725,7 +725,7 @@ def inverse_pft_ring(
         values=F_n,
         grid=grid,
         direction=Direction.INVERSE,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
     )
     return _evaluate_on_spokes(values=f_n, grid=grid, output=Direction.INVERSE)

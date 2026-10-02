@@ -50,7 +50,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy.special import jn_zeros
 
-from pypft.axes import Axis
+from pypft.axes import PolarAxis, _value_is_polar_sample_or_batch
 from pypft.dft import AngularParity, angular_parity
 from pypft.dft import harmonics as _angular_harmonics
 from pypft.dht import sample_points
@@ -60,10 +60,6 @@ from pypft.utils.validators import (
     IntValidator,
     NumpyValidator,
 )
-
-#: The ranks ``resample_uniform_polar`` accepts: a single ``(radial, angular)``
-#: sample, or a batch with a trailing batch axis.
-_UNIFORM_POLAR_NDIMS = (2, 3)
 
 #: The fewest uniform radial samples a cubic spline can be fitted through.
 _MIN_UNIFORM_RADIAL_SAMPLES = 2
@@ -343,16 +339,16 @@ def _validate_uniform_polar(
         call: one for this helper, plus one per function between it and that call.
     :type stacklevel: int
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``values`` is not 2-D or 3-D, has fewer than two radial
-        samples, no spokes, or a non-finite element, or ``radius`` is not strictly
-        positive.
+    :raises ValueError: If ``values`` is neither a single sample nor a batch, has fewer
+        than two radial samples, no spokes, or a non-finite element, or ``radius``
+        is not strictly positive.
     :raises RadiusCoverageError: If ``grid.R`` exceeds ``radius``.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
     """
     NumpyValidator.type_is_ndarray(value=values)
-    NumpyValidator.value_has_ndim_in(value=values, ndims=_UNIFORM_POLAR_NDIMS)
+    _value_is_polar_sample_or_batch(value=values)
     NumpyValidator.value_is_finite(value=values)
     _type_is_polar_grid(value=grid)
     FloatValidator.type_is_float(value=radius)
@@ -361,7 +357,7 @@ def _validate_uniform_polar(
         raise NotImplementedError(
             f"{caller} only supports LimitKind.SPACE_LIMITED grids"
         )
-    n_radial, n_spokes = values.shape[Axis.RADIAL], values.shape[Axis.ANGULAR]
+    n_radial, n_spokes = values.shape[PolarAxis.RADIAL], values.shape[PolarAxis.ANGULAR]
     if n_radial < _MIN_UNIFORM_RADIAL_SAMPLES:
         raise ValueError(
             f"values must have at least {_MIN_UNIFORM_RADIAL_SAMPLES} radial samples, "
@@ -409,7 +405,7 @@ def _resample_matching_spokes(
         CubicSpline(x=radii, y=values[:, spoke, ...], axis=0)(grid_radii[spoke])
         for spoke in range(grid.n_angular)
     ]
-    return np.stack(arrays=spokes, axis=Axis.ANGULAR)
+    return np.stack(arrays=spokes, axis=PolarAxis.ANGULAR)
 
 
 def _resample_other_spokes(
@@ -428,11 +424,11 @@ def _resample_other_spokes(
     :rtype: np.ndarray
 
     """
-    n_spokes = values.shape[Axis.ANGULAR]
+    n_spokes = values.shape[PolarAxis.ANGULAR]
     # The data's own spokes, in the same centered order as every stored angular axis.
     angles = _angular_harmonics(n_spokes) * (2.0 * np.pi / n_spokes)
     # One radial spline through every data spoke (and batch element) at once.
-    radial = CubicSpline(x=radii, y=values, axis=Axis.RADIAL)
+    radial = CubicSpline(x=radii, y=values, axis=PolarAxis.RADIAL)
     # A periodic spline needs its first spoke repeated one full turn later.
     closed_angles = np.append(arr=angles, values=angles[0] + 2.0 * np.pi)
 
@@ -442,12 +438,14 @@ def _resample_other_spokes(
         # Every data spoke at this grid spoke's radii, then across the spokes at its
         # angle; a periodic spline wraps any angle onto the data's own turn.
         on_radii = radial(grid_radii[spoke])
-        closed = np.concatenate((on_radii, on_radii[:, :1, ...]), axis=Axis.ANGULAR)
+        closed = np.concatenate(
+            (on_radii, on_radii[:, :1, ...]), axis=PolarAxis.ANGULAR
+        )
         angular = CubicSpline(
-            x=closed_angles, y=closed, axis=Axis.ANGULAR, bc_type="periodic"
+            x=closed_angles, y=closed, axis=PolarAxis.ANGULAR, bc_type="periodic"
         )
         spokes.append(angular(angle))
-    return np.stack(arrays=spokes, axis=Axis.ANGULAR)
+    return np.stack(arrays=spokes, axis=PolarAxis.ANGULAR)
 
 
 def resample_uniform_polar(
@@ -492,9 +490,9 @@ def resample_uniform_polar(
         ``(grid.n_radial, grid.n_angular[, batch])``: ``forward_pft``'s input shape.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``values`` is not 2-D or 3-D, has fewer than two radial
-        samples, no spokes, or a non-finite element, or ``radius`` is not strictly
-        positive.
+    :raises ValueError: If ``values`` is neither a single sample nor a batch, has fewer
+        than two radial samples, no spokes, or a non-finite element, or ``radius``
+        is not strictly positive.
     :raises RadiusCoverageError: If ``grid.R`` exceeds ``radius``: the grid would need
         samples the data does not have.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
@@ -509,7 +507,7 @@ def resample_uniform_polar(
         caller="resample_uniform_polar",
         stacklevel=3,
     )
-    n_radial, n_spokes = values.shape[Axis.RADIAL], values.shape[Axis.ANGULAR]
+    n_radial, n_spokes = values.shape[PolarAxis.RADIAL], values.shape[PolarAxis.ANGULAR]
     radii = _uniform_polar_radii(n_radial=n_radial, radius=radius)
     if n_spokes == grid.n_angular:
         return _resample_matching_spokes(values=values, grid=grid, radii=radii)

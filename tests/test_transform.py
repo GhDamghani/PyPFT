@@ -14,7 +14,8 @@ positive at an inadequate grid size, so every gate below checks the
 import numpy as np
 import pytest
 
-from pypft.axes import Axis
+from pypft.axes import PolarAxis
+from pypft.dft import angular_dft, inverse_angular_dft
 from pypft.grid import PolarGrid, sample_cartesian
 from pypft.transform import (
     Direction,
@@ -173,7 +174,7 @@ def test_scaled_hankel_agrees_between_axis_placements():
 
 
 # ======================================================================================
-# 3-D batching
+# Batches of samples
 # ======================================================================================
 
 _BATCH_GRID = PolarGrid(n_radial=40, n_angular=15, R=_R)
@@ -186,7 +187,7 @@ def _random_batch(rng: np.random.Generator, batch: int) -> np.ndarray:
     return rng.standard_normal(shape) + 1j * rng.standard_normal(shape)
 
 
-def test_forward_pft_of_a_3d_batch_matches_looping_the_2d_case():
+def test_forward_pft_of_a_batch_matches_looping_over_its_samples():
     """A batched ``forward_pft`` call matches transforming each slice on its own."""
     rng = np.random.default_rng(10)
     f = _random_batch(rng, _BATCH_SIZE)
@@ -200,7 +201,7 @@ def test_forward_pft_of_a_3d_batch_matches_looping_the_2d_case():
     np.testing.assert_allclose(batched, looped, rtol=1e-10, atol=1e-10)
 
 
-def test_inverse_pft_of_a_3d_batch_matches_looping_the_2d_case():
+def test_inverse_pft_of_a_batch_matches_looping_over_its_samples():
     """A batched ``inverse_pft`` call matches transforming each slice on its own."""
     rng = np.random.default_rng(11)
     F = _random_batch(rng, _BATCH_SIZE)
@@ -214,8 +215,8 @@ def test_inverse_pft_of_a_3d_batch_matches_looping_the_2d_case():
     np.testing.assert_allclose(batched, looped, rtol=1e-10, atol=1e-10)
 
 
-def test_forward_pft_batch_of_one_matches_the_2d_result():
-    """A length-1 batch axis reproduces the plain 2-D result exactly."""
+def test_forward_pft_batch_of_one_matches_the_single_sample_result():
+    """A length-1 batch axis reproduces the single-sample result exactly."""
     rng = np.random.default_rng(12)
     f = rng.standard_normal((_BATCH_GRID.n_radial, _BATCH_GRID.n_angular))
 
@@ -225,22 +226,58 @@ def test_forward_pft_batch_of_one_matches_the_2d_result():
     np.testing.assert_allclose(batched[..., 0], plain, rtol=1e-12, atol=1e-12)
 
 
-def test_forward_pft_rejects_a_batch_axis_on_2d_input():
-    """A 2-D array has no batch axis to place -- passing one is a caller error."""
+def test_forward_pft_rejects_a_batch_axis_on_a_single_sample():
+    """A single sample has no batch axis to place -- passing one is a caller error."""
     f = np.zeros((_BATCH_GRID.n_radial, _BATCH_GRID.n_angular))
     with pytest.raises(ValueError):
         forward_pft(f=f, grid=_BATCH_GRID, batch_axis=0)
 
 
 def test_forward_pft_rejects_a_batch_axis_that_is_not_last():
-    """PyPFT's own layout always places the batch axis last (Axis.BATCH)."""
+    """PyPFT's own layout always places the batch axis after the sample axes."""
     f = np.zeros((_BATCH_GRID.n_radial, _BATCH_GRID.n_angular, _BATCH_SIZE))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="after the sample axes"):
         forward_pft(f=f, grid=_BATCH_GRID, batch_axis=0)
 
 
+def test_a_batch_round_trips():
+    """``inverse_pft(forward_pft(f))`` returns every sample of a batch."""
+    rng = np.random.default_rng(15)
+    f = _random_batch(rng, _BATCH_SIZE)
+
+    round_tripped = inverse_pft(F=forward_pft(f=f, grid=_BATCH_GRID), grid=_BATCH_GRID)
+
+    # The DHT's own self-inverse residual grows with order (tests/dht/tolerance.py);
+    # the highest harmonic order here is n_angular // 2 == 7.
+    np.testing.assert_allclose(round_tripped, f, rtol=1e-4, atol=1e-4)
+
+
+#: Neither a single sample nor a batch: a bare radial line, and a batch with one
+#: extra axis.
+_WRONG_RANK_SHAPES = [
+    (_BATCH_GRID.n_radial,),
+    (_BATCH_GRID.n_radial, _BATCH_GRID.n_angular, _BATCH_SIZE, 2),
+]
+
+#: What every polar entry point says when given any other rank.
+_WRONG_RANK_MESSAGE = (
+    r"a single sample \(radial, angular\) or a batch \(radial, angular, batch\)"
+)
+
+
+@pytest.mark.parametrize(argnames="shape", argvalues=_WRONG_RANK_SHAPES)
+@pytest.mark.parametrize(
+    argnames=("transform", "argument"),
+    argvalues=[(forward_pft, "f"), (inverse_pft, "F")],
+)
+def test_any_other_rank_raises_naming_sample_and_batch(transform, argument, shape):
+    """A 4-D (or 1-D) array is neither a sample nor a batch, and says so."""
+    with pytest.raises(ValueError, match=_WRONG_RANK_MESSAGE):
+        transform(**{argument: np.zeros(shape=shape)}, grid=_BATCH_GRID)
+
+
 @pytest.mark.parametrize("implementation", list(PFTImplementation))
-def test_scaled_hankel_implementations_agree_on_a_2d_input(implementation):
+def test_scaled_hankel_implementations_agree_on_a_single_sample(implementation):
     """``HARMONIC_LOOP`` and ``STACKED_KERNEL`` compute the exact same result."""
     rng = np.random.default_rng(13)
     values = rng.standard_normal(
@@ -251,24 +288,24 @@ def test_scaled_hankel_implementations_agree_on_a_2d_input(implementation):
         values=values,
         grid=_BATCH_GRID,
         direction=Direction.FORWARD,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
         implementation=implementation,
     )
     reference = scaled_hankel(
         values=values,
         grid=_BATCH_GRID,
         direction=Direction.FORWARD,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
         implementation=PFTImplementation.HARMONIC_LOOP,
     )
     np.testing.assert_allclose(result, reference, rtol=1e-10, atol=1e-10)
 
 
 @pytest.mark.parametrize("implementation", list(PFTImplementation))
-def test_scaled_hankel_implementations_agree_on_a_3d_batch(implementation):
-    """The two implementations also agree with a trailing batch axis present."""
+def test_scaled_hankel_implementations_agree_on_a_batch(implementation):
+    """The two implementations also agree on a batch of samples."""
     rng = np.random.default_rng(14)
     values = _random_batch(rng, _BATCH_SIZE)
 
@@ -276,16 +313,114 @@ def test_scaled_hankel_implementations_agree_on_a_3d_batch(implementation):
         values=values,
         grid=_BATCH_GRID,
         direction=Direction.INVERSE,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
         implementation=implementation,
     )
     reference = scaled_hankel(
         values=values,
         grid=_BATCH_GRID,
         direction=Direction.INVERSE,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
         implementation=PFTImplementation.HARMONIC_LOOP,
     )
     np.testing.assert_allclose(result, reference, rtol=1e-10, atol=1e-10)
+
+
+# ======================================================================================
+# Axis flexibility of the steps under forward_pft/inverse_pft
+# ======================================================================================
+
+#: Where the radial and angular axes sit in a 4-D layout unlike the polar one: the
+#: harmonic axis last, the radial axis second, two other axes around them.
+_FLEXIBLE_RADIAL_AXIS = 1
+_FLEXIBLE_ANGULAR_AXIS = 3
+_FLEXIBLE_EXTRA_SHAPE = (3, 2)
+
+
+def _flexible_layout(values: np.ndarray) -> np.ndarray:
+    """Lay a ``(radial, angular, 3, 2)`` array out as ``(3, radial, 2, angular)``."""
+    return np.moveaxis(
+        a=values,
+        source=(PolarAxis.RADIAL, PolarAxis.ANGULAR, 2, 3),
+        destination=(_FLEXIBLE_RADIAL_AXIS, _FLEXIBLE_ANGULAR_AXIS, 0, 2),
+    )
+
+
+def _random_flexible_values(rng: np.random.Generator) -> np.ndarray:
+    """A random complex ``(radial, angular, 3, 2)`` array on ``_BATCH_GRID``."""
+    shape = (_BATCH_GRID.n_radial, _BATCH_GRID.n_angular) + _FLEXIBLE_EXTRA_SHAPE
+    return rng.standard_normal(shape) + 1j * rng.standard_normal(shape)
+
+
+@pytest.mark.parametrize("direction", list(Direction))
+@pytest.mark.parametrize("implementation", list(PFTImplementation))
+def test_scaled_hankel_gives_the_same_result_in_any_axis_layout(
+    implementation, direction
+):
+    """Moving the radial/harmonic axes elsewhere in an N-D array moves the result."""
+    rng = np.random.default_rng(16)
+    values = _random_flexible_values(rng)
+
+    polar = scaled_hankel(
+        values=values,
+        grid=_BATCH_GRID,
+        direction=direction,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
+        implementation=implementation,
+    )
+    flexible = scaled_hankel(
+        values=_flexible_layout(values=values),
+        grid=_BATCH_GRID,
+        direction=direction,
+        axis=_FLEXIBLE_RADIAL_AXIS,
+        angular_axis=_FLEXIBLE_ANGULAR_AXIS,
+        implementation=implementation,
+    )
+    np.testing.assert_allclose(
+        flexible, _flexible_layout(values=polar), rtol=1e-12, atol=1e-12
+    )
+
+
+def test_scaled_hankel_on_n_d_input_matches_looping_over_the_other_axes():
+    """Every axis but the radial and harmonic ones is carried along unchanged."""
+    rng = np.random.default_rng(17)
+    values = _random_flexible_values(rng)
+
+    batched = scaled_hankel(
+        values=values,
+        grid=_BATCH_GRID,
+        direction=Direction.FORWARD,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
+    )
+    for i, j in np.ndindex(*_FLEXIBLE_EXTRA_SHAPE):
+        single = scaled_hankel(
+            values=values[:, :, i, j],
+            grid=_BATCH_GRID,
+            direction=Direction.FORWARD,
+            axis=PolarAxis.RADIAL,
+            angular_axis=PolarAxis.ANGULAR,
+        )
+        np.testing.assert_allclose(batched[:, :, i, j], single, rtol=1e-12, atol=1e-12)
+
+
+@pytest.mark.parametrize(
+    argnames=("transform", "argument"),
+    argvalues=[(angular_dft, "x"), (inverse_angular_dft, "X")],
+)
+def test_the_angular_dft_gives_the_same_result_in_any_axis_layout(transform, argument):
+    """The angular DFT/IDFT follow their angular axis wherever it sits."""
+    rng = np.random.default_rng(18)
+    values = _random_flexible_values(rng)
+
+    polar = transform(**{argument: values}, axis=PolarAxis.ANGULAR)
+    flexible = transform(
+        **{argument: _flexible_layout(values=values)}, axis=_FLEXIBLE_ANGULAR_AXIS
+    )
+
+    np.testing.assert_allclose(
+        flexible, _flexible_layout(values=polar), rtol=1e-12, atol=1e-12
+    )
