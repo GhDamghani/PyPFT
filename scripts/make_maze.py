@@ -43,7 +43,7 @@ Four files are written to ``--output-dir``, next to each other:
 - ``maze_polar.tif``: the fixture itself, the ``(n_radial, n_angular)`` polar
   array on the ``PolarGrid`` (walls ``0``, everything else ``255``) as an
   uncompressed 8-bit grayscale TIFF, ready to feed directly into
-  ``pypft.PolarSpatialSignal``/``pypft.forward_pft``.
+  ``pypft.PolarSpatialAngularSignal``/``pypft.forward_pft``.
 - ``maze_uniform_polar.tif``: the same maze on the uniform polar grid with the
   same ``n_radial``, ``n_angular`` and radius ``R``, in the same format, to be
   resampled with ``pypft.resample_uniform_polar`` first.
@@ -819,7 +819,7 @@ def make_maze(
 
     # The Cartesian display of the polar signal. Dropping the "Software" PNG
     # metadata keeps the file independent of the installed matplotlib version.
-    signal = pypft.PolarSpatialSignal(values=polar.astype(np.float64), grid=grid)
+    signal = pypft.PolarSpatialAngularSignal(values=polar.astype(np.float64), grid=grid)
     figure = Figure(figsize=(_FIGURE_SIZE, _FIGURE_SIZE))
     pypft.render_cartesian(
         signal=signal, height=image_size, width=image_size, ax=figure.add_subplot()

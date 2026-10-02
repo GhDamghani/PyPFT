@@ -46,7 +46,7 @@ from pathlib import Path
 # ======================================================================================
 
 #: Base-class names that mark a class as an enumeration. Matched by name, since
-#: nothing is imported -- ``Axis(IntEnum)`` is recognized without resolving
+#: nothing is imported -- ``PolarAxis(IntEnum)`` is recognized without resolving
 #: ``enum.IntEnum`` itself.
 _ENUM_BASES = frozenset({"Enum", "IntEnum", "StrEnum", "Flag", "IntFlag", "ReprEnum"})
 
@@ -221,7 +221,7 @@ def _referenced_names(annotation: str) -> set[str]:
     """Return every bare identifier an annotation mentions.
 
     Deliberately lexical rather than a resolved type: an edge is wanted for
-    ``BaseSignal`` in ``tuple[BaseSignal, ...]``, in ``ClassVar[Domain]``, and in
+    ``BaseSignal`` in ``tuple[BaseSignal, ...]``, in ``ClassVar[PolarDomain]``, and in
     ``pypft.grid.PolarGrid`` alike, and every name that is not a box in the
     diagram is filtered out by the caller anyway.
 
