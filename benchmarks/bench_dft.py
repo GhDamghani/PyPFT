@@ -18,7 +18,7 @@ from pypft.dft import _IMPLEMENTATIONS, DFTImplementation
 FORWARD_SIZE = 128
 
 #: Shape/axis for the batched case (the eventual (radial, angular, batch)
-#: layout): the angular axis sits in the middle of a 3-D array, exercising
+#: layout): the angular axis sits between two other axes, exercising
 #: ``numpy.fft``/``scipy.fft``'s own axis handling rather than a bare 1-D
 #: vector.
 BATCH_SHAPE = (32, FORWARD_SIZE, 64)

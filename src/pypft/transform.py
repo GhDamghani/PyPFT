@@ -21,7 +21,7 @@ docstring for the derivation):
   ``j_nN/R**2``.
 
 ``forward_pft``/``inverse_pft`` follow PyPFT's own ``(radial, angular[,
-batch])`` array layout (``pypft.axes.Axis``), matching
+batch])`` array layout (``pypft.axes.PolarAxis``), matching
 ``pypft.geometry.cartesian_to_polar``'s convention -- **not**
 ``pypft.grid.PolarGrid.r``'s/``pypft.grid.sample_cartesian``'s own
 ``(angular, radial)`` layout (each row of ``PolarGrid.r`` is one spoke's
@@ -42,11 +42,14 @@ relative L2 error rather than by the average dB error; see ``DESIGN_NOTES.md``,
 "Grid: the spatial row index is a spoke, and the transform identifies it with
 a harmonic."
 
-Both directions also accept a 3-D ``(radial, angular, batch)`` array, batch
-axis last (``pypft.axes.DEFAULT_BATCH_AXIS``) -- the angular DFT/IDFT already
-operate along a single named axis of an otherwise arbitrary-rank array
-(``pypft.dft``), and ``scaled_hankel`` (below) generalizes the same way, so
-batching costs no new numerical kernel either.
+Both directions accept a single sample ``(radial, angular)`` or a batch
+``(radial, angular, batch)`` of them, batch axis after the sample axes
+(``pypft.axes.DEFAULT_BATCH_AXIS``). That fixed layout is what makes
+``forward_pft``/``inverse_pft`` polar; the steps under them are not tied to it.
+The angular DFT/IDFT already operate along a single named axis of an
+arbitrary-rank array (``pypft.dft``), and ``scaled_hankel`` (below) takes its
+radial and harmonic axes explicitly and accepts any rank, so a layer with a
+different layout can apply the same steps on whichever axes it names.
 """
 
 from enum import Enum, auto
@@ -55,7 +58,12 @@ from typing import Callable
 
 import numpy as np
 
-from pypft.axes import DEFAULT_BATCH_AXIS, Axis
+from pypft.axes import (
+    DEFAULT_BATCH_AXIS,
+    POLAR_SAMPLE_NDIM,
+    PolarAxis,
+    _value_is_polar_sample_or_batch,
+)
 from pypft.dft import angular_dft, inverse_angular_dft
 from pypft.dht import hankel_transform, inverse_hankel_transform
 from pypft.dht._cached import CachedBesselDHT
@@ -116,10 +124,10 @@ def _scaled_hankel_harmonic_loop(
     The straightforward algorithm: for each harmonic row, slice it out along
     ``angular_axis`` (collapsing that axis by one), then delegate to
     ``hankel_transform``/``inverse_hankel_transform`` -- which are themselves
-    already N-D-capable along ``axis``, so a trailing batch axis (if any)
-    rides along for free via their own ``matmul`` broadcasting.
+    already N-D-capable along ``axis``, so every other axis (a batch axis, for
+    instance) rides along for free via their own ``matmul`` broadcasting.
 
-    :param values: A 2-D or 3-D array; see ``scaled_hankel``.
+    :param values: An array of rank 2 or more; see ``scaled_hankel``.
     :type values: np.ndarray
     :param grid: The grid whose harmonics, order, and space limit drive the
         per-harmonic transform.
@@ -169,6 +177,14 @@ def _scaled_hankel_harmonic_loop(
             )
     return result
 
+
+#: Where ``_scaled_hankel_stacked_kernel`` moves the harmonic and radial axes, so
+#: they line up with the kernel stack's own ``(n_angular, n_radial, n_radial)``
+#: layout, and how many leading axes that layout fixes before the one flattened
+#: column axis.
+_STACK_HARMONIC_AXIS = 0
+_STACK_RADIAL_AXIS = 1
+_STACK_NDIM = 2
 
 #: Maximum number of distinct ``(grid, direction)`` kernel stacks kept alive at
 #: once -- mirrors ``pypft.dht._cached.KERNEL_CACHE_MAXSIZE``'s own reasoning:
@@ -243,15 +259,15 @@ def _scaled_hankel_stacked_kernel(
 
     Stacks every harmonic's kernel into one ``(n_angular, n_radial,
     n_radial)`` array (``_stacked_kernel_and_factors``), moves ``values`` so
-    the harmonic axis leads and the radial axis follows (any remaining batch
-    axis trails, unmoved -- ``numpy.moveaxis`` with paired ``source``/
-    ``destination`` sequences handles this for either a 2-D or a 3-D input in
-    one call), and applies the whole stack with one ``numpy.matmul`` call --
-    a single batched BLAS ``gemm`` over every harmonic (and batch element)
-    at once, instead of ``_scaled_hankel_harmonic_loop``'s one Python-level
-    call per harmonic.
+    the harmonic axis leads and the radial axis follows (every remaining axis
+    trails in its original order -- ``numpy.moveaxis`` with paired ``source``/
+    ``destination`` sequences does this for any rank in one call), flattens
+    those remaining axes into one, and applies the whole stack with one
+    ``numpy.matmul`` call -- a single batched BLAS ``gemm`` over every harmonic
+    (and every remaining element) at once, instead of
+    ``_scaled_hankel_harmonic_loop``'s one Python-level call per harmonic.
 
-    :param values: A 2-D or 3-D array; see ``scaled_hankel``.
+    :param values: An array of rank 2 or more; see ``scaled_hankel``.
     :type values: np.ndarray
     :param grid: The grid whose harmonics, order, and space limit drive the
         per-harmonic transform.
@@ -271,17 +287,22 @@ def _scaled_hankel_stacked_kernel(
 
     """
     kernels, factors = _stacked_kernel_and_factors(grid=grid, direction=direction)
-    has_batch_axis = values.ndim == 3
-    moved = np.moveaxis(a=values, source=(angular_axis, axis), destination=(0, 1))
-    if not has_batch_axis:
-        moved = moved[..., np.newaxis]  # a length-1 pseudo-batch axis for matmul
-    applied = (
-        kernels @ moved
-    )  # (n_angular, n_radial, n_radial) @ (n_angular, n_radial, batch)
-    applied = applied * factors[:, np.newaxis, np.newaxis]
-    if not has_batch_axis:
-        applied = applied[..., 0]
-    return np.moveaxis(a=applied, source=(0, 1), destination=(angular_axis, axis))
+    moved = np.moveaxis(
+        a=values,
+        source=(angular_axis, axis),
+        destination=(_STACK_HARMONIC_AXIS, _STACK_RADIAL_AXIS),
+    )
+    # Every remaining axis becomes one trailing column axis -- of length 1 when
+    # there is none -- so a single matmul serves any rank.
+    columns = moved.reshape(moved.shape[:_STACK_NDIM] + (-1,))
+    # (n_angular, n_radial, n_radial) @ (n_angular, n_radial, columns)
+    applied = (kernels @ columns) * factors[:, np.newaxis, np.newaxis]
+    applied = applied.reshape(moved.shape)
+    return np.moveaxis(
+        a=applied,
+        source=(_STACK_HARMONIC_AXIS, _STACK_RADIAL_AXIS),
+        destination=(angular_axis, axis),
+    )
 
 
 _PFT_IMPLEMENTATIONS: dict[PFTImplementation, Callable[..., np.ndarray]] = {
@@ -296,7 +317,7 @@ Hardcoded to the fastest implementation found by
 ``benchmarks/run_pft_benchmarks.py`` for the batched ``(radial, angular,
 batch)`` scenario this default exists for: ``STACKED_KERNEL`` at ~4.7ms vs.
 ``HARMONIC_LOOP``'s ~5.2-6.2ms at ``n_angular=31, n_radial=128, batch=64``.
-``HARMONIC_LOOP`` remains faster on a single, unbatched 2-D call (~2.7ms vs.
+``HARMONIC_LOOP`` remains faster on a single, unbatched sample (~2.7ms vs.
 ~3.6ms) -- a single batched ``matmul`` has nothing to amortize its own
 per-call overhead against there -- but batching is exactly the scenario this
 default is chosen for. See ``DESIGN_NOTES.md``, "PFT: ``STACKED_KERNEL`` has
@@ -355,16 +376,18 @@ def scaled_hankel(
     gets which order and scale factor is identical either way.
 
     This is the single place in ``src/`` that names the radial axis:
-    ``forward_pft``/``inverse_pft`` always pass ``Axis.RADIAL``/
-    ``Axis.ANGULAR`` explicitly rather than relying on a default, since
+    ``forward_pft``/``inverse_pft`` always pass ``PolarAxis.RADIAL``/
+    ``PolarAxis.ANGULAR`` explicitly rather than relying on a default, since
     ``hankel_transform`` itself defaults its own ``axis`` to ``-1`` for an
     unrelated, purely conventional reason (see ``pypft.axes``'s axis-default
-    tiering).
+    tiering). Neither axis is tied to a position or to a rank: every other axis
+    of ``values`` is carried along unchanged, so the same step serves a polar
+    batch and any other layout that names its own radial and harmonic axes.
 
-    :param values: A 2-D array with one axis of length ``grid.n_radial`` (the
-        radial axis, named by ``axis``) and the other of length
-        ``grid.n_angular`` (named by ``angular_axis``), or a 3-D array adding
-        one further batch axis on top of that.
+    :param values: An array of rank 2 or more with one axis of length
+        ``grid.n_radial`` (the radial axis, named by ``axis``) and another of
+        length ``grid.n_angular`` (named by ``angular_axis``); every other axis
+        is carried along unchanged.
     :type values: np.ndarray
     :param grid: The grid whose harmonics, order, and space limit drive the
         per-harmonic transform.
@@ -382,11 +405,12 @@ def scaled_hankel(
         ``axis``, one harmonic order at a time.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If any argument has an invalid value.
+    :raises ValueError: If any argument has an invalid value -- including a rank
+        below 2, since ``axis`` and ``angular_axis`` must name different axes.
 
     """
     NumpyValidator.type_is_ndarray(value=values)
-    NumpyValidator.value_is_2d_or_3d(value=values)
+    NumpyValidator.value_is_at_least_1d(value=values)
     _type_is_polar_grid(value=grid)
     EnumValidator.type_is_enum(value=direction)
     EnumValidator.value_is_enum_member(value=direction, enum_class=Direction)
@@ -425,40 +449,45 @@ def _validate_pft_input(values: np.ndarray, grid: PolarGrid, batch_axis: int) ->
     :param grid: The sampling grid ``values`` is defined on.
     :type grid: pypft.grid.PolarGrid
     :param batch_axis: The axis of ``values`` holding the batch dimension, if
-        any -- meaningful only when ``values`` is 3-D.
+        any -- meaningful only when ``values`` is a batch.
     :type batch_axis: int
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``values`` is not 2-D or 3-D, its radial/angular
-        axes do not match ``grid``, ``batch_axis`` is given on a 2-D
-        ``values``, or ``batch_axis`` does not name a 3-D ``values``'s last
-        axis (PyPFT's own layout always places the batch axis last).
+    :raises ValueError: If ``values`` is neither a single sample ``(radial,
+        angular)`` nor a batch ``(radial, angular, batch)``, its radial/angular
+        axes do not match ``grid``, ``batch_axis`` is given on a single sample,
+        or ``batch_axis`` does not name the axis after a batch's sample axes.
 
     """
     NumpyValidator.type_is_ndarray(value=values)
-    NumpyValidator.value_is_2d_or_3d(value=values)
+    _value_is_polar_sample_or_batch(value=values)
     _type_is_polar_grid(value=grid)
     IntValidator.type_is_int(value=batch_axis)
-    if values.ndim == 2:
+    if values.ndim == POLAR_SAMPLE_NDIM:
         if batch_axis != DEFAULT_BATCH_AXIS:
             raise ValueError(
-                f"batch_axis={batch_axis} was given, but values is 2-D and has "
-                "no batch axis"
+                f"batch_axis={batch_axis} was given, but values is a single sample "
+                "(radial, angular) and has no batch axis"
             )
         reference = np.empty((grid.n_radial, grid.n_angular))
         NumpyValidator.value1_shape_matches_value2(value1=values, value2=reference)
     else:
         NumpyValidator.value_has_axis(value=values, axis=batch_axis)
-        if batch_axis % values.ndim != Axis.BATCH:
+        # The batch axis is the axis after the sample axes.
+        if batch_axis % values.ndim != POLAR_SAMPLE_NDIM:
             raise ValueError(
-                f"batch_axis={batch_axis} does not name a 3-D value's last "
-                "axis; PyPFT's own layout always places the batch axis last"
+                f"batch_axis={batch_axis} does not name the batch axis of a batch "
+                "(radial, angular, batch); PyPFT's own layout always places the "
+                "batch axis after the sample axes"
             )
         NumpyValidator.value1_axis_length_matches_value2(
-            value1=values, axis1=Axis.RADIAL, value2=np.empty(grid.n_radial), axis2=0
+            value1=values,
+            axis1=PolarAxis.RADIAL,
+            value2=np.empty(grid.n_radial),
+            axis2=0,
         )
         NumpyValidator.value1_axis_length_matches_value2(
             value1=values,
-            axis1=Axis.ANGULAR,
+            axis1=PolarAxis.ANGULAR,
             value2=np.empty(grid.n_angular),
             axis2=0,
         )
@@ -486,33 +515,34 @@ def forward_pft(
     error. See ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke,
     and the transform identifies it with a harmonic."
 
-    :param f: The space-domain samples ``f(r, theta)``, on ``grid``'s
-        ``(n_radial, n_angular)`` layout (``pypft.axes.Axis``), or a 3-D
-        ``(n_radial, n_angular, batch)`` stack of those.
+    :param f: The space-domain samples ``f(r, theta)``: a single sample on
+        ``grid``'s ``(n_radial, n_angular)`` layout (``pypft.axes.PolarAxis``),
+        or a batch ``(n_radial, n_angular, batch)`` of them.
     :type f: np.ndarray
     :param grid: The sampling grid ``f`` is defined on.
     :type grid: pypft.grid.PolarGrid
     :param batch_axis: The axis of ``f`` holding the batch dimension, only
-        meaningful for a 3-D ``f`` -- PyPFT's own layout always places it
-        last, so the only accepted value is ``pypft.axes.DEFAULT_BATCH_AXIS``.
+        meaningful for a batch -- PyPFT's own layout always places it after the
+        sample axes, so the only accepted value is
+        ``pypft.axes.DEFAULT_BATCH_AXIS``.
     :type batch_axis: int
     :returns: The frequency-domain samples ``F(rho, phi)``, on the same layout.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``f`` is not 2-D or 3-D, or its shape does not
-        match ``grid``.
+    :raises ValueError: If ``f`` is neither a single sample nor a batch, or its
+        shape does not match ``grid``.
 
     """
     _validate_pft_input(values=f, grid=grid, batch_axis=batch_axis)
-    f_n = angular_dft(x=f, axis=Axis.ANGULAR)
+    f_n = angular_dft(x=f, axis=PolarAxis.ANGULAR)
     F_n = scaled_hankel(
         values=f_n,
         grid=grid,
         direction=Direction.FORWARD,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
     )
-    return inverse_angular_dft(X=F_n, axis=Axis.ANGULAR)
+    return inverse_angular_dft(X=F_n, axis=PolarAxis.ANGULAR)
 
 
 def inverse_pft(
@@ -529,30 +559,31 @@ def inverse_pft(
     approximates the continuous inverse at ``grid.r.T``, ``grid.theta``, with
     the same spoke-to-harmonic identification error as ``forward_pft``.
 
-    :param F: The frequency-domain samples ``F(rho, phi)``, on ``grid``'s
-        ``(n_radial, n_angular)`` layout (``pypft.axes.Axis``), or a 3-D
-        ``(n_radial, n_angular, batch)`` stack of those.
+    :param F: The frequency-domain samples ``F(rho, phi)``: a single sample on
+        ``grid``'s ``(n_radial, n_angular)`` layout (``pypft.axes.PolarAxis``),
+        or a batch ``(n_radial, n_angular, batch)`` of them.
     :type F: np.ndarray
     :param grid: The sampling grid ``F`` is defined on.
     :type grid: pypft.grid.PolarGrid
     :param batch_axis: The axis of ``F`` holding the batch dimension, only
-        meaningful for a 3-D ``F`` -- PyPFT's own layout always places it
-        last, so the only accepted value is ``pypft.axes.DEFAULT_BATCH_AXIS``.
+        meaningful for a batch -- PyPFT's own layout always places it after the
+        sample axes, so the only accepted value is
+        ``pypft.axes.DEFAULT_BATCH_AXIS``.
     :type batch_axis: int
     :returns: The space-domain samples ``f(r, theta)``, on the same layout.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``F`` is not 2-D or 3-D, or its shape does not
-        match ``grid``.
+    :raises ValueError: If ``F`` is neither a single sample nor a batch, or its
+        shape does not match ``grid``.
 
     """
     _validate_pft_input(values=F, grid=grid, batch_axis=batch_axis)
-    F_n = angular_dft(x=F, axis=Axis.ANGULAR)
+    F_n = angular_dft(x=F, axis=PolarAxis.ANGULAR)
     f_n = scaled_hankel(
         values=F_n,
         grid=grid,
         direction=Direction.INVERSE,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
     )
-    return inverse_angular_dft(X=f_n, axis=Axis.ANGULAR)
+    return inverse_angular_dft(X=f_n, axis=PolarAxis.ANGULAR)

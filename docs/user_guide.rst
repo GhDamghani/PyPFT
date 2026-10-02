@@ -53,8 +53,9 @@ what "polar" means for an image:
    polar = pypft.cartesian_to_polar(image, n_radial=128, n_angular=96)
    reconstructed = pypft.polar_to_cartesian(polar, height, width)
 
-The returned array follows PyPFT's own ``(radial, angular)`` axis layout (``pypft.Axis``),
-with a centered angular axis: index ``n_angular // 2`` holds angle ``0``.
+The returned array follows PyPFT's own ``(radial, angular)`` axis layout
+(``pypft.PolarAxis``), with a centered angular axis: index ``n_angular // 2`` holds angle
+``0``.
 
 The transform's own sampling grid
 ---------------------------------
@@ -147,9 +148,9 @@ The full PFT/IPFT pipeline
 
 ``pypft.forward_pft``/``pypft.inverse_pft`` chain the angular DFT/IDFT with a
 per-harmonic, ``R``-scaled discrete Hankel transform. Both take a ``pypft.PolarGrid`` and
-an ``(n_radial, n_angular)`` array in PyPFT's own layout (``pypft.Axis``) -- **not**
-``PolarGrid.r``'s/``pypft.sample_cartesian``'s own ``(n_angular, n_radial)`` layout, so
-transpose a ``sample_cartesian`` result first:
+an ``(n_radial, n_angular)`` array in PyPFT's own layout (``pypft.PolarAxis``) --
+**not** ``PolarGrid.r``'s/``pypft.sample_cartesian``'s own ``(n_angular, n_radial)``
+layout, so transpose a ``sample_cartesian`` result first:
 
 .. code-block:: python
 
@@ -191,7 +192,7 @@ its space-side mirror:
 
    harmonics = pypft.sample_harmonics_cartesian(image, grid, n_quadrature=1024)
    signal = pypft.PolarSpatialHarmonicSignal(values=harmonics, grid=grid)
-   F = pypft.evaluate_frequency(signal.to_polar_frequency_harmonic().values, grid)
+   F = pypft.evaluate_frequency(signal.to_frequency_harmonic().values, grid)
 
 Use the route for accuracy, the exact path for exact invertibility. The route removes the
 identification error; what remains is set by its input stage. Where the grid's harmonics
@@ -211,48 +212,51 @@ two.
 Typed domains and legal moves
 -----------------------------
 
-``pypft.Domain``/``pypft.BaseSignal`` add nothing numerical on top of
+``pypft.PolarDomain``/``pypft.BaseSignal`` add nothing numerical on top of
 ``pypft.forward_pft``/``pypft.inverse_pft``. They add a *typed* way to name where a polar
 array sits along the chain, and to walk between those points one step at a time::
 
-   POLAR_SPATIAL --DFT--> POLAR_SPATIAL_HARMONIC
-                 --DHT--> POLAR_FREQUENCY_HARMONIC
-                 --IDFT--> POLAR_FREQUENCY
+   SPATIAL_ANGULAR --DFT--> SPATIAL_HARMONIC
+                   --DHT--> FREQUENCY_HARMONIC
+                   --IDFT--> FREQUENCY_ANGULAR
 
-Every ``Domain`` member starts with ``POLAR``, since every point on the chain is sampled
-on the same ``pypft.PolarGrid``. The word after it (``SPATIAL``/``FREQUENCY``) is the
-radial coordinate, changed only by the discrete Hankel transform; a trailing ``HARMONIC``
-marks the angular coordinate as a harmonic order rather than a physical angle, changed
-only by the angular DFT/IDFT. ``pypft.BaseSignal``'s four subclasses
-(``PolarSpatialSignal``, ``PolarSpatialHarmonicSignal``,
-``PolarFrequencyHarmonicSignal``, ``PolarFrequencySignal``) -- one per ``Domain`` member
--- wrap a ``(values, grid)`` pair with the domain it currently occupies, and know only
-the neighbouring domains they may legally step to. Each step method is named after the
-domain it moves *into*, so a hand-written chain reads as the chain itself:
+Each coordinate system has its own domain enum, and a member names the state of every
+coordinate of that system, with no system prefix. For a polar sample the first word
+(``SPATIAL``/``FREQUENCY``) is the radial coordinate, changed only by the discrete
+Hankel transform, and the second (``ANGULAR``/``HARMONIC``) is the angular coordinate: a
+physical angle or a harmonic order, changed only by the angular DFT/IDFT.
+``pypft.BaseSignal``'s four subclasses (``PolarSpatialAngularSignal``,
+``PolarSpatialHarmonicSignal``, ``PolarFrequencyHarmonicSignal``,
+``PolarFrequencyAngularSignal``) -- one per ``PolarDomain`` member -- wrap a ``(values,
+grid)`` pair with the domain it currently occupies, and know only the neighbouring
+domains they may legally step to. Each step method is named after the domain it moves
+*into*, so a hand-written chain reads as the chain itself:
 
 .. code-block:: python
 
-   signal = pypft.PolarSpatialSignal(f, grid)
-   harmonic_signal = signal.to_polar_spatial_harmonic()  # a PolarSpatialHarmonicSignal
-   by_hand = (  # a PolarFrequencySignal
-       signal.to_polar_spatial_harmonic()
-       .to_polar_frequency_harmonic()
-       .to_polar_frequency()
+   signal = pypft.PolarSpatialAngularSignal(f, grid)
+   harmonic_signal = signal.to_spatial_harmonic()  # a PolarSpatialHarmonicSignal
+   by_hand = (  # a PolarFrequencyAngularSignal
+       signal.to_spatial_harmonic()
+       .to_frequency_harmonic()
+       .to_frequency_angular()
    )
 
    # `to` walks the same chain dynamically, to any target domain:
-   walked = signal.to(pypft.Domain.POLAR_FREQUENCY)
+   walked = signal.to(pypft.PolarDomain.FREQUENCY_ANGULAR)
 
 ``by_hand``/``walked`` both match ``pypft.forward_pft(f, grid)`` exactly, since each step
 method is a thin wrapper around the same calls ``forward_pft`` itself makes.
 
-3-D batches
------------
+Batches of samples
+------------------
 
 ``pypft.forward_pft``/``pypft.inverse_pft`` (and every ``pypft.BaseSignal`` step method)
-also accept a 3-D ``(n_radial, n_angular, batch)`` array -- the same two polar axes, plus
-one trailing batch axis (``pypft.Axis.BATCH``, ``pypft.DEFAULT_BATCH_AXIS``). Batching
-changes only how many signals one call transforms, never what it computes:
+accept a single sample ``(n_radial, n_angular)`` or a batch of samples ``(n_radial,
+n_angular, batch)`` -- the two sample axes (``pypft.PolarAxis``), plus one batch axis
+after them (``pypft.DEFAULT_BATCH_AXIS``). The batch axis is not a coordinate of the
+sample, so ``pypft.PolarAxis`` has no member for it. Batching changes only how many
+samples one call transforms, never what it computes:
 
 .. code-block:: python
 
@@ -260,28 +264,28 @@ changes only how many signals one call transforms, never what it computes:
    f_batch = np.exp(-widths * grid.r.T[..., np.newaxis] ** 2)  # (n_radial, n_angular, 4)
    F_batch = pypft.forward_pft(f_batch, grid)  # every width transformed in one call
 
-The batch axis is always last -- passing one anywhere else, or on a plain 2-D array,
-raises immediately.
+The batch axis always comes after the sample axes -- passing one anywhere else, or on a
+single sample, raises immediately.
 
 Visualization
 -------------
 
 ``pypft.plot_signal``/``pypft.BaseSignal.plot`` render a signal as a ``matplotlib``
-``(magnitude, phase)`` pair of ``Axes``, for every ``pypft.Domain`` member alike. The
-magnitude is gamma-enhanced, and ``POLAR_SPATIAL``'s magnitude is drawn in grayscale,
-since it is literally an image. ``pypft.render_cartesian`` interpolates a
-``POLAR_SPATIAL``/``POLAR_FREQUENCY`` signal's own non-uniform sample points onto an
-ordinary Cartesian grid -- for display only; its output must never be fed back into
+``(magnitude, phase)`` pair of ``Axes``, for every ``pypft.PolarDomain`` member alike.
+The magnitude is gamma-enhanced, and ``SPATIAL_ANGULAR``'s magnitude is drawn in
+grayscale, since it is literally an image. ``pypft.render_cartesian`` interpolates a
+``SPATIAL_ANGULAR``/``FREQUENCY_ANGULAR`` signal's own non-uniform sample points onto
+an ordinary Cartesian grid -- for display only; its output must never be fed back into
 ``pypft.forward_pft``/``pypft.inverse_pft``:
 
 .. code-block:: python
 
    grid = pypft.PolarGrid(n_radial=96, n_angular=31, R=40.0)
-   signal = pypft.PolarSpatialSignal(np.exp(-(grid.r.T**2)), grid)
+   signal = pypft.PolarSpatialAngularSignal(np.exp(-(grid.r.T**2)), grid)
 
    signal.plot()
-   signal.to_polar_spatial_harmonic().plot()
-   signal.to(pypft.Domain.POLAR_FREQUENCY).plot()
+   signal.to_spatial_harmonic().plot()
+   signal.to(pypft.PolarDomain.FREQUENCY_ANGULAR).plot()
    pypft.render_cartesian(signal, height=256, width=256)
 
 ``pypft.forward_pft_traced``/``pypft.inverse_pft_traced`` run the same pipeline as

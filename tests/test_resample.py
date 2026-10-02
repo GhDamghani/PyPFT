@@ -286,7 +286,9 @@ def _valid_values() -> np.ndarray:
 @pytest.mark.parametrize(
     argnames="shape", argvalues=[(32,), (32, _GRID.n_angular, 2, 2)]
 )
-def test_rejects_values_that_are_not_2d_or_3d(shape: tuple[int, ...]) -> None:
+def test_rejects_values_that_are_neither_a_sample_nor_a_batch(
+    shape: tuple[int, ...],
+) -> None:
     """Only a single sample or a batch with one trailing batch axis is accepted."""
     with pytest.raises(ValueError):
         resample_uniform_polar(values=np.ones(shape=shape), grid=_GRID, radius=_RADIUS)

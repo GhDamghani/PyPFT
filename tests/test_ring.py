@@ -325,7 +325,7 @@ def test_evaluate_frequency_composes_with_the_domain_chain() -> None:
     )
     signal = PolarSpatialHarmonicSignal(values=harmonics, grid=_GRID)
     chained = evaluate_frequency(
-        harmonics=signal.to_polar_frequency_harmonic().values, grid=_GRID
+        harmonics=signal.to_frequency_harmonic().values, grid=_GRID
     )
     np.testing.assert_allclose(
         chained,

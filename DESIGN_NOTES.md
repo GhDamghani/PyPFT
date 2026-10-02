@@ -305,6 +305,35 @@ order on every call and never hit. Neither is used; the route is a single implem
 `PFTImplementation` strategy, since it computes a different discretization rather than the same one
 faster.
 
+## Domains: one state word per coordinate group
+
+A sample's coordinates fall into groups that the transform changes one at a time. A polar sample has two:
+the radial coordinate, which the discrete Hankel transform takes from space (`SPATIAL`) to frequency
+(`FREQUENCY`), and the angular coordinate, which the angular DFT takes from a physical angle (`ANGULAR`) to a
+harmonic order (`HARMONIC`). The naming rule is that each coordinate system gets its own domain enum, and
+a member's name is one state word per coordinate group, with no system prefix: `PolarDomain` has
+`SPATIAL_ANGULAR`, `SPATIAL_HARMONIC`, `FREQUENCY_HARMONIC` and `FREQUENCY_ANGULAR`, in chain order. Naming
+every group's state, rather than only the ones that differ from the starting point, keeps each name
+meaningful on its own, and leaving the system out of the member keeps it in one place, the enum and the
+signal class (`PolarSpatialAngularSignal`, ...). Step methods follow the member names (`to_spatial_harmonic`,
+...), since the class a method is called on already names the system.
+
+The rule is motivated by other coordinate systems with the same structure. A spherical sample would have a
+radial group and an angular group whose harmonics are spherical harmonics, so a `SphericalDomain` would read
+`SPATIAL_ANGULAR` → `SPATIAL_HARMONIC` → `FREQUENCY_HARMONIC` → `FREQUENCY_ANGULAR` without colliding with
+`PolarDomain`. A cylindrical sample adds an axial group, which adds a third state word. Where two systems
+must be told apart in one namespace, the system comes from the enum's class name: trace labels and the file
+names `PFTTrace.save` writes are `step_<system>_<member>` (`step_polar_spatial_angular`).
+
+Axes follow the same idea. `PolarAxis` names the two sample axes (`RADIAL = 0`, `ANGULAR = 1`) and nothing
+else: the batch axis is not a coordinate of the sample but the axis after the sample axes, index
+`POLAR_SAMPLE_NDIM` (2) for a polar sample, and it is named only by `DEFAULT_BATCH_AXIS = -1`. "3-D" never
+means "a batch of 2-D samples", since a spherical or cylindrical sample is itself three-dimensional. Under
+the naming layer, the steps stay axis-flexible: `pypft.dft.angular_dft`, `pypft.dht.hankel_transform` and
+`pypft.transform.scaled_hankel` take their axes explicitly and accept any rank, so a layer with a different
+layout applies the same steps on whichever axes it names. Only `forward_pft`/`inverse_pft` and the signal
+classes fix the polar layout.
+
 ## Visualization: phase color range is pinned to `[-pi, pi]`
 
 Every phase `imshow` call in `src/pypft/viz.py` pins `vmin`/`vmax` to `[-pi, pi]` explicitly, rather than

@@ -25,7 +25,7 @@ the kernel this package actually uses, is tested below.
 import numpy as np
 
 from pypft._kernel import kernel_matrix
-from pypft.axes import Axis
+from pypft.axes import PolarAxis
 from pypft.dft import angular_dft, harmonics
 from pypft.dht import hankel_transform
 from pypft.grid import PolarGrid
@@ -366,8 +366,10 @@ def test_forward_pft_rotation_equivariance():
     f = inverse_pft(F=F, grid=_GRID)
 
     for shift in range(_GRID.n_angular):
-        lhs = inverse_pft(F=np.roll(a=F, shift=shift, axis=Axis.ANGULAR), grid=_GRID)
-        rhs = np.roll(a=f, shift=shift, axis=Axis.ANGULAR)
+        lhs = inverse_pft(
+            F=np.roll(a=F, shift=shift, axis=PolarAxis.ANGULAR), grid=_GRID
+        )
+        rhs = np.roll(a=f, shift=shift, axis=PolarAxis.ANGULAR)
         np.testing.assert_allclose(lhs, rhs, rtol=1e-9, atol=1e-9)
 
 
@@ -386,13 +388,13 @@ def test_forward_pft_angular_spectrum_has_twisted_conjugate_symmetry():
     """
     rng = np.random.default_rng(8)
     f = rng.standard_normal((_GRID.n_radial, _GRID.n_angular))
-    f_n = angular_dft(x=f, axis=Axis.ANGULAR)
+    f_n = angular_dft(x=f, axis=PolarAxis.ANGULAR)
     F_n = scaled_hankel(
         values=f_n,
         grid=_GRID,
         direction=Direction.FORWARD,
-        axis=Axis.RADIAL,
-        angular_axis=Axis.ANGULAR,
+        axis=PolarAxis.RADIAL,
+        angular_axis=PolarAxis.ANGULAR,
     )
 
     harmonic_orders = harmonics(n_angular=_GRID.n_angular)

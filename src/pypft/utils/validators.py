@@ -411,9 +411,8 @@ class NumpyValidator:
     def value_has_ndim_in(value: np.ndarray, ndims: tuple[int, ...]) -> None:
         """Value-validator to check if a numpy.ndarray's rank is one of ``ndims``.
 
-        The general-purpose form behind ``value_is_2d_or_3d`` -- kept separate so a
-        future caller needing a different set of allowed ranks does not have to
-        duplicate this check.
+        The general-purpose rank check -- e.g. ``pypft.axes``'s "a single polar
+        sample or a batch of them" check is built on it.
 
         :param value: The value to be validated.
         :type value: np.ndarray
@@ -425,20 +424,6 @@ class NumpyValidator:
         if value.ndim not in ndims:
             allowed = " or ".join(str(ndim) for ndim in ndims)
             raise ValueError(f"value must be {allowed}-D, got {value.ndim}-D")
-
-    @staticmethod
-    def value_is_2d_or_3d(value: np.ndarray) -> None:
-        """Value-validator to check if a numpy.ndarray is two- or three-dimensional.
-
-        Used by the polar layer's ``(radial, angular[, batch])`` entry points,
-        which accept an optional trailing batch axis on top of the plain 2-D case.
-
-        :param value: The value to be validated.
-        :type value: np.ndarray
-        :raises ValueError: If the value is neither 2-D nor 3-D.
-
-        """
-        NumpyValidator.value_has_ndim_in(value=value, ndims=(2, 3))
 
     @staticmethod
     def value_is_finite(value: np.ndarray) -> None:

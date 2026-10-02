@@ -22,7 +22,7 @@ Two more things happen at this boundary, once per direction:
 - **Layout.** ``cv2.warpPolar`` lays its polar array out ``(angular, radial[,
   channel])`` -- the reference implementation's convention. PyPFT's own
   convention is the opposite, ``(radial, angular[, channel])``
-  (``pypft.axes.Axis``), so every crossing of this boundary transposes
+  (``pypft.axes.PolarAxis``), so every crossing of this boundary transposes
   deliberately.
 - **Angular convention.** ``warpPolar``'s angular axis is in natural
   (ascending-from-zero) order; PyPFT's own convention is centered
@@ -34,7 +34,7 @@ Two more things happen at this boundary, once per direction:
 import cv2
 import numpy as np
 
-from pypft.axes import Axis, _center_angular, _uncenter_angular
+from pypft.axes import PolarAxis, _center_angular, _uncenter_angular
 from pypft.utils.validators import IntValidator, NumpyValidator
 
 #: ``cv2.warpPolar``'s interpolation mode: a straight (non-logarithmic), uniformly
@@ -132,7 +132,7 @@ def cartesian_to_polar(image: np.ndarray, n_radial: int, n_angular: int) -> np.n
         flags=_WARP_POLAR_FLAGS,
     )
     polar = np.moveaxis(a=warped, source=0, destination=1)
-    return _center_angular(values=polar, axis=Axis.ANGULAR)
+    return _center_angular(values=polar, axis=PolarAxis.ANGULAR)
 
 
 def polar_to_cartesian(polar: np.ndarray, height: int, width: int) -> np.ndarray:
@@ -168,7 +168,7 @@ def polar_to_cartesian(polar: np.ndarray, height: int, width: int) -> np.ndarray
 
     center, max_radius = _center_and_max_radius(height=height, width=width)
 
-    uncentered = _uncenter_angular(values=polar, axis=Axis.ANGULAR)
+    uncentered = _uncenter_angular(values=polar, axis=PolarAxis.ANGULAR)
     warped = np.moveaxis(
         a=uncentered, source=0, destination=1
     )  # back to warpPolar's own layout

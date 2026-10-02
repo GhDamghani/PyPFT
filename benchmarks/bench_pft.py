@@ -4,7 +4,7 @@
 ``HARMONIC_LOOP`` (one ``hankel_transform`` call per harmonic, Python-level)
 or ``STACKED_KERNEL`` (every harmonic's kernel stacked into one array,
 applied with a single batched ``matmul``). The batched scenario below (a
-3-D ``(radial, angular, batch)`` array, PyPFT's own batching layout) is the
+batch of samples ``(radial, angular, batch)``, PyPFT's own batching layout) is the
 one that actually drives ``DEFAULT_PFT_IMPLEMENTATION``, since that is
 exactly the regime a Python-level per-harmonic loop pays repeated call
 overhead for and a single batched ``matmul`` does not.
@@ -52,7 +52,7 @@ def test_bench_scaled_hankel_repeated(benchmark, implementation):
 
 @pytest.mark.parametrize("implementation", list(PFTImplementation))
 def test_bench_scaled_hankel_batched(benchmark, implementation):
-    """The 3-D ``(radial, angular, batch)`` case PyPFT's own batching targets."""
+    """A batch of samples ``(radial, angular, batch)``: what batching targets."""
     rng = np.random.default_rng(1)
     values = _random_values(rng, batch=BATCH_SIZE)
     benchmark(
