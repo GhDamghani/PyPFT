@@ -44,6 +44,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: uv sync
+      # The downloaded test samples, fetched again only when pypft.samples changes.
+      - uses: actions/cache@v4
+        with:
+          path: tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat
+          key: test-samples-${{ hashFiles('src/pypft/samples/**') }}
+      - run: uv run python -m pypft.samples --directory tests/samples
       # --no-config makes `uv pip` ignore constraint-dependencies. Only the runtime
       # dependencies are named, so dev tooling stays exactly as synced.
       - if: matrix.dependency-set == 'latest'

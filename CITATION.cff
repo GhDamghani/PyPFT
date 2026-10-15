@@ -65,3 +65,44 @@ references:
     end: 1472
     year: 2017
     doi: 10.1002/mrm.26219
+  - type: data
+    title: "Replication Data for: Multi-Domain Convolutional Neural Network (MD-CNN) For Radial Reconstruction of Dynamic Cardiac MRI"
+    authors:
+      - family-names: El-Rewaidy
+        given-names: Hossam
+    publisher:
+      name: Harvard Dataverse
+    version: "2"
+    year: 2020
+    license: CC0-1.0
+    doi: 10.7910/DVN/CI3WB6
+  - type: article
+    title: "Multi-Domain Convolutional Neural Network (MD-CNN) for Radial Reconstruction of Dynamic Cardiac MRI"
+    authors:
+      - family-names: El-Rewaidy
+        given-names: H.
+      - family-names: Fahmy
+        given-names: A. S.
+      - family-names: Pashakhanloo
+        given-names: F.
+      - family-names: Cai
+        given-names: X.
+      - family-names: Kucukseymen
+        given-names: S.
+      - family-names: Csecs
+        given-names: I.
+      - family-names: Neisius
+        given-names: U.
+      - family-names: Haji-Valizadeh
+        given-names: H.
+      - family-names: Menze
+        given-names: B.
+      - family-names: Nezafat
+        given-names: R.
+    journal: Magnetic Resonance in Medicine
+    volume: 85
+    issue: 3
+    start: 1195
+    end: 1208
+    year: 2021
+    doi: 10.1002/mrm.28485

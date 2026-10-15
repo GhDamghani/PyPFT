@@ -18,4 +18,9 @@ jobs:
       # interpreter, and uv.lock's constraint-dependencies pin the dependency floors.
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
+      # The downloaded test samples, fetched again only when pypft.samples changes.
+      - uses: actions/cache@v4
+        with:
+          path: tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat
+          key: test-samples-${{ hashFiles('src/pypft/samples/**') }}
       - run: ./scripts/Invoke-QualityGate.ps1

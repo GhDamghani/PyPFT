@@ -36,6 +36,9 @@ if ($NoSync) {
     $NotebookCommand += "-NoSync"
 }
 
+# Downloads only the samples tests/samples/ does not hold yet; the sources stay in
+# .local_files/samples/, so a deleted sample is cut again without a download.
+Invoke-Step "test samples" ($UvRun + @("python", "-m", "pypft.samples", "--directory", "tests/samples", "--cache-directory", ".local_files/samples"))
 Invoke-Step "pytest" ($UvRun + @("pytest"))
 Invoke-Step "notebooks (nbmake)" $NotebookCommand
 Invoke-Step "black --check" ($UvRun + @("black", "--check", "src", "tests", "benchmarks", "scripts"))
