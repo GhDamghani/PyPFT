@@ -292,6 +292,27 @@ disk) and changes nothing on the Gaussians. An exact inverse of the route would 
 $N_1 N_2 \times N_1 N_2$ evaluation operator inverted, which is out of reach at these sizes; the exact
 path's `inverse_pft` remains the exact inverse.
 
+**From uniform frequency data the inverse has no gap.** `inverse_pft_ring(F, grid, radius=...)` reads
+uniform polar frequency data (radially acquired k-space, `pypft.acquisition`) the way
+`sample_harmonics_uniform_polar` reads uniform space data: every data spoke is interpolated along the
+radius onto every harmonic's $\rho_{nm}$, and the quadrature runs over the data's own spokes. Uniform
+data starts at frequency 0, so nothing is extrapolated inside the central gap above, and the inverse is
+as accurate as the forward route. `pypft.grid.resample_uniform_polar_frequency` is the exact path's
+counterpart, onto `grid.rho` for `inverse_pft`. Measured against the analytic inverse, relative L2:
+
+| grid (`n_radial`, `n_angular`, `R`) | data | Gaussian | ring, uniform | exact path |
+| ----------------------------------- | ---- | -------- | ------------- | ---------- |
+| 64, 15, 10 | 256 radii to $\rho = 25$, 15 or 64 spokes | $e^{-r^2}$ | 8.2e-8 | 0.34 (on-grid $F$) |
+| 64, 15, 10 | 256 radii to $\rho = 25$, 64 spokes | $e^{-\lvert\mathbf{x} - (2, -1)\rvert^2}$ | 3.3e-2 (4.9e-2 from 15 spokes) | 0.67 (on-grid $F$) |
+| 40, 31, 48 | 64 lines of 128 samples, $\rho \le \pi$ | width 4 at $(6, -3)$ | 2.4e-5 | 0.81 (resampled $F$) |
+
+In the last row `resample_uniform_polar_frequency` itself reproduces the analytic transform on
+`grid.rho` to 4.2e-5, so the exact path's 0.81 is its own identification error, not the bridge's. The
+two off-center 15-harmonic rows are limited by angular truncation, as in the forward table. On measured
+cardiac k-space (`notebooks/09_experimental_data.ipynb`, the MD-CNN excerpt on `n_radial=128,
+n_angular=98, R=208` pixels) the exact path's image is unrecognizable while the ring route's shows the
+anatomy; there is no ground truth for a number. That case costs about 15 s for four coils on 16 cores.
+
 **Cost, and why nothing is cached.** The output stage evaluates $(N_2 / 2 + 1)^2$ distinct order pairs
 (harmonics $\pm n$ and spokes $\pm q$ share their Bessel orders), each an $N_1 \times N_1$ matrix of
 `jv` values, about 0.15 s per matrix at `n_radial=576`. Measured per direction: 0.6 s at

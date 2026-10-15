@@ -20,6 +20,7 @@ from pypft.grid import (
     PolarGrid,
     RadiusCoverageError,
     resample_uniform_polar,
+    resample_uniform_polar_frequency,
     sample_cartesian,
 )
 from pypft.transform import forward_pft
@@ -373,3 +374,94 @@ def test_does_not_modify_its_input() -> None:
     original = values.copy()
     resample_uniform_polar(values=values, grid=_GRID, radius=_RADIUS)
     np.testing.assert_array_equal(values, original)
+
+
+# ======================================================================================
+# The frequency-domain resampler
+# ======================================================================================
+
+#: A frequency radius covering every ``_GRID.rho``, whose largest value is ~21.3.
+_FREQUENCY_RADIUS = 25.0
+
+
+@pytest.mark.parametrize(argnames="n_uniform", argvalues=[96, 40])
+def test_frequency_cubic_on_every_spoke_is_reproduced_exactly(n_uniform: int) -> None:
+    """The frequency resampler interpolates onto ``grid.rho``, exactly for a cubic.
+
+    Measured largest relative error: 2.8e-16 from either uniform radial count.
+    """
+    uniform = _cubic(
+        r=_uniform_radii(n_radial=n_uniform, radius=_FREQUENCY_RADIUS)[:, np.newaxis],
+        theta=_GRID.psi[np.newaxis, :],
+    )
+    resampled = resample_uniform_polar_frequency(
+        values=uniform, grid=_GRID, radius=_FREQUENCY_RADIUS
+    )
+    exact = _cubic(r=_GRID.rho.T, theta=_GRID.psi[np.newaxis, :])
+    assert resampled.shape == (_GRID.n_radial, _GRID.n_angular)
+    assert np.max(np.abs(resampled - exact)) / np.max(np.abs(exact)) < _CUBIC_RTOL
+
+
+def test_frequency_resampler_interpolates_across_other_spokes() -> None:
+    """More data spokes than grid spokes are interpolated periodically, as in space.
+
+    Measured largest error from 61 spokes onto the grid's 15: 1.9e-6.
+    """
+    n_spokes = 4 * _GRID.n_angular + 1
+    uniform = _smooth(
+        r=_uniform_radii(n_radial=96, radius=_FREQUENCY_RADIUS)[:, np.newaxis],
+        theta=_spoke_angles(n_angular=n_spokes)[np.newaxis, :],
+    )
+    resampled = resample_uniform_polar_frequency(
+        values=uniform, grid=_GRID, radius=_FREQUENCY_RADIUS
+    )
+    exact = _smooth(r=_GRID.rho.T, theta=_GRID.psi[np.newaxis, :])
+    np.testing.assert_allclose(
+        actual=resampled, desired=exact, rtol=0.0, atol=_MORE_SPOKES_ATOL
+    )
+
+
+def test_frequency_resampler_rejects_a_grid_reaching_past_the_data() -> None:
+    """The largest ``grid.rho``, not ``grid.R``, must lie inside the data."""
+    with pytest.raises(RadiusCoverageError, match=r"max\(grid\.rho\)"):
+        resample_uniform_polar_frequency(
+            values=_valid_values(), grid=_GRID, radius=float(_GRID.rho.max()) - 0.1
+        )
+    resample_uniform_polar_frequency(
+        values=_valid_values(), grid=_GRID, radius=float(_GRID.rho.max())
+    )
+
+
+@pytest.mark.parametrize(
+    argnames=("kwargs", "error"),
+    argvalues=[
+        ({"values": [[1.0, 2.0]]}, TypeError),
+        ({"values": np.ones(shape=(1, 15))}, ValueError),
+        ({"grid": (64, 15, 10.0)}, TypeError),
+        ({"radius": 25}, TypeError),
+        ({"radius": 0.0}, ValueError),
+    ],
+)
+def test_frequency_resampler_rejects_invalid_arguments(
+    kwargs: dict, error: type
+) -> None:
+    """The frequency resampler shares the space resampler's input contract."""
+    arguments = {
+        "values": _valid_values(),
+        "grid": _GRID,
+        "radius": _FREQUENCY_RADIUS,
+    }
+    arguments.update(kwargs)
+    with pytest.raises(error):
+        resample_uniform_polar_frequency(**arguments)
+
+
+def test_frequency_resampler_rejects_band_limited_grids() -> None:
+    """Only space-limited grids are supported, as for the space resampler."""
+    grid = PolarGrid(
+        n_radial=64, n_angular=15, R=10.0, limit_kind=LimitKind.BAND_LIMITED
+    )
+    with pytest.raises(NotImplementedError):
+        resample_uniform_polar_frequency(
+            values=_valid_values(), grid=grid, radius=_FREQUENCY_RADIUS
+        )
