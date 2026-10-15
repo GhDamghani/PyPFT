@@ -24,10 +24,13 @@ This module avoids it on both sides, without a new DHT or DFT kernel:
 
 ``forward_pft_ring`` composes the three, and ``inverse_pft_ring`` is its mirror image
 (spokes interpolated onto true frequency rings, the inverse ``scaled_hankel``, and
-``evaluate_space`` at each spoke's ``r_pk``). The route is accurate where the exact
-path is not, but it is not a square matrix on one array, so it is not exactly
-invertible: a round trip is an approximation, and the discrete rules of the exact path
-(orthogonality, shift, convolution, Parseval) hold only approximately.
+``evaluate_space`` at each spoke's ``r_pk``). Both read uniform polar data as well as
+grid samples: ``forward_pft_ring`` in the space domain, ``inverse_pft_ring`` in the
+frequency domain, such as radially acquired k-space (``pypft.acquisition``). The
+route is accurate where the exact path is not, but it is not a square matrix on one
+array, so it is not exactly invertible: a round trip is an approximation, and the
+discrete rules of the exact path (orthogonality, shift, convolution, Parseval) hold
+only approximately.
 ``DESIGN_NOTES.md``, "PFT: the exact path and the ring-consistent route," has the
 measurements and the trade-off.
 
@@ -53,7 +56,12 @@ from pypft.grid import (
     _uniform_polar_radii,
     _validate_uniform_polar,
 )
-from pypft.transform import Direction, _validate_pft_input, scaled_hankel
+from pypft.transform import (
+    Direction,
+    _validate_batch_axis,
+    _validate_pft_input,
+    scaled_hankel,
+)
 from pypft.utils.validators import IntValidator, NumpyValidator
 
 #: The ranks ``sample_harmonics_cartesian`` accepts: a single ``(height, width)``
@@ -421,17 +429,27 @@ def sample_harmonics_uniform_polar(
         values=values,
         grid=grid,
         radius=radius,
+        direction=Direction.FORWARD,
         caller="sample_harmonics_uniform_polar",
     )
 
 
 def _sample_harmonics_uniform_polar(
-    values: np.ndarray, grid: PolarGrid, *, radius: float, caller: str
+    values: np.ndarray,
+    grid: PolarGrid,
+    *,
+    radius: float,
+    direction: Direction,
+    caller: str,
 ) -> np.ndarray:
     """Validate and sample uniform polar data; see ``sample_harmonics_uniform_polar``.
 
     Every public entry point calls this directly, so the angular-upsampling warning
-    reaches the user's call at one fixed stack depth.
+    reaches the user's call at one fixed stack depth. The same quadrature serves
+    both domains: space-domain data is sampled on the rings ``r_nk`` of ``grid.r``
+    (``direction=Direction.FORWARD``, the data is about to be transformed forward),
+    frequency-domain data on the rings ``rho_nm`` of ``grid.rho``
+    (``Direction.INVERSE``).
 
     :param values: The uniform polar array.
     :type values: np.ndarray
@@ -439,15 +457,31 @@ def _sample_harmonics_uniform_polar(
     :type grid: pypft.grid.PolarGrid
     :param radius: The radius the uniform samples cover.
     :type radius: float
+    :param direction: The direction the sampled harmonics are transformed in next,
+        which names the domain ``values`` is in.
+    :type direction: pypft.transform.Direction
     :param caller: The public function's name, for the error messages.
     :type caller: str
-    :returns: The spatial-harmonic array.
+    :returns: The spatial-harmonic (forward) or frequency-harmonic (inverse) array.
     :rtype: np.ndarray
 
     """
+    # The grid's radii are read before the shared validation, so its type comes first.
+    _type_is_polar_grid(value=grid)
+    if direction is Direction.FORWARD:
+        radii, extent, extent_name = grid.r, grid.R, "grid.R"
+    else:
+        radii = grid.rho
+        extent, extent_name = float(np.max(a=radii)), "max(grid.rho)"
     # stacklevel=4: past the validator, this helper and the public entry point.
     _validate_uniform_polar(
-        values=values, grid=grid, radius=radius, caller=caller, stacklevel=4
+        values=values,
+        grid=grid,
+        radius=radius,
+        extent=extent,
+        extent_name=extent_name,
+        caller=caller,
+        stacklevel=4,
     )
     n_radial, n_spokes = values.shape[PolarAxis.RADIAL], values.shape[PolarAxis.ANGULAR]
     uniform_radii = _uniform_polar_radii(n_radial=n_radial, radius=radius)
@@ -457,7 +491,6 @@ def _sample_harmonics_uniform_polar(
     spline = CubicSpline(x=uniform_radii, y=values, axis=PolarAxis.RADIAL)
 
     result = np.empty((grid.n_radial, grid.n_angular) + values.shape[2:], dtype=complex)
-    radii = grid.r
     for _, columns in _orders(grid=grid):
         # Every spoke at this order's radii: true rings, (radial, spokes[, batch]).
         rings = spline(radii[columns[0]])
@@ -662,7 +695,11 @@ def forward_pft_ring(
         f_n = sample_harmonics_cartesian(image=values, grid=grid)
     else:
         f_n = _sample_harmonics_uniform_polar(
-            values=values, grid=grid, radius=radius, caller="forward_pft_ring"
+            values=values,
+            grid=grid,
+            radius=radius,
+            direction=Direction.FORWARD,
+            caller="forward_pft_ring",
         )
     F_n = scaled_hankel(
         values=f_n,
@@ -675,52 +712,87 @@ def forward_pft_ring(
 
 
 def inverse_pft_ring(
-    F: np.ndarray, grid: PolarGrid, *, batch_axis: int = DEFAULT_BATCH_AXIS
+    F: np.ndarray,
+    grid: PolarGrid,
+    *,
+    radius: float | None = None,
+    batch_axis: int = DEFAULT_BATCH_AXIS,
 ) -> np.ndarray:
     """Compute the inverse PFT by the ring-consistent route: an approximation.
 
-    The mirror image of ``forward_pft_ring``, from samples on ``pypft.inverse_pft``'s
-    own frequency grid (``grid.rho.T``, ``grid.psi``): every frequency spoke is
-    interpolated along the radius onto each harmonic's own true rings ``rho_nm``
-    (a cubic spline per spoke), the angular quadrature over the spokes gives each
-    harmonic, the inverse ``pypft.transform.scaled_hankel`` transforms it, and
-    ``evaluate_space`` evaluates the result at every spatial spoke's own ``r_pk``.
+    The mirror image of ``forward_pft_ring``. With ``radius`` omitted, ``F`` holds
+    samples on ``pypft.inverse_pft``'s own frequency grid (``grid.rho.T``,
+    ``grid.psi``): every frequency spoke is interpolated along the radius onto each
+    harmonic's own true rings ``rho_nm`` (a cubic spline per spoke), the angular
+    quadrature over the spokes gives each harmonic, the inverse
+    ``pypft.transform.scaled_hankel`` transforms it, and ``evaluate_space`` evaluates
+    the result at every spatial spoke's own ``r_pk``.
+
+    With ``radius`` given, ``F`` is uniform polar frequency data instead, in
+    ``pypft.grid.resample_uniform_polar_frequency``'s convention: radial sample ``k``
+    of ``n`` at frequency ``k * radius / n`` on every spoke, with any number of
+    uniform, centered spokes, such as radially acquired k-space
+    (``pypft.acquisition.RadialKSpace``). Equal radii on every spoke make each
+    radial index a true ring already, so the input stage interpolates along the
+    radius onto every ``rho_nm`` and takes the quadrature over the data's own spokes,
+    the frequency-domain mirror of ``sample_harmonics_uniform_polar``. Uniform data
+    starts at frequency ``0``, so nothing is extrapolated inside the central gap
+    below.
 
     This is **not** an exact inverse of ``forward_pft_ring``: neither direction is a
     square matrix on one array, and the input stage interpolates. The result
     approximates the continuous inverse transform at ``(r_pk, theta_p)``, and a round
     trip returns the input only approximately; use ``pypft.inverse_pft`` for an exact
-    inverse. Its accuracy is limited by the frequency grid's central gap: spoke ``q``
-    has no sample below ``rho_q1 = j_|q|1 / R``, so the input stage extrapolates
-    there, which is accurate only when ``R`` is large relative to the object and
-    ``n_angular`` small (a round trip within ``1.4e-4`` relative L2 at
-    ``n_radial=382, n_angular=15, R=40``), and fails when the gap holds much of the
-    transform (``1.6`` at ``n_radial=200, n_angular=63, R=10``). ``DESIGN_NOTES.md``,
-    "PFT: the exact path and the ring-consistent route," has the measurements.
+    inverse. From grid samples, its accuracy is limited by the frequency grid's
+    central gap: spoke ``q`` has no sample below ``rho_q1 = j_|q|1 / R``, so the
+    input stage extrapolates there, which is accurate only when ``R`` is large
+    relative to the object and ``n_angular`` small (a round trip within ``1.4e-4``
+    relative L2 at ``n_radial=382, n_angular=15, R=40``), and fails when the gap
+    holds much of the transform (``1.6`` at ``n_radial=200, n_angular=63, R=10``).
+    ``DESIGN_NOTES.md``, "PFT: the exact path and the ring-consistent route," has the
+    measurements, including uniform frequency input.
 
     :param F: Frequency-domain samples on ``grid``, ``(n_radial, n_angular)`` or a
-        batch ``(n_radial, n_angular, batch)``.
+        batch ``(n_radial, n_angular, batch)``, when ``radius`` is omitted; else a
+        uniform polar frequency array ``(radial, angular[, batch])`` with at least
+        two radial samples.
     :type F: np.ndarray
-    :param grid: The space-limited grid the samples are on.
+    :param grid: The space-limited grid to transform on.
     :type grid: pypft.grid.PolarGrid
+    :param radius: The frequency radius uniform polar ``F`` covers, in radians per
+        unit of ``grid.R``; omitted for samples on ``grid``.
+    :type radius: float | None
     :param batch_axis: The axis of ``F`` holding the batch dimension; PyPFT's own
         layout always places it last, so the only accepted value is
         ``pypft.axes.DEFAULT_BATCH_AXIS``.
     :type batch_axis: int
-    :returns: The space-domain samples at ``(r_pk, theta_p)``, on the same layout,
-        complex.
+    :returns: The space-domain samples at ``(r_pk, theta_p)``, ``(grid.n_radial,
+        grid.n_angular[, batch])``, complex.
     :rtype: np.ndarray
     :raises TypeError: If any argument has the wrong type.
     :raises ValueError: If ``F`` is neither a single sample nor a batch, has a
-        non-finite element, or its shape does not match ``grid``.
+        non-finite element, its shape does not match ``grid`` (``radius`` omitted),
+        or ``batch_axis`` does not name the batch axis.
+    :raises pypft.grid.RadiusCoverageError: If ``radius`` is given and the largest
+        ``grid.rho`` exceeds it.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
     """
-    _validate_pft_input(values=F, grid=grid, batch_axis=batch_axis)
-    NumpyValidator.value_is_finite(value=F)
-    _require_space_limited(grid=grid, caller="inverse_pft_ring")
-    F_n = _harmonics_from_spokes(values=F, grid=grid)
+    if radius is None:
+        _validate_pft_input(values=F, grid=grid, batch_axis=batch_axis)
+        NumpyValidator.value_is_finite(value=F)
+        _require_space_limited(grid=grid, caller="inverse_pft_ring")
+        F_n = _harmonics_from_spokes(values=F, grid=grid)
+    else:
+        _validate_batch_axis(values=F, batch_axis=batch_axis)
+        F_n = _sample_harmonics_uniform_polar(
+            values=F,
+            grid=grid,
+            radius=radius,
+            direction=Direction.INVERSE,
+            caller="inverse_pft_ring",
+        )
     f_n = scaled_hankel(
         values=F_n,
         grid=grid,

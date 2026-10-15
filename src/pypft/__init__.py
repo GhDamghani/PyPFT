@@ -22,6 +22,7 @@ from .grid import (
     check_adequacy,
     check_nyquist_adequacy,
     resample_uniform_polar,
+    resample_uniform_polar_frequency,
     sample_cartesian,
 )
 from .ring import (
@@ -72,6 +73,7 @@ __all__ = [
     "polar_to_cartesian",
     "render_cartesian",
     "resample_uniform_polar",
+    "resample_uniform_polar_frequency",
     "sample_cartesian",
     "sample_harmonics_cartesian",
     "sample_harmonics_uniform_polar",

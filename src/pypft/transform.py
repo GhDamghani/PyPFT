@@ -441,6 +441,45 @@ def scaled_hankel(
 # ======================================================================================
 
 
+def _validate_batch_axis(values: np.ndarray, batch_axis: int) -> None:
+    """Validate a polar array's rank and its ``batch_axis`` argument.
+
+    Shared by ``_validate_pft_input`` and every function that takes a polar array
+    whose shape is not tied to a grid (``pypft.ring.inverse_pft_ring``'s uniform
+    input).
+
+    :param values: The polar array.
+    :type values: np.ndarray
+    :param batch_axis: The axis of ``values`` holding the batch dimension, if
+        any -- meaningful only when ``values`` is a batch.
+    :type batch_axis: int
+    :raises TypeError: If any argument has the wrong type.
+    :raises ValueError: If ``values`` is neither a single sample ``(radial,
+        angular)`` nor a batch ``(radial, angular, batch)``, ``batch_axis`` is given
+        on a single sample, or ``batch_axis`` does not name the axis after a batch's
+        sample axes.
+
+    """
+    NumpyValidator.type_is_ndarray(value=values)
+    _value_is_polar_sample_or_batch(value=values)
+    IntValidator.type_is_int(value=batch_axis)
+    if values.ndim == POLAR_SAMPLE_NDIM:
+        if batch_axis != DEFAULT_BATCH_AXIS:
+            raise ValueError(
+                f"batch_axis={batch_axis} was given, but values is a single sample "
+                "(radial, angular) and has no batch axis"
+            )
+        return
+    NumpyValidator.value_has_axis(value=values, axis=batch_axis)
+    # The batch axis is the axis after the sample axes.
+    if batch_axis % values.ndim != POLAR_SAMPLE_NDIM:
+        raise ValueError(
+            f"batch_axis={batch_axis} does not name the batch axis of a batch "
+            "(radial, angular, batch); PyPFT's own layout always places the "
+            "batch axis after the sample axes"
+        )
+
+
 def _validate_pft_input(values: np.ndarray, grid: PolarGrid, batch_axis: int) -> None:
     """Validate the shared arguments of ``forward_pft``/``inverse_pft``.
 
@@ -458,27 +497,12 @@ def _validate_pft_input(values: np.ndarray, grid: PolarGrid, batch_axis: int) ->
         or ``batch_axis`` does not name the axis after a batch's sample axes.
 
     """
-    NumpyValidator.type_is_ndarray(value=values)
-    _value_is_polar_sample_or_batch(value=values)
+    _validate_batch_axis(values=values, batch_axis=batch_axis)
     _type_is_polar_grid(value=grid)
-    IntValidator.type_is_int(value=batch_axis)
     if values.ndim == POLAR_SAMPLE_NDIM:
-        if batch_axis != DEFAULT_BATCH_AXIS:
-            raise ValueError(
-                f"batch_axis={batch_axis} was given, but values is a single sample "
-                "(radial, angular) and has no batch axis"
-            )
         reference = np.empty((grid.n_radial, grid.n_angular))
         NumpyValidator.value1_shape_matches_value2(value1=values, value2=reference)
     else:
-        NumpyValidator.value_has_axis(value=values, axis=batch_axis)
-        # The batch axis is the axis after the sample axes.
-        if batch_axis % values.ndim != POLAR_SAMPLE_NDIM:
-            raise ValueError(
-                f"batch_axis={batch_axis} does not name the batch axis of a batch "
-                "(radial, angular, batch); PyPFT's own layout always places the "
-                "batch axis after the sample axes"
-            )
         NumpyValidator.value1_axis_length_matches_value2(
             value1=values,
             axis1=PolarAxis.RADIAL,
