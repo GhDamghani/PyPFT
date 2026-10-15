@@ -23,6 +23,12 @@ with both runtime and development dependencies, from the repository root::
 
    uv sync
 
+Some test samples are too large to keep in the repository. Download them from their
+public sources into ``tests/samples/`` (the quality gate does this itself when one is
+missing; ``.local_files/samples/`` keeps the downloaded sources)::
+
+   uv run python -m pypft.samples --directory tests/samples --cache-directory .local_files/samples
+
 Run ``uv sync`` again after every pull or branch switch, so the environment always matches
 ``pyproject.toml``.
 
