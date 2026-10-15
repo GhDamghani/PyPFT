@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from pypft.dft import angular_dft, inverse_angular_dft
+from pypft.dft import angular_dft, harmonics, inverse_angular_dft
 from pypft.dht import hankel_transform
 from pypft.domains import PolarSpatialHarmonicSignal
 from pypft.grid import (
@@ -23,6 +23,7 @@ from pypft.grid import (
     PolarGrid,
     RadiusCoverageError,
     resample_uniform_polar,
+    resample_uniform_polar_frequency,
     sample_cartesian,
 )
 from pypft.ring import (
@@ -551,9 +552,109 @@ def test_angular_upsampling_warning_points_at_the_callers_line() -> None:
         ),
         lambda: forward_pft_ring(values=few_spokes, grid=_GRID, radius=_GRID.R),
         lambda: resample_uniform_polar(values=few_spokes, grid=_GRID, radius=_GRID.R),
+        lambda: inverse_pft_ring(
+            F=few_spokes, grid=_GRID, radius=_UNIFORM_FREQUENCY_RADIUS
+        ),
+        lambda: resample_uniform_polar_frequency(
+            values=few_spokes, grid=_GRID, radius=_UNIFORM_FREQUENCY_RADIUS
+        ),
     )
     for call in calls:
         with pytest.warns(AngularUpsamplingWarning) as record:
             call()
         # Path equality, since Windows reports the same file with either drive case.
         assert Path(record[0].filename) == Path(__file__)
+
+
+# ======================================================================================
+# The inverse route from uniform polar frequency data
+# ======================================================================================
+
+#: The frequency radius the uniform test data covers; ``_GRID.rho`` reaches ~21.1.
+_UNIFORM_FREQUENCY_RADIUS = 25.0
+
+
+def _uniform_frequency_samples(
+    n_spokes: int, center: tuple[float, float], n_radial: int = 256
+) -> np.ndarray:
+    """The exact transform of ``_gaussian`` on a uniform polar frequency grid.
+
+    :param n_spokes: The number of uniform, centered spokes.
+    :type n_spokes: int
+    :param center: The ``(x, y)`` center of the Gaussian.
+    :type center: tuple[float, float]
+    :param n_radial: The number of uniform radial samples up to
+        ``_UNIFORM_FREQUENCY_RADIUS``.
+    :type n_radial: int
+    :returns: The ``(radial, angular)`` uniform polar frequency samples.
+    :rtype: np.ndarray
+
+    """
+    rho = (np.arange(n_radial) * (_UNIFORM_FREQUENCY_RADIUS / n_radial))[:, np.newaxis]
+    psi = (harmonics(n_spokes) * (2 * np.pi / n_spokes))[np.newaxis, :]
+    x0, y0 = center
+    phase = rho * (np.cos(psi) * x0 + np.sin(psi) * y0)
+    return np.pi * np.exp(-(rho**2) / 4) * np.exp(-1j * phase)
+
+
+@pytest.mark.parametrize(argnames="n_spokes", argvalues=[15, 64])
+def test_uniform_frequency_input_reaches_the_continuous_inverse(n_spokes: int) -> None:
+    # Measured 8.2e-8 relative L2 for the centered Gaussian from either spoke count,
+    # against 0.34 for the exact path from the exact transform on the grid.
+    f = inverse_pft_ring(
+        F=_uniform_frequency_samples(n_spokes=n_spokes, center=(0.0, 0.0)),
+        grid=_GRID,
+        radius=_UNIFORM_FREQUENCY_RADIUS,
+    )
+    expected = _gaussian(r=_GRID.r.T, theta=_GRID.theta[np.newaxis, :], center=(0, 0))
+    assert _relative_l2(values=f, reference=expected) < 1e-6
+
+
+def test_uniform_frequency_input_beats_the_exact_path_off_center() -> None:
+    center = (2.0, -1.0)
+    f = inverse_pft_ring(
+        F=_uniform_frequency_samples(n_spokes=64, center=center),
+        grid=_GRID,
+        radius=_UNIFORM_FREQUENCY_RADIUS,
+    )
+    exact_path = inverse_pft(
+        F=_gaussian_transform(grid=_GRID, center=center), grid=_GRID
+    )
+    expected = _gaussian(r=_GRID.r.T, theta=_GRID.theta[np.newaxis, :], center=center)
+    # Measured 3.3e-2 relative L2, limited by the grid's 15 harmonics; the exact path
+    # measures 0.67 from the exact transform on its own grid.
+    assert _relative_l2(values=f, reference=expected) < 0.05
+    assert _relative_l2(values=exact_path, reference=expected) > 0.5
+
+
+def test_uniform_frequency_batches_match_single_samples() -> None:
+    single = _uniform_frequency_samples(n_spokes=32, center=(1.0, 0.5))
+    batch = np.stack(arrays=[single, 2 * single], axis=-1)
+    result = inverse_pft_ring(F=batch, grid=_GRID, radius=_UNIFORM_FREQUENCY_RADIUS)
+    alone = inverse_pft_ring(F=single, grid=_GRID, radius=_UNIFORM_FREQUENCY_RADIUS)
+    assert result.shape == (_GRID.n_radial, _GRID.n_angular, 2)
+    # Measured 6.5e-16 largest difference: rounding, from the batched products.
+    np.testing.assert_allclose(actual=result[..., 0], desired=alone, atol=1e-14)
+    np.testing.assert_allclose(actual=result[..., 1], desired=2 * alone, atol=1e-14)
+
+
+@pytest.mark.parametrize(
+    argnames=("kwargs", "error"),
+    argvalues=[
+        ({"F": np.ones((32, 15, 2, 2))}, ValueError),
+        ({"F": np.ones((32, 15)), "batch_axis": 2}, ValueError),
+        ({"F": np.ones((32, 15, 2)), "batch_axis": 0}, ValueError),
+        ({"F": np.ones((1, 15))}, ValueError),
+        ({"radius": 25}, TypeError),
+        ({"radius": 20.0}, RadiusCoverageError),
+    ],
+)
+def test_uniform_frequency_input_is_validated(kwargs: dict, error: type) -> None:
+    arguments = {
+        "F": np.ones((32, 15)),
+        "grid": _GRID,
+        "radius": _UNIFORM_FREQUENCY_RADIUS,
+        **kwargs,
+    }
+    with pytest.raises(error):
+        inverse_pft_ring(**arguments)

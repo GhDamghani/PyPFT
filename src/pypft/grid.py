@@ -23,11 +23,13 @@ Two consequences matter to anyone sampling data for it:
   itself, which the average dB error ``E_avg`` hides; the relative L2 error shows it.
 
 ``DESIGN_NOTES.md``, "Grid: the spatial row index is a spoke, and the transform
-identifies it with a harmonic," has the measurements behind both. Two functions put
+identifies it with a harmonic," has the measurements behind both. Three functions put
 data on this grid: ``sample_cartesian`` evaluates an ordinary image at the grid's
-points, and ``resample_uniform_polar`` interpolates uniform polar data (a
+points, ``resample_uniform_polar`` interpolates uniform polar data (a
 ``cartesian_to_polar`` result, or an acquisition with equally spaced samples along
-each spoke) along each spoke onto them. ``pypft.ring`` samples on true rings instead,
+each spoke) along each spoke onto them, and ``resample_uniform_polar_frequency`` does
+the same in the frequency domain, onto ``PolarGrid.rho``, for radially acquired
+k-space (``pypft.acquisition``). ``pypft.ring`` samples on true rings instead,
 for the ring-consistent route that avoids the identification. ``check_adequacy`` and
 ``check_nyquist_adequacy`` are empirical/analytical guards that warn when a grid's
 angular and radial sample counts are mismatched, since that mismatch degrades accuracy
@@ -317,14 +319,17 @@ def _validate_uniform_polar(
     grid: PolarGrid,
     radius: float,
     *,
+    extent: float,
+    extent_name: str,
     caller: str,
     stacklevel: int,
 ) -> None:
     """Validate uniform polar data against the grid it is put on.
 
     Shared by every function that reads uniform polar data onto a grid
-    (``resample_uniform_polar`` here, and ``pypft.ring``'s uniform-polar sampler),
-    so both accept exactly the same input.
+    (``resample_uniform_polar``/``resample_uniform_polar_frequency`` here, and
+    ``pypft.ring``'s uniform-polar samplers), so all of them accept exactly the same
+    input.
 
     :param values: A uniform polar array, ``(radial, angular)`` or a batch
         ``(radial, angular, batch)``.
@@ -333,6 +338,12 @@ def _validate_uniform_polar(
     :type grid: PolarGrid
     :param radius: The radius the uniform samples cover.
     :type radius: float
+    :param extent: The largest radius the grid needs a sample at, in the same
+        domain as ``radius``: ``grid.R`` in the space domain, the largest
+        ``grid.rho`` in the frequency domain.
+    :type extent: float
+    :param extent_name: How ``extent`` is named in the error message.
+    :type extent_name: str
     :param caller: The public function's name, for the error messages.
     :type caller: str
     :param stacklevel: The ``warnings.warn`` stack level that reaches the user's
@@ -342,7 +353,7 @@ def _validate_uniform_polar(
     :raises ValueError: If ``values`` is neither a single sample nor a batch, has fewer
         than two radial samples, no spokes, or a non-finite element, or ``radius``
         is not strictly positive.
-    :raises RadiusCoverageError: If ``grid.R`` exceeds ``radius``.
+    :raises RadiusCoverageError: If ``extent`` exceeds ``radius``.
     :raises NotImplementedError: If ``grid.limit_kind`` is not
         ``LimitKind.SPACE_LIMITED``.
 
@@ -365,9 +376,10 @@ def _validate_uniform_polar(
         )
     if n_spokes == 0:
         raise ValueError("values must have at least one spoke, got 0")
-    if grid.R > radius:
+    if extent > radius:
         raise RadiusCoverageError(
-            f"grid.R={grid.R} exceeds the radius={radius} the uniform samples cover"
+            f"{extent_name}={extent} exceeds the radius={radius} the uniform samples "
+            "cover"
         )
     if n_spokes < grid.n_angular:
         warnings.warn(
@@ -382,34 +394,35 @@ def _validate_uniform_polar(
 
 
 def _resample_matching_spokes(
-    values: np.ndarray, grid: PolarGrid, radii: np.ndarray
+    values: np.ndarray, grid_radii: np.ndarray, radii: np.ndarray
 ) -> np.ndarray:
     """Interpolate each spoke along the radius alone, onto that spoke's grid radii.
 
-    :param values: The uniform polar array, with exactly ``grid.n_angular`` spokes.
+    :param values: The uniform polar array, with exactly one spoke per row of
+        ``grid_radii``.
     :type values: np.ndarray
-    :param grid: The grid to resample onto.
-    :type grid: PolarGrid
+    :param grid_radii: The grid's radii in the data's domain, ``grid.r`` or
+        ``grid.rho``, ``(n_angular, n_radial)``.
+    :type grid_radii: np.ndarray
     :param radii: The uniform radii of ``values``' radial axis.
     :type radii: np.ndarray
-    :returns: The array resampled at ``grid.r``, in the ``(radial, angular[, batch])``
-        layout.
+    :returns: The array resampled at ``grid_radii``, in the ``(radial, angular[,
+        batch])`` layout.
     :rtype: np.ndarray
 
     """
-    grid_radii = grid.r
     spokes = [
         # One cubic spline per spoke, fitted along the radius (axis 0) of that
         # spoke's own samples; a complex array is fitted as one complex spline,
         # so its real and imaginary parts are interpolated together.
         CubicSpline(x=radii, y=values[:, spoke, ...], axis=0)(grid_radii[spoke])
-        for spoke in range(grid.n_angular)
+        for spoke in range(grid_radii.shape[0])
     ]
     return np.stack(arrays=spokes, axis=PolarAxis.ANGULAR)
 
 
 def _resample_other_spokes(
-    values: np.ndarray, grid: PolarGrid, radii: np.ndarray
+    values: np.ndarray, grid: PolarGrid, grid_radii: np.ndarray, radii: np.ndarray
 ) -> np.ndarray:
     """Interpolate along the radius and, periodically, across the spokes.
 
@@ -417,9 +430,12 @@ def _resample_other_spokes(
     :type values: np.ndarray
     :param grid: The grid to resample onto.
     :type grid: PolarGrid
+    :param grid_radii: The grid's radii in the data's domain, ``grid.r`` or
+        ``grid.rho``.
+    :type grid_radii: np.ndarray
     :param radii: The uniform radii of ``values``' radial axis.
     :type radii: np.ndarray
-    :returns: The array resampled at ``grid.r``/``grid.theta``, in the
+    :returns: The array resampled at ``grid_radii``/``grid.theta``, in the
         ``(radial, angular[, batch])`` layout.
     :rtype: np.ndarray
 
@@ -432,7 +448,6 @@ def _resample_other_spokes(
     # A periodic spline needs its first spoke repeated one full turn later.
     closed_angles = np.append(arr=angles, values=angles[0] + 2.0 * np.pi)
 
-    grid_radii = grid.r
     spokes = []
     for spoke, angle in enumerate(grid.theta):
         # Every data spoke at this grid spoke's radii, then across the spokes at its
@@ -499,19 +514,128 @@ def resample_uniform_polar(
         ``LimitKind.SPACE_LIMITED``.
 
     """
-    # stacklevel=3: past the helper and this function, at the user's call.
+    _type_is_polar_grid(value=grid)
+    return _resample_uniform_polar_onto(
+        values=values,
+        grid=grid,
+        radius=radius,
+        grid_radii=grid.r,
+        extent=grid.R,
+        extent_name="grid.R",
+        caller="resample_uniform_polar",
+    )
+
+
+def resample_uniform_polar_frequency(
+    values: np.ndarray, grid: PolarGrid, *, radius: float
+) -> np.ndarray:
+    """Interpolate uniform polar frequency data along each spoke onto ``grid.rho``.
+
+    The frequency-domain counterpart of ``resample_uniform_polar``, for data that is
+    uniform polar in the frequency domain, such as radially acquired k-space
+    (``pypft.acquisition.RadialKSpace.values``): radial sample ``k`` of ``n`` sits at
+    frequency ``k * radius / n`` on every spoke, ``radius`` in radians per unit of
+    length (the unit of ``grid.R``), and the spokes are uniform on a centered angular
+    axis. The result is on ``pypft.inverse_pft``'s input grid, ``grid.rho``/
+    ``grid.psi``. Spokes and complex values are handled exactly as in
+    ``resample_uniform_polar``; frequency radii past the last uniform sample, by less
+    than one uniform step, are extrapolated from the outermost spline piece.
+
+    The frequency grid reaches farther on high-order spokes, up to about
+    ``(n_radial + n_angular / 4) * pi / grid.R``, and the data must cover that.
+    ``pypft.inverse_pft_ring`` with ``radius`` reads the same data without the exact
+    path's spoke-to-harmonic identification; ``DESIGN_NOTES.md``, "PFT: the exact
+    path and the ring-consistent route," compares the two on measured k-space.
+
+    :param values: A uniform polar frequency-domain array, ``(radial, angular)`` or a
+        batch ``(radial, angular, batch)``, real or complex, with at least two radial
+        samples and a centered angular axis.
+    :type values: np.ndarray
+    :param grid: The space-limited grid to resample onto.
+    :type grid: PolarGrid
+    :param radius: The frequency radius the uniform samples cover, in radians per
+        unit of ``grid.R``.
+    :type radius: float
+    :returns: ``values`` resampled at ``grid.rho``/``grid.psi``, of shape
+        ``(grid.n_radial, grid.n_angular[, batch])``: ``inverse_pft``'s input shape.
+    :rtype: np.ndarray
+    :raises TypeError: If any argument has the wrong type.
+    :raises ValueError: If ``values`` is neither a single sample nor a batch, has fewer
+        than two radial samples, no spokes, or a non-finite element, or ``radius``
+        is not strictly positive.
+    :raises RadiusCoverageError: If the largest ``grid.rho`` exceeds ``radius``: the
+        grid would need samples the data does not have.
+    :raises NotImplementedError: If ``grid.limit_kind`` is not
+        ``LimitKind.SPACE_LIMITED``.
+
+    """
+    # The grid's radii are read before the shared validation, so its type comes first.
+    _type_is_polar_grid(value=grid)
+    grid_radii = grid.rho
+    return _resample_uniform_polar_onto(
+        values=values,
+        grid=grid,
+        radius=radius,
+        grid_radii=grid_radii,
+        extent=float(np.max(a=grid_radii)),
+        extent_name="max(grid.rho)",
+        caller="resample_uniform_polar_frequency",
+    )
+
+
+def _resample_uniform_polar_onto(
+    values: np.ndarray,
+    grid: PolarGrid,
+    *,
+    radius: float,
+    grid_radii: np.ndarray,
+    extent: float,
+    extent_name: str,
+    caller: str,
+) -> np.ndarray:
+    """Validate uniform polar data and interpolate it onto one of the grid's domains.
+
+    Both public resamplers call this directly, so the angular-upsampling warning
+    reaches the user's call at one fixed stack depth.
+
+    :param values: The uniform polar array.
+    :type values: np.ndarray
+    :param grid: The grid to resample onto.
+    :type grid: PolarGrid
+    :param radius: The radius the uniform samples cover.
+    :type radius: float
+    :param grid_radii: The grid's radii in the data's domain, ``grid.r`` or
+        ``grid.rho``.
+    :type grid_radii: np.ndarray
+    :param extent: The largest radius the grid needs a sample at.
+    :type extent: float
+    :param extent_name: How ``extent`` is named in the error message.
+    :type extent_name: str
+    :param caller: The public function's name, for the error messages.
+    :type caller: str
+    :returns: The array resampled at ``grid_radii``/``grid.theta``.
+    :rtype: np.ndarray
+
+    """
+    # stacklevel=4: past the validator, this helper and the public resampler.
     _validate_uniform_polar(
         values=values,
         grid=grid,
         radius=radius,
-        caller="resample_uniform_polar",
-        stacklevel=3,
+        extent=extent,
+        extent_name=extent_name,
+        caller=caller,
+        stacklevel=4,
     )
     n_radial, n_spokes = values.shape[PolarAxis.RADIAL], values.shape[PolarAxis.ANGULAR]
     radii = _uniform_polar_radii(n_radial=n_radial, radius=radius)
     if n_spokes == grid.n_angular:
-        return _resample_matching_spokes(values=values, grid=grid, radii=radii)
-    return _resample_other_spokes(values=values, grid=grid, radii=radii)
+        return _resample_matching_spokes(
+            values=values, grid_radii=grid_radii, radii=radii
+        )
+    return _resample_other_spokes(
+        values=values, grid=grid, grid_radii=grid_radii, radii=radii
+    )
 
 
 # ======================================================================================

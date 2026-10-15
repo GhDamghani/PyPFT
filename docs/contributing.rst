@@ -37,7 +37,7 @@ runs the quality gate on that setup, and additionally runs the tests and noteboo
 every supported interpreter, both at the floors and against the newest releases. To do the same locally,
 upgrade past the floors and run the gate without re-syncing::
 
-   uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+   uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy textual
    ./scripts/Invoke-QualityGate.ps1 -NoSync
 
 Run ``uv sync`` afterwards to return to the floors.

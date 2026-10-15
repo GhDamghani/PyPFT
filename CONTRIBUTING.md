@@ -53,7 +53,7 @@ That environment also runs against the *oldest* supported release of each runtim
 To reproduce the "latest" leg locally, upgrade the runtime dependencies past the floors and run the gate without re-syncing (`--no-config` makes `uv pip` ignore the constraint table):
 
 ```bash
-uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy textual
 ./scripts/Invoke-QualityGate.ps1 -NoSync
 ```
 
@@ -76,6 +76,8 @@ To add or upgrade a dependency, don't hand-edit the version pins; use `uv add "<
 - `setuptools`, `wheel`: packaging.
 - `tqdm`: progress bars in development scripts.
 - `pillow`: reads and writes the image files of the test fixtures (`scripts/make_maze.py`).
+
+`textual`, which draws PyPFT's terminal interface (`python -m pypft`) and the acquisition converter's, is a runtime dependency rather than a development one: it is pure Python and needs no graphical toolkit (Tkinter or otherwise), so the interface works wherever PyPFT installs.
 
 ### Recommended editor setup
 
@@ -128,6 +130,24 @@ The project does not ship editor configuration. If you use VS Code, these extens
   ```
 
   Run `uv run python scripts/make_maze.py --help` for the options (maze size `--rings` and `--inner-sectors`, `--seed`, `--wall-thickness`, the grid's `--n-radial`/`--n-angular`/`--radius`, `--maze-fraction`, `--image-size`, and `--output-dir`).
+
+- Regenerate the radial k-space test fixture (`tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat`), an excerpt of the public MD-CNN radial cine dataset (Harvard Dataverse, doi:10.7910/DVN/CI3WB6, CC0 1.0) in the dataset's own layout: one slice, one cardiac phase, the 416 readout samples around the center, and the four strongest coils. `scripts/make_md_cnn_excerpt.py` cuts it from the dataset's `P01_slc1_phs25_lins196_cols832_cha16.mat`, which is not part of the repository: download it from the dataset page into `.local_files/samples/El-Rewaidy, Hossam, 2020/` (or pass `--source`). Its defaults reproduce the committed file exactly, which `tests/test_make_md_cnn_excerpt.py` checks when the source file is present.
+
+  ```bash
+  uv run python scripts/make_md_cnn_excerpt.py
+  ```
+
+- Try the acquisition converter's terminal interface (`pypft.acquisition.app`) on the fixture:
+
+  ```bash
+  uv run python -m pypft.acquisition tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat
+  ```
+
+- Try PyPFT's terminal interface (`pypft.cli`), which transforms a file and views or saves its figures; the maze fixture `tests/samples/maze_polar.tif` is on its own grid with `R = 1`:
+
+  ```bash
+  uv run pypft
+  ```
 
 Tests live under `tests/`, mirroring the package layout of `src/pypft/` (e.g. `tests/dht/` for `src/pypft/dht/`). Warnings are errors in the test suite, so any `warnings.warn` in `src/` needs a matching `pytest.warns` test.
 

@@ -77,6 +77,7 @@ VS Code snippets in ``.vscode/helpers.code-snippets``:
 """  # noqa: RST
 
 import os
+from collections.abc import Mapping
 from enum import Enum, EnumType
 from pathlib import Path
 from typing import Any
@@ -129,6 +130,20 @@ class IntValidator:
         if value <= 0:
             raise ValueError(f"value must be positive, got {value}")
 
+    @staticmethod
+    def value1_is_less_than_value2(value1: int, value2: int) -> None:
+        """Value-validator to check if an int is strictly less than another.
+
+        :param value1: The value to be validated.
+        :type value1: int
+        :param value2: The exclusive upper bound.
+        :type value2: int
+        :raises ValueError: If ``value1`` is not strictly less than ``value2``.
+
+        """
+        if value1 >= value2:
+            raise ValueError(f"value must be less than {value2}, got {value1}")
+
 
 # ========================================================================================
 # numbers.Real: float
@@ -163,6 +178,27 @@ class FloatValidator:
         """
         if value <= 0:
             raise ValueError(f"value must be positive, got {value}")
+
+
+# ========================================================================================
+# Sequences: str
+# ========================================================================================
+
+
+class StrValidator:
+    """Validate string (``str``) values."""
+
+    @staticmethod
+    def type_is_str(value: str) -> None:
+        """Type-validator for str.
+
+        :param value: The value to be validated.
+        :type value: str
+        :raises TypeError: If the value is not a str.
+
+        """
+        if not isinstance(value, str):
+            raise TypeError(f"value must be {str.__name__}, got {type(value).__name__}")
 
 
 # ========================================================================================
@@ -273,6 +309,25 @@ class PathValidator:
         if value.suffix.lower() != suffix.lower():
             raise ValueError(f"value must have suffix {suffix}, got {value.suffix}")
 
+    @staticmethod
+    def value_has_suffix_in(value: Path, suffixes: tuple[str, ...]) -> None:
+        """Value-validator to check if a pathlib.Path has one of several suffixes.
+
+        :param value: The value to be validated.
+        :type value: Path
+        :param suffixes: The accepted suffixes, each with its leading dot.
+        :type suffixes: tuple[str, ...]
+        :raises ValueError: If the value has none of the accepted suffixes.
+
+        """
+        # Compare case-insensitively, like value_has_correct_suffix.
+        if value.suffix.lower() not in {suffix.lower() for suffix in suffixes}:
+            accepted = ", ".join(suffixes)
+            raise ValueError(
+                f"value must have one of the suffixes {accepted}, got "
+                f"{value.suffix or 'no suffix'}"
+            )
+
 
 class EnumValidator:
     """Validate enum values."""
@@ -307,6 +362,24 @@ class EnumValidator:
         except ValueError:
             raise ValueError(
                 f"value must be a member of {enum_class.__name__}, got {value}"
+            )
+
+
+class MappingValidator:
+    """Validate ``collections.abc.Mapping`` values."""
+
+    @staticmethod
+    def type_is_mapping(value: Mapping) -> None:
+        """Type-validator for collections.abc.Mapping.
+
+        :param value: The value to be validated.
+        :type value: Mapping
+        :raises TypeError: If the value is not a collections.abc.Mapping.
+
+        """
+        if not isinstance(value, Mapping):
+            raise TypeError(
+                f"value must be {Mapping.__name__}, got {type(value).__name__}"
             )
 
 

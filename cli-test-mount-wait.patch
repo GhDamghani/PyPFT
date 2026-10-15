@@ -1,0 +1,74 @@
+diff --git a/tests/cli/test_app.py b/tests/cli/test_app.py
+index 6b7a6cf..5bebd18 100644
+--- a/tests/cli/test_app.py
++++ b/tests/cli/test_app.py
+@@ -2,9 +2,9 @@
+ 
+ The app runs through Textual's ``App.run_test``, inside ``asyncio.run`` so no pytest
+ plugin is needed. Buttons are pressed through ``Button.press``, and every step waits
+-for the screen it leads to, or for the status line to change, rather than for a fixed
+-time. The suite runs on matplotlib's ``Agg`` backend, so viewing writes a file; the
+-window path is exercised by pretending the backend opens windows.
++for the screen it leads to, fully mounted, or for the status line to change, rather
++than for a fixed time. The suite runs on matplotlib's ``Agg`` backend, so viewing
++writes a file; the window path is exercised by pretending the backend opens windows.
+ """
+ 
+ import asyncio
+@@ -88,7 +88,11 @@ def _drive(steps: Callable[[Pilot], Awaitable[None]]) -> PyPFTApp:
+ 
+     async def run() -> None:
+         async with app.run_test(size=_SIZE) as pilot:
+-            await _wait(pilot=pilot, done=lambda: isinstance(app.screen, StartScreen))
++            await _wait(
++                pilot=pilot,
++                done=lambda: isinstance(app.screen, StartScreen)
++                and _mounted(screen=app.screen),
++            )
+             await steps(pilot)
+ 
+     asyncio.run(run())
+@@ -108,6 +112,19 @@ async def _wait(pilot: Pilot, done: Callable[[], bool]) -> None:
+     raise AssertionError("the app did not reach the expected state")
+ 
+ 
++def _mounted(screen: Screen) -> bool:
++    """Whether ``screen`` and every widget in it have finished mounting.
++
++    ``push_screen`` makes a screen current before it is composed, so right after a
++    step its widgets can be missing, or present without their own children: setting
++    a ``Select`` then raises ``NoMatches`` for its ``#label``. A node's mount event is
++    set only once its children are composed and mounted; Textual 0.39 to 8 share it.
++    """
++    return all(
++        node._mounted_event.is_set() for node in screen.walk_children(with_self=True)
++    )
++
++
+ def _status(pilot: Pilot) -> str:
+     """The current screen's status line."""
+     app = pilot.app
+@@ -121,16 +138,21 @@ def _screen(pilot: Pilot) -> Screen:
+ 
+ 
+ async def _press(pilot: Pilot, button_id: str) -> None:
+-    """Press a button and wait until the screen or its status line changes."""
++    """Press a button and wait until the screen or its status line changes.
++
++    A new screen is waited for until it is mounted, so the next step can query it.
++    """
+     app = pilot.app
+     assert isinstance(app, PyPFTApp)
++    await _wait(pilot=pilot, done=lambda: _mounted(screen=app.screen))
+     screen, status = app.screen, app.status
+     app.screen.query_one(f"#{button_id}", Button).press()
+     # A long step first shows a status ending in "..." and replaces it when done.
+     await _wait(
+         pilot=pilot,
+         done=lambda: (app.screen is not screen or app.status != status)
+-        and not app.status.endswith("..."),
++        and not app.status.endswith("...")
++        and _mounted(screen=app.screen),
+     )
+ 
+ 
