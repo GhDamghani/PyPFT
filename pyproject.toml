@@ -48,6 +48,11 @@ dependencies = [
   #   numpy                    1.26.0    2.1.0     2.3.2
   #   opencv-python-headless   4.10.0.84 (abi3 wheel, first built against numpy 2)
   #   scipy                    1.11.2    1.14.1    1.16.1
+  #   rich                     13.4.2 (pure Python, the first not capping
+  #                            markdown-it-py below the docs toolchain's 4.x)
+  #   textual                  1.0.0 (pure Python; textual-fspicker's own floor)
+  #   textual-fspicker         0.6.0 (pure Python, the first with path completions
+  #                            and 3.14 support)
   #
   #   * The oldest cp312 wheel is 3.7.3, but PyPFT is type-checked against
   #     matplotlib's inline type hints, which first ship in 3.8.0 and first type
@@ -69,6 +74,12 @@ dependencies = [
   "scipy>=1.11.2; python_version < '3.13'",
   "scipy>=1.14.1; python_version == '3.13'",
   "scipy>=1.16.1; python_version >= '3.14'",
+  # Pure Python (py3-none-any): one floor each. textual's is the oldest release
+  # textual-fspicker supports; the terminal interface's tests pass with these
+  # floors on 3.12, 3.13 and 3.14.
+  "rich>=13.4.2",
+  "textual>=1.0.0",
+  "textual-fspicker>=0.6.0",
 ]
 
 [project.urls]
@@ -136,6 +147,9 @@ constraint-dependencies = [
   "scipy==1.11.2; python_version < '3.13'",
   "scipy==1.14.1; python_version == '3.13'",
   "scipy==1.16.1; python_version == '3.14'",
+  "rich==13.4.2; python_version <= '3.14'",
+  "textual==1.0.0; python_version <= '3.14'",
+  "textual-fspicker==0.6.0; python_version <= '3.14'",
 ]
 
 [tool.setuptools]

@@ -47,7 +47,7 @@ jobs:
       # --no-config makes `uv pip` ignore constraint-dependencies. Only the runtime
       # dependencies are named, so dev tooling stays exactly as synced.
       - if: matrix.dependency-set == 'latest'
-        run: uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+        run: uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless rich scipy textual textual-fspicker
       - run: uv pip list
       # --no-sync keeps the environment exactly as prepared above instead of
       # re-syncing to uv.lock, which would undo the "latest" upgrade.

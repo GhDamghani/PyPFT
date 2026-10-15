@@ -53,7 +53,7 @@ That environment also runs against the *oldest* supported release of each runtim
 To reproduce the "latest" leg locally, upgrade the runtime dependencies past the floors and run the gate without re-syncing (`--no-config` makes `uv pip` ignore the constraint table):
 
 ```bash
-uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy
+uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless rich scipy textual textual-fspicker
 ./scripts/Invoke-QualityGate.ps1 -NoSync
 ```
 
@@ -76,6 +76,8 @@ To add or upgrade a dependency, don't hand-edit the version pins; use `uv add "<
 - `setuptools`, `wheel`: packaging.
 - `tqdm`: progress bars in development scripts.
 - `pillow`: reads and writes the image files of the test fixtures (`scripts/make_maze.py`).
+
+`textual`, which draws PyPFT's terminal interface (`python -m pypft`) and the acquisition converter's, is a runtime dependency rather than a development one: it is pure Python and needs no graphical toolkit (Tkinter or otherwise), so the interface works wherever PyPFT installs. So are `textual-fspicker`, whose file dialog the interface uses, and `rich`, which the interface uses to show text exactly as typed.
 
 ### Recommended editor setup
 
