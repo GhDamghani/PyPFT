@@ -49,6 +49,30 @@ pypft.ring
 .. automodule:: pypft.ring
    :members:
 
+pypft.acquisition
+-----------------
+
+.. automodule:: pypft.acquisition
+   :members:
+
+pypft.acquisition.app
+---------------------
+
+.. automodule:: pypft.acquisition.app
+   :members:
+
+pypft.cli
+---------
+
+.. automodule:: pypft.cli
+   :members:
+
+pypft.samples
+-------------
+
+.. automodule:: pypft.samples
+   :members:
+
 pypft.domains
 -------------
 

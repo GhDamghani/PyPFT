@@ -306,8 +306,123 @@ of them:
    trace.save(Path("out"))  # writes every figure as an enumerated, domain-named PNG
    trace.close()  # frees every figure the trace created
 
-``PFTTrace.save`` is the one place PyPFT ever writes to disk -- only when called
-explicitly, never as a side effect of tracing itself.
+``PFTTrace.save``, ``pypft.acquisition.RadialKSpace.save`` and the terminal interface's
+saving (both below) are the only places PyPFT ever writes to disk -- only when asked
+explicitly, never as a side effect of tracing, reading or viewing.
+
+Experimental acquisitions
+-------------------------
+
+``pypft.acquisition`` converts measured data into what PyPFT reads. Radial MRI records
+k-space along *lines* through the center of k-space; PyPFT's polar layout is *spokes*
+from the center. ``pypft.acquisition.radial_lines_to_polar`` splits every line at its
+center sample into two spokes, so ``L`` lines at uniform angles over half a turn (in any
+order) become a uniform polar frequency-domain array with ``2 * L`` spokes, returned as
+a ``RadialKSpace`` with the frequency radius it covers (radians per pixel of the
+readout's own inverse DFT). Golden-angle and other non-uniform trajectories raise
+``NonUniformAnglesError``.
+
+Readers for specific array layouts sit on top, one ``RadialLineLayout`` member each,
+named by the array's axes in order, whether the lines were measured or generated:
+``selectable_axes`` lists the axes an array offers beyond the readout and the line
+(slices, cardiac phases, coils, ...), and ``select_radial_kspace`` reads a
+*selection*: an index per axis for a single sample, or ``None`` to keep an axis whole
+in the batch. A layout describes the array, never the file: ``load_stored_array``
+reads a ``.npy`` file's single array, or one named array of a ``.npz`` or ``.mat``
+file, which ``stored_arrays`` lists with their shapes.
+
+.. code-block:: python
+
+   from pathlib import Path
+   from pypft.acquisition import (
+       RadialLineLayout,
+       load_stored_array,
+       select_radial_kspace,
+   )
+
+   lines = load_stored_array(
+       Path("P01_slc1_phs25_lins196_cols832_cha16.mat"), name="data"
+   )
+   kspace = select_radial_kspace(
+       lines,
+       layout=RadialLineLayout.SLICE_PHASE_READOUT_LINE_COIL_COMPLEX,
+       selection={"phase": 0, "coil": None},  # every coil of the first phase
+   )
+   grid = pypft.PolarGrid(n_radial=208, n_angular=98, R=416.0)
+
+   # The exact path: onto the grid's frequency points, then the exact inverse.
+   F = pypft.resample_uniform_polar_frequency(kspace.values, grid, radius=kspace.radius)
+   f_exact = pypft.inverse_pft(F, grid)
+
+   # The ring-consistent route, straight from the uniform data.
+   f_ring = pypft.inverse_pft_ring(kspace.values, grid, radius=kspace.radius)
+
+On measured k-space the ring-consistent route is the one that gives a recognizable
+image: the exact path's spoke-to-harmonic identification error is largest exactly where
+such data lives, many spokes and content away from the center. ``python -m
+pypft.acquisition`` opens a terminal interface for the same selection and writes the
+result to a ``.npz`` file (``RadialKSpace.save``/``RadialKSpace.load``). A new layout
+is one reader class and one ``RadialLineLayout`` member; the
+``09_experimental_data`` tutorial walks through all of it on an excerpt of a public
+cardiac dataset.
+
+Terminal interface
+------------------
+
+``python -m pypft`` (or the ``pypft`` command) opens a terminal interface for
+transforming a file without writing code. It is a thin front end over the API above and
+adds no numerics. One screen per step, each with **Quit** and, after the first,
+**Back**:
+
+1. **Start**: transform a file, or open the tutorials (online, or the notebooks in
+   JupyterLab when run from a clone of the repository with the development tools).
+2. **Layout**: a single sample ``(radial, angular)``, a batch ``(radial, angular,
+   batch)``, or radial k-space lines in one of ``RadialLineLayout``'s layouts.
+3. **File**: typed, or picked in a file dialog listing the layout's file types. The
+   dialog's field also takes a path: a directory opens in the dialog, and a file of
+   the layout's types is picked.
+   For a polar layout, ``.npy`` holds any polar array, real or complex; ``.npz`` is
+   uniform polar k-space saved by ``RadialKSpace.save``, with its radius;
+   ``.tif``/``.tiff``/``.png`` is a grayscale image holding one real spatial sample.
+   Radial k-space lines (see above) are a ``.npy`` file's array, or one array of a
+   ``.npz`` or ``.mat`` file, chosen on an **Array** screen next. The array is checked
+   against the choice of step 2. Radial lines then open an **Acquisition** screen: one
+   field per selectable axis (``selectable_axes``) taking an index or ``all``, every
+   field starting at index 0. One index of every axis reads a single sample, and
+   ``all`` keeps an axis whole in a batch; the selection is read with
+   ``select_radial_kspace`` into uniform polar k-space, as from a ``.npz`` file.
+4. **Grid**: whether the samples sit on the transform's grid (the grid's size is then
+   the array's shape) or on a uniform polar grid (then the grid's size and the radius
+   the samples cover are asked too), ``R`` and the limit kind, and optionally a band
+   limit. For k-space, the radius is filled in and a grid is proposed: ``R`` is the
+   field of view the samples resolve, the grid has a quarter of the data's spokes, and
+   the most radial samples whose frequencies stay inside the data. ``check_adequacy`` and, with a band limit, ``check_nyquist_adequacy`` run
+   here, and their warnings are shown on the next screen.
+5. **Transform**: the PFT or the IPFT; the exact path (the default) or the accurate,
+   ring-consistent route; and, on the exact path, whether to trace every domain. Uniform
+   polar input is interpolated along each spoke onto the grid for the exact path, which
+   the result screen says.
+6. **Result**: **View** draws one sample into one figure, redrawn in place for every
+   batch element (in a matplotlib window when matplotlib's backend opens one, else
+   written to a temporary file), and **Save** writes every recorded domain's figures.
+
+Saved figures are named ``<stem>_<domain>_<magnitude|phase>[_b<NNN>].png``: the input
+file's stem, the domain (``polar_frequency_angular``, ...), which image of
+``plot_signal``'s pair the file holds, and for a batch the zero-padded batch index.
+Existing files are replaced only after a confirmation. Saving a batch of more than
+``pypft.cli.SLOW_BATCH_SIZE`` elements warns with ``pypft.cli.CLIPerformanceWarning``
+first. The same functions are available to scripts:
+
+.. code-block:: python
+
+   from pathlib import Path
+   from pypft.cli import load_array, save_signal_figures
+
+   loaded = load_array(Path("scan.npy"), batched=True)
+   F = pypft.PolarFrequencyAngularSignal(pypft.forward_pft(loaded.values, grid), grid)
+   save_signal_figures(F, Path("figures"), stem="scan")
+
+The ``10_terminal_user_interface`` tutorial drives the interface from a notebook.
 
 Citing PyPFT
 ------------

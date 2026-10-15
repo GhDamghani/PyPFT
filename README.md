@@ -29,6 +29,10 @@ F = pypft.forward_pft(f, grid)
 f_reconstructed = pypft.inverse_pft(F, grid)
 ```
 
+`python -m pypft` (or the `pypft` command) opens a terminal interface that loads a polar array from a file, runs the PFT or the IPFT on it, and views or saves the result's figures.
+
+Measured radial k-space is read and converted into PyPFT's polar layout by `pypft.acquisition`, as a single sample or a batch; `python -m pypft.acquisition` opens a terminal interface for it. The `09_experimental_data` tutorial reconstructs a cardiac MR image from a public dataset that way.
+
 ## Documentation
 
 - [`docs/`](docs/) — the Sphinx documentation: quickstart, user guide, tutorials, API reference, and contributor setup.

@@ -88,6 +88,9 @@ Documentation = "https://github.com/GhDamghani/PyPFT"
 Issues = "https://github.com/GhDamghani/PyPFT/issues"
 Source = "https://github.com/GhDamghani/PyPFT"
 
+[project.scripts]
+pypft = "pypft.cli:main"
+
 [dependency-groups]
 dev = [
     "black>=26.5.1",

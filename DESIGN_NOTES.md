@@ -443,6 +443,15 @@ required, not optional. `grid.theta` follows `pypft.geometry`'s image-coordinate
 angle rotates toward increasing row, i.e. downward on screen), but `imshow`'s own `origin="lower"` expects
 `y` to increase upward. A bare `np.sin(grid.theta)` without the negation renders every image upside down.
 
+## Terminal interface: the app owns the event loop and the screen
+
+`pypft.cli` is a Textual app, and Textual owns both the terminal and the asyncio event loop while it runs. Two consequences shape the code:
+
+- **Warnings are recorded, not printed.** A warning written to the terminal would be drawn over by the next screen refresh, so every call that can warn (`check_adequacy`, `check_nyquist_adequacy`, the resamplers, the slowness check) runs inside `warnings.catch_warnings(record=True)` with the `"always"` filter (`pypft.cli._io.record_warnings`), and the recorded text is shown on screen. This also keeps the app's own tests green under `filterwarnings = ["error"]`.
+- **A figure window is pumped by a timer.** matplotlib's GUI backends process window events only inside their own event loop (`plt.show()` blocking, or `plt.pause`), which cannot run while Textual's runs. The result screen opens one `pyplot` figure with `Figure.show()` and calls `figure.canvas.flush_events()` every 0.1 s through Textual's `set_interval`, so the window redraws and responds without blocking the app. Every batch element is drawn into that same figure (cleared and redrawn), so a batch never opens one window per element, and the figure is closed when the screen is left. When the backend opens no window (`Agg`, an inline notebook backend), the view is written to a temporary file instead.
+
+Saved figures are created as bare `matplotlib.figure.Figure` objects, never through `pyplot`, so they are never registered with `pyplot`'s figure manager: nothing is left open, and matplotlib's "more than 20 figures" `RuntimeWarning` (an error in the tests) cannot trigger, however many batch elements are saved.
+
 ## Notebooks: citations link to raw-HTML anchors in a References cell
 
 A tutorial notebook cites a source as `[[1]](#ref-1) (Eq. 41)` and ends with a Markdown cell headed

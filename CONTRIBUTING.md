@@ -30,6 +30,12 @@ PyPFT's dependencies are managed with [`uv`](https://docs.astral.sh/uv/), and `u
    uv sync
    ```
 
+   Then download the test samples too large to keep in the repository (`pypft.samples`; the quality gate does this itself when one is missing):
+
+   ```bash
+   uv run python -m pypft.samples --directory tests/samples --cache-directory .local_files/samples
+   ```
+
 4. Install the pre-commit hook, which strips every notebook under `notebooks/` to its bare form (no outputs, no execution counts, no metadata, cell ids renumbered to each cell's index) on each commit:
 
    ```bash
@@ -130,6 +136,24 @@ The project does not ship editor configuration. If you use VS Code, these extens
   ```
 
   Run `uv run python scripts/make_maze.py --help` for the options (maze size `--rings` and `--inner-sectors`, `--seed`, `--wall-thickness`, the grid's `--n-radial`/`--n-angular`/`--radius`, `--maze-fraction`, `--image-size`, and `--output-dir`).
+
+- Download the test samples that are not part of the repository. `pypft.samples` downloads each sample's source from where it is published, checks the published MD5 checksum, and writes the sample; samples already present are left as they are (`--overwrite` writes them again), and `--cache-directory` keeps the downloaded sources. So far there is one: the radial k-space test sample `tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat`, an excerpt of the public MD-CNN radial cine dataset (Harvard Dataverse, doi:10.7910/DVN/CI3WB6, CC0 1.0) in the dataset's own layout: one slice, one cardiac phase, the 416 readout samples around the center, and the four strongest coils, cut from the dataset's `P01_slc1_phs25_lins196_cols832_cha16.mat` (about 230 MB). A new sample is a `Sample` member plus its recipe in `pypft.samples`, and a line in `.gitignore`.
+
+  ```bash
+  uv run python -m pypft.samples --directory tests/samples --cache-directory .local_files/samples
+  ```
+
+- Try the acquisition converter's terminal interface (`pypft.acquisition.app`) on the fixture:
+
+  ```bash
+  uv run python -m pypft.acquisition tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat
+  ```
+
+- Try PyPFT's terminal interface (`pypft.cli`), which transforms a file and views or saves its figures; the maze fixture `tests/samples/maze_polar.tif` is on its own grid with `R = 1`:
+
+  ```bash
+  uv run pypft
+  ```
 
 Tests live under `tests/`, mirroring the package layout of `src/pypft/` (e.g. `tests/dht/` for `src/pypft/dht/`). Warnings are errors in the test suite, so any `warnings.warn` in `src/` needs a matching `pytest.warns` test.
 
