@@ -151,6 +151,11 @@ Two workflows, both `ubuntu-latest` only, `shell: pwsh`, on every pull request a
   `uv run --no-sync pytest` and `scripts/Test-Notebooks.ps1 -NoSync` (`--no-sync` keeps the upgrade).
   `Invoke-QualityGate.ps1 -NoSync` still exists for running the whole gate on latest locally.
 
+A third workflow, `.github/workflows/publish.yml`, runs only when a GitHub Release is published:
+`scripts/Build-Distribution.ps1 -Tag <tag>` (fails unless the tag is `v<pyproject version>`, then a
+clean `uv build` and `twine check --strict`), upload to TestPyPI, then PyPI behind the `pypi`
+environment's manual approval -- both via Trusted Publishing, no stored token.
+
 No inline shell logic lives in the YAML, so a red CI leg is always reproducible locally.
 
 ## Architecture: the package facade
