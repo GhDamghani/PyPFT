@@ -73,7 +73,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/GhDamghani/PyPFT"
-Documentation = "https://github.com/GhDamghani/PyPFT"
+Documentation = "https://pypft.readthedocs.io"
 Issues = "https://github.com/GhDamghani/PyPFT/issues"
 Source = "https://github.com/GhDamghani/PyPFT"
 
