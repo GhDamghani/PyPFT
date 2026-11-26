@@ -53,6 +53,8 @@ unquoted forward references, no 3.13+ stdlib APIs). To test the newest releases 
 `uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy`, then
 `./scripts/Invoke-QualityGate.ps1 -NoSync`.
 
+- Set up a fresh clone in one step: `./scripts/Install-DevEnvironment.ps1 [-SkipSamples]` (`uv sync`,
+  the samples download, `pre-commit install --overwrite`; idempotent).
 - Install/sync the environment: `uv sync` — run this after every pull/branch switch, since `pyproject.toml`
   changes frequently right now.
 - Run the test suite: `uv run pytest` (tests live under `tests/`, mirroring `src/pypft/`'s package layout —
@@ -150,6 +152,11 @@ Two workflows, both `ubuntu-latest` only, `shell: pwsh`, on every pull request a
   `uv sync`, `python -m pypft.samples --directory tests/samples`, on `latest` `uv pip install --no-config --upgrade <runtime deps>`, then
   `uv run --no-sync pytest` and `scripts/Test-Notebooks.ps1 -NoSync` (`--no-sync` keeps the upgrade).
   `Invoke-QualityGate.ps1 -NoSync` still exists for running the whole gate on latest locally.
+
+A third workflow, `.github/workflows/publish.yml`, runs only when a GitHub Release is published:
+`scripts/Build-Distribution.ps1 -Tag <tag>` (fails unless the tag is `v<pyproject version>`, then a
+clean `uv build` and `twine check --strict`), upload to TestPyPI, then PyPI behind the `pypi`
+environment's manual approval -- both via Trusted Publishing, no stored token.
 
 No inline shell logic lives in the YAML, so a red CI leg is always reproducible locally.
 

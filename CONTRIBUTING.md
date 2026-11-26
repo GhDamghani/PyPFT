@@ -24,7 +24,15 @@ PyPFT's dependencies are managed with [`uv`](https://docs.astral.sh/uv/), and `u
    cd PyPFT
    ```
 
-3. From the repository root, create the environment (runtime and development dependencies):
+3. From the repository root, run the setup script, which does steps 4 and 5 below in one go (`-SkipSamples` leaves the ~230 MB sample download for later). It needs PowerShell 7 (`pwsh`), available on Windows, macOS and Linux:
+
+   ```bash
+   pwsh ./scripts/Install-DevEnvironment.ps1
+   ```
+
+   Or do the same by hand:
+
+4. Create the environment (runtime and development dependencies):
 
    ```bash
    uv sync
@@ -36,7 +44,7 @@ PyPFT's dependencies are managed with [`uv`](https://docs.astral.sh/uv/), and `u
    uv run python -m pypft.samples --directory tests/samples --cache-directory .local_files/samples
    ```
 
-4. Install the pre-commit hook, which strips every notebook under `notebooks/` to its bare form (no outputs, no execution counts, no metadata, cell ids renumbered to each cell's index) on each commit:
+5. Install the pre-commit hook, which strips every notebook under `notebooks/` to its bare form (no outputs, no execution counts, no metadata, cell ids renumbered to each cell's index) on each commit:
 
    ```bash
    uv run pre-commit install
