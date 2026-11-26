@@ -232,6 +232,7 @@ def test_lines_repeating_an_angle_modulo_half_a_turn_are_rejected() -> None:
         ({"lines": np.ones(16)}, ValueError),
         ({"lines": np.ones((16, 4, 2, 2))}, ValueError),
         ({"lines": np.full((16, 4), np.nan)}, ValueError),
+        ({"lines": np.ones((16, 0)), "angles": np.zeros(0)}, ValueError),
         ({"angles": np.zeros(3)}, ValueError),
         ({"angles": np.zeros((4, 1))}, ValueError),
         ({"angles": [0.0, 1.0, 2.0, 3.0]}, TypeError),

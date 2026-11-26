@@ -153,6 +153,18 @@ class RadialKSpace:
 # ======================================================================================
 
 
+def _value_has_lines(n_lines: int) -> None:
+    """Check that there is at least one line, since the angular step is ``pi / L``.
+
+    :param n_lines: The number of lines.
+    :type n_lines: int
+    :raises ValueError: If there are no lines.
+
+    """
+    if n_lines == 0:
+        raise ValueError("lines must hold at least one line, got 0")
+
+
 def _angular_slots(angles: np.ndarray) -> np.ndarray:
     """Find each line's slot among ``len(angles)`` uniform angles over half a turn.
 
@@ -220,9 +232,9 @@ def radial_lines_to_polar(
         axis, and the frequency radius they cover.
     :rtype: RadialKSpace
     :raises TypeError: If any argument has the wrong type.
-    :raises ValueError: If ``lines`` is neither ``(readout, line)`` nor a batch, or has
-        a non-finite element; ``angles`` is not one finite angle per line; or
-        ``center_index`` is outside the readout.
+    :raises ValueError: If ``lines`` is neither ``(readout, line)`` nor a batch, has
+        no line, or has a non-finite element; ``angles`` is not one finite angle per
+        line; or ``center_index`` is outside the readout.
     :raises NonUniformAnglesError: If the lines are not at uniform angles over half a
         turn.
 
@@ -230,6 +242,7 @@ def radial_lines_to_polar(
     NumpyValidator.type_is_ndarray(value=lines)
     NumpyValidator.value_has_ndim_in(value=lines, ndims=_LINES_NDIMS)
     NumpyValidator.value_is_finite(value=lines)
+    _value_has_lines(n_lines=lines.shape[_LINE_AXIS])
     NumpyValidator.type_is_ndarray(value=angles)
     NumpyValidator.value_is_1d(value=angles)
     NumpyValidator.value_is_finite(value=angles)

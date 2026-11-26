@@ -86,7 +86,7 @@ class SlicePhaseReadoutLineCoilComplexReader(BaseRadialReader):
             the real and imaginary parts.
 
         """
-        if np.iscomplexobj(values):
+        if np.iscomplexobj(x=values):
             raise RadialLineLayoutError(
                 "the array must be real: its last axis holds the real and imaginary "
                 "parts"

@@ -31,7 +31,7 @@ from pypft.utils.validators import (
     StrValidator,
 )
 
-from ._kspace import RadialKSpace, radial_lines_to_polar
+from ._kspace import RadialKSpace, _value_has_lines, radial_lines_to_polar
 
 #: The index a selectable axis takes when a selection omits it.
 _DEFAULT_INDEX = 0
@@ -191,7 +191,7 @@ class BaseRadialReader:
         :rtype: RadialKSpace
         :raises TypeError: If any argument has the wrong type.
         :raises ValueError: If the selection names an unknown axis or an index outside
-            its axis.
+            its axis, or the array holds no line.
         :raises RadialLineLayoutError: If the array is not in this layout.
 
         """
@@ -201,6 +201,8 @@ class BaseRadialReader:
         )
         lines = cls._select_lines(values=values, index=index)
         n_readout, n_lines = lines.shape[:_LINES_SAMPLE_NDIM]
+        # Before the layout's angles, which divide half a turn by the line count.
+        _value_has_lines(n_lines=n_lines)
         if lines.ndim > _LINES_SAMPLE_NDIM:
             # Every kept axis, flattened into PyPFT's single trailing batch axis.
             lines = lines.reshape((n_readout, n_lines, -1))

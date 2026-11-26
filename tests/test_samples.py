@@ -186,7 +186,8 @@ def test_fetch_sample_keeps_an_existing_sample_unless_overwritten(
 @pytest.mark.parametrize(
     ("kwargs", "error"),
     [
-        ({"sample": "MD_CNN_EXCERPT"}, ValueError),
+        ({"sample": "MD_CNN_EXCERPT"}, TypeError),
+        ({"sample": Sample.MD_CNN_EXCERPT.value}, TypeError),
         ({"directory": "out"}, TypeError),
         ({"cache_directory": "cache"}, TypeError),
         ({"overwrite": 1}, TypeError),

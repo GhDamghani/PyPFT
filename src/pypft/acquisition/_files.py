@@ -117,11 +117,11 @@ def _npy_header(file: IO[bytes]) -> tuple[tuple[int, ...], np.dtype]:
     :rtype: tuple[tuple[int, ...], np.dtype]
 
     """
-    version = np.lib.format.read_magic(file)
+    version = np.lib.format.read_magic(fp=file)
     if version == (1, 0):
-        shape, _, dtype = np.lib.format.read_array_header_1_0(file)
+        shape, _, dtype = np.lib.format.read_array_header_1_0(fp=file)
     else:
-        shape, _, dtype = np.lib.format.read_array_header_2_0(file)
+        shape, _, dtype = np.lib.format.read_array_header_2_0(fp=file)
     return tuple(shape), dtype
 
 

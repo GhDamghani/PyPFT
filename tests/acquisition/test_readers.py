@@ -223,3 +223,9 @@ def test_arrays_and_layouts_are_validated(
         select_radial_kspace(values=stored, layout=_LAYOUT.name)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         selectable_axes(values=stored, layout=1)  # type: ignore[arg-type]
+
+
+def test_an_array_without_lines_is_rejected() -> None:
+    values = np.zeros((1, 1, 8, 0, 2, 2))
+    with pytest.raises(ValueError, match="at least one line"):
+        select_radial_kspace(values=values, layout=_LAYOUT)

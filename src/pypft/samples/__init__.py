@@ -198,13 +198,15 @@ def fetch_sample(
     :type overwrite: bool
     :returns: The sample's file.
     :rtype: Path
-    :raises TypeError: If an argument has the wrong type.
+    :raises TypeError: If an argument has the wrong type, such as a sample's name
+        or file name in place of the ``Sample`` member.
     :raises ValueError: If ``sample`` is not a ``Sample`` member.
     :raises OSError: If a directory cannot be written, or the download fails.
     :raises ChecksumError: If the downloaded source's checksum is not the published
         one.
 
     """
+    EnumValidator.type_is_enum(value=sample)
     EnumValidator.value_is_enum_member(value=sample, enum_class=Sample)
     PathValidator.type_is_Path(value=directory)
     PathValidator.value_is_writable(value=directory)
