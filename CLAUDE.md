@@ -90,6 +90,14 @@ unquoted forward references, no 3.13+ stdlib APIs). To test the newest releases 
   stdout by default. `--no-private` gives the public-API view, `--no-module-functions` the pure-class
   view. Dev tooling like the benchmarks: not part of `uv run pytest` or the quality gate, and the
   diagram is not committed anywhere, so nothing goes stale when `src/` changes.
+- Regenerate the README figures: `uv run python scripts/make_readme_figures.py [--output-dir <path>]`
+  (needs the downloaded MD-CNN sample; ~20 s for the ring-route reconstruction) writes
+  `docs/_static/readme/` -- `cardiac.png` (coil-0 k-space disk cropped to the radius every spoke
+  reaches, next to `inverse_pft_ring`'s root-sum-of-squares image), `maze_pipeline.png` (the maze
+  fixture's four domains, magnitude only, frequency side on a 4-decade log scale) and
+  `pipeline_light.svg`/`pipeline_dark.svg` (one per GitHub theme, picked by `<picture>`). `README.md`
+  references them by `raw.githubusercontent.com/.../main/...` URLs so they also render on PyPI;
+  re-run and commit the images when a figure's code changes. Not part of the gate.
 - Regenerate the maze test fixture: `uv run python scripts/make_maze.py` (defaults `--rings 8`,
   `--inner-sectors 8`, `--seed 0`, `--wall-thickness 0.25`, `--n-radial 576`, `--n-angular 48`, `--radius
   1.0`, `--maze-fraction 0.95`, `--image-size 512`, `--output-dir tests/samples`) — a **circular** maze
