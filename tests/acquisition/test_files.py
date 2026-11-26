@@ -6,6 +6,7 @@ the three formats converts to the same k-space, which is what makes a
 ``RadialLineLayout`` independent of the file format.
 """
 
+import zipfile
 from pathlib import Path
 
 import numpy as np
@@ -96,6 +97,20 @@ def test_stored_arrays_rejects_a_single_array_file(
         stored_arrays(path=path)
 
 
+def test_stored_arrays_reads_every_npy_header_version(
+    tmp_path: Path, lines: np.ndarray
+) -> None:
+    path = tmp_path / "versions.npz"
+    with zipfile.ZipFile(file=path, mode="w") as archive:
+        # One member per header version, and a member that is not an array at all.
+        for name, version in ((_LINES_NAME, (1, 0)), (_OTHER_NAME, (2, 0))):
+            with archive.open(name=f"{name}.npy", mode="w") as member:
+                np.lib.format.write_array(fp=member, array=lines, version=version)
+        archive.writestr(zinfo_or_arcname="notes.txt", data="not an array")
+    assert stored_arrays(path=path) == {_LINES_NAME: _SHAPE, _OTHER_NAME: _SHAPE}
+    np.testing.assert_array_equal(load_stored_array(path=path, name=_OTHER_NAME), lines)
+
+
 @pytest.mark.parametrize("suffix", ARRAY_FILE_SUFFIXES)
 def test_the_same_lines_read_alike_from_every_format(
     tmp_path: Path, lines: np.ndarray, suffix: str
@@ -140,10 +155,13 @@ def test_unreadable_files_are_value_errors(
 ) -> None:
     path = tmp_path / f"broken{suffix}"
     path.write_bytes(data=contents)
-    with pytest.raises(ValueError, match="cannot be read"):
-        if holds_several_arrays(path=path):
+    if holds_several_arrays(path=path):
+        with pytest.raises(ValueError, match="cannot be read"):
             stored_arrays(path=path)
-        else:
+        with pytest.raises(ValueError, match="cannot be read"):
+            load_stored_array(path=path, name=_LINES_NAME)
+    else:
+        with pytest.raises(ValueError, match="cannot be read"):
             load_stored_array(path=path)
 
 
