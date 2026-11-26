@@ -14,6 +14,9 @@ docs/jupyter_execute/
 docs/.jupyter_cache/
 *.egg-info/
 .benchmarks/
+.ipynb_checkpoints/
 .claude/
 .vscode/
-CLAUDE.md
+
+# Test samples downloaded by `python -m pypft.samples`, never committed
+/tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat

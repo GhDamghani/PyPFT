@@ -292,6 +292,27 @@ disk) and changes nothing on the Gaussians. An exact inverse of the route would 
 $N_1 N_2 \times N_1 N_2$ evaluation operator inverted, which is out of reach at these sizes; the exact
 path's `inverse_pft` remains the exact inverse.
 
+**From uniform frequency data the inverse has no gap.** `inverse_pft_ring(F, grid, radius=...)` reads
+uniform polar frequency data (radially acquired k-space, `pypft.acquisition`) the way
+`sample_harmonics_uniform_polar` reads uniform space data: every data spoke is interpolated along the
+radius onto every harmonic's $\rho_{nm}$, and the quadrature runs over the data's own spokes. Uniform
+data starts at frequency 0, so nothing is extrapolated inside the central gap above, and the inverse is
+as accurate as the forward route. `pypft.grid.resample_uniform_polar_frequency` is the exact path's
+counterpart, onto `grid.rho` for `inverse_pft`. Measured against the analytic inverse, relative L2:
+
+| grid (`n_radial`, `n_angular`, `R`) | data | Gaussian | ring, uniform | exact path |
+| ----------------------------------- | ---- | -------- | ------------- | ---------- |
+| 64, 15, 10 | 256 radii to $\rho = 25$, 15 or 64 spokes | $e^{-r^2}$ | 8.2e-8 | 0.34 (on-grid $F$) |
+| 64, 15, 10 | 256 radii to $\rho = 25$, 64 spokes | $e^{-\lvert\mathbf{x} - (2, -1)\rvert^2}$ | 3.3e-2 (4.9e-2 from 15 spokes) | 0.67 (on-grid $F$) |
+| 40, 31, 48 | 64 lines of 128 samples, $\rho \le \pi$ | width 4 at $(6, -3)$ | 2.4e-5 | 0.81 (resampled $F$) |
+
+In the last row `resample_uniform_polar_frequency` itself reproduces the analytic transform on
+`grid.rho` to 4.2e-5, so the exact path's 0.81 is its own identification error, not the bridge's. The
+two off-center 15-harmonic rows are limited by angular truncation, as in the forward table. On measured
+cardiac k-space (`notebooks/09_experimental_data.ipynb`, the MD-CNN excerpt on `n_radial=128,
+n_angular=98, R=208` pixels) the exact path's image is unrecognizable while the ring route's shows the
+anatomy; there is no ground truth for a number. That case costs about 15 s for four coils on 16 cores.
+
 **Cost, and why nothing is cached.** The output stage evaluates $(N_2 / 2 + 1)^2$ distinct order pairs
 (harmonics $\pm n$ and spokes $\pm q$ share their Bessel orders), each an $N_1 \times N_1$ matrix of
 `jv` values, about 0.15 s per matrix at `n_radial=576`. Measured per direction: 0.6 s at
@@ -304,6 +325,74 @@ every pair's matrix: 1.7 GB at the maze's size, and 330 MB at `n_radial=200, n_a
 order on every call and never hit. Neither is used; the route is a single implementation, not a
 `PFTImplementation` strategy, since it computes a different discretization rather than the same one
 faster.
+
+## Acquisition: radial lines become pairs of spokes, at uniform angles only
+
+A radial acquisition records k-space along lines through the center; PyPFT's polar layout is spokes from
+the center. `pypft.acquisition.radial_lines_to_polar` splits each line at its center sample: the samples
+after the center are the spoke at the line's angle, the samples before it, reversed, the spoke half a turn
+round. Both start at the shared center sample, so radius 0 is a real sample on every spoke, and both keep
+`min(center + 1, readout - center)` samples: an asymmetric (partial) echo is cut to its shorter side
+rather than padded, so every kept sample was measured or zero-filled by the scanner itself.
+
+$L$ lines at $m \pi / L$, each multiple once modulo $\pi$ and in any order, give exactly the $2L$
+uniform, centered spokes of a uniform polar array, which is what `resample_uniform_polar_frequency` and
+`inverse_pft_ring(..., radius=...)` read. Anything else (golden-angle, tiny-golden-angle, or irregular
+trajectories) has no uniform polar layout: placing its lines on the nearest uniform spoke would silently
+rotate data, so the converter raises `NonUniformAnglesError` instead. Such data needs a regridding step
+first, which is a different problem from changing the layout.
+
+Units follow the readout. One readout of $M$ samples, inverse-DFT'd, gives $M$ pixels across the
+readout's field of view (oversampled, if the scanner oversamples), and its samples are $2\pi / M$ radians
+per pixel apart in frequency, so `RadialKSpace.radius` is $n_\text{radial} \cdot 2\pi / M$ radians per
+pixel. A grid's `R` is then in those pixels: half the readout's field of view, $M/2$, covers everything
+the acquisition can see. Zero-padding a readout keeps the frequency spacing and the field of view in
+length units but halves the pixel, so `R` in pixels doubles with it.
+
+## Acquisition: a layout describes an array, never a file
+
+A `RadialLineLayout` names an array's axes and the geometry of its lines; how the array was stored is a
+separate question, answered once for every layout by `pypft.acquisition._files`. Tying a layout to one
+file format would multiply layouts by formats (the same `(slices, phases, readout, lines, coils, 2)`
+array saved with `numpy.save` would need a second member) and make a reader's code depend on a file
+library. So readers take arrays (`_axis_sizes(shape)`, `_select_lines(values, index=...)`), and the file
+layer reads arrays without knowing their layout.
+
+The file layer has two kinds of file. A `.npy` file holds a single array, read as it is. A `.npz` or
+`.mat` file holds named arrays: `stored_arrays` lists the numeric ones with their shapes from the
+headers alone (the `.npy` header of each `.npz` member, `scipy.io.whosmat` for MATLAB 5), so an
+interface can offer the choice before any data is read, and `load_stored_array(path, name=...)` reads
+the chosen one. The array is then loaded whole and the selection applied in memory; `scipy.io.loadmat`
+reads a variable whole anyway, so selecting while loading would save memory for `.npy` files only.
+MATLAB 7.3 files are HDF5, which `scipy.io` does not read; they are reported as unreadable.
+
+## Acquisition: the MD-CNN dataset's line angles are measured
+
+The MD-CNN radial cine dataset (Harvard Dataverse, doi:10.7910/DVN/CI3WB6) documents its `data` axes
+but not its trajectory. Measured on `P01_slc1_phs25_lins196_cols832_cha16.mat`, cardiac phase 0:
+
+- **Center and echo.** The coil-summed magnitude peaks at readout index 416, `832 // 2`. Samples are
+  non-zero only at indices 296 to 623: 120 before the center and 207 after it, an asymmetric echo inside
+  a twice-oversampled 416-sample window, zero-padded to 832. `radial_lines_to_polar` therefore keeps 416
+  samples per spoke, of which the outer 208 are zero.
+- **Angles.** A filtered back-projection of all 196 lines (ramp filter, 16 coils, root sum of squares)
+  under candidate orderings: line $l$ at $\pi l / 196$ gives a sharp cardiac image; at $2\pi l / 196$,
+  doubled ghost contours; at golden-angle ($111.25°$) or tiny-golden-angle ($23.63°$) increments, noise
+  with a bright center. A gradient-to-intensity sharpness measure ($\sum |\nabla I| / \sum I$) gives
+  0.348, 0.273, 0.229 and 0.229, and the peak-to-mean ratio 20.4, 9.9, 4.6 and 5.0. The reader uses
+  $\pi l / L$ with the center at `readout // 2`.
+- **Orientation is not determined.** $-\pi l / 196$ gives the mirrored image, equally sharp (0.348), so
+  the data cannot tell the two apart, and nothing in the file records the first line's direction
+  relative to the patient. The reader uses $+\pi l / L$; its images may be a mirrored or rotated view of
+  the scanner's own.
+
+The test sample `tests/samples/P01_slc1_phs1_lins196_cols416_cha4.mat` (`pypft.samples.Sample.MD_CNN_EXCERPT`)
+keeps the dataset's layout with one phase, the 416-sample window (the zero-padding dropped, the center at
+index 208) and the four strongest coils, in single precision: 1.9 MB. The dataset is CC0 1.0. The sample is
+downloaded, never committed (`.gitignore`): `pypft.samples` fetches the source file from Dataverse, checks
+its published MD5 and cuts the excerpt, so neither the repository's history nor the package carries
+measured binary data. Dataverse refuses `urllib`'s default `User-Agent` (HTTP 403), so downloads send
+their own.
 
 ## Domains: one state word per coordinate group
 
