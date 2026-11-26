@@ -306,8 +306,65 @@ of them:
    trace.save(Path("out"))  # writes every figure as an enumerated, domain-named PNG
    trace.close()  # frees every figure the trace created
 
-``PFTTrace.save`` is the one place PyPFT ever writes to disk -- only when called
-explicitly, never as a side effect of tracing itself.
+``PFTTrace.save`` and ``pypft.acquisition.RadialKSpace.save`` (below) are the only
+places PyPFT ever writes to disk -- only when asked explicitly, never as a side effect
+of tracing, reading or viewing.
+
+Experimental acquisitions
+-------------------------
+
+``pypft.acquisition`` converts measured data into what PyPFT reads. Radial MRI records
+k-space along *lines* through the center of k-space; PyPFT's polar layout is *spokes*
+from the center. ``pypft.acquisition.radial_lines_to_polar`` splits every line at its
+center sample into two spokes, so ``L`` lines at uniform angles over half a turn (in any
+order) become a uniform polar frequency-domain array with ``2 * L`` spokes, returned as
+a ``RadialKSpace`` with the frequency radius it covers (radians per pixel of the
+readout's own inverse DFT). Golden-angle and other non-uniform trajectories raise
+``NonUniformAnglesError``.
+
+Readers for specific array layouts sit on top, one ``RadialLineLayout`` member each,
+named by the array's axes in order, whether the lines were measured or generated:
+``selectable_axes`` lists the axes an array offers beyond the readout and the line
+(slices, cardiac phases, coils, ...), and ``select_radial_kspace`` reads a
+*selection*: an index per axis for a single sample, or ``None`` to keep an axis whole
+in the batch. A layout describes the array, never the file: ``load_stored_array``
+reads a ``.npy`` file's single array, or one named array of a ``.npz`` or ``.mat``
+file, which ``stored_arrays`` lists with their shapes.
+
+.. code-block:: python
+
+   from pathlib import Path
+   from pypft.acquisition import (
+       RadialLineLayout,
+       load_stored_array,
+       select_radial_kspace,
+   )
+
+   lines = load_stored_array(
+       Path("P01_slc1_phs25_lins196_cols832_cha16.mat"), name="data"
+   )
+   kspace = select_radial_kspace(
+       lines,
+       layout=RadialLineLayout.SLICE_PHASE_READOUT_LINE_COIL_COMPLEX,
+       selection={"phase": 0, "coil": None},  # every coil of the first phase
+   )
+   grid = pypft.PolarGrid(n_radial=208, n_angular=98, R=416.0)
+
+   # The exact path: onto the grid's frequency points, then the exact inverse.
+   F = pypft.resample_uniform_polar_frequency(kspace.values, grid, radius=kspace.radius)
+   f_exact = pypft.inverse_pft(F, grid)
+
+   # The ring-consistent route, straight from the uniform data.
+   f_ring = pypft.inverse_pft_ring(kspace.values, grid, radius=kspace.radius)
+
+On measured k-space the ring-consistent route is the one that gives a recognizable
+image: the exact path's spoke-to-harmonic identification error is largest exactly where
+such data lives, many spokes and content away from the center. A converted selection
+is saved to and read from a ``.npz`` file by ``RadialKSpace.save``/``RadialKSpace.load``.
+A new layout
+is one reader class and one ``RadialLineLayout`` member; the
+``09_experimental_data`` tutorial walks through all of it on an excerpt of a public
+cardiac dataset.
 
 Citing PyPFT
 ------------

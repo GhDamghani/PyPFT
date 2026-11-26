@@ -29,6 +29,8 @@ F = pypft.forward_pft(f, grid)
 f_reconstructed = pypft.inverse_pft(F, grid)
 ```
 
+Measured radial k-space is read and converted into PyPFT's polar layout by `pypft.acquisition`, as a single sample or a batch. The `09_experimental_data` tutorial reconstructs a cardiac MR image from a public dataset that way.
+
 ## Documentation
 
 - [`docs/`](docs/) — the Sphinx documentation: quickstart, user guide, tutorials, API reference, and contributor setup.
