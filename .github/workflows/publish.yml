@@ -1,8 +1,8 @@
 name: Publish
 
-# Publishing a GitHub Release builds the distribution once, uploads it to
-# TestPyPI, then to PyPI once the `pypi` environment's reviewers approve.
-# Both uploads use Trusted Publishing (OIDC): no API token is stored.
+# Publishing a GitHub Release builds the distribution, then uploads it to PyPI
+# once the `pypi` environment's reviewers approve. The upload uses Trusted
+# Publishing (OIDC): no API token is stored.
 
 on:
   release:
@@ -24,27 +24,9 @@ jobs:
           name: distribution
           path: dist/
 
-  publish-testpypi:
-    name: Publish to TestPyPI
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/pypft
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: distribution
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
   publish-pypi:
     name: Publish to PyPI
-    needs: publish-testpypi
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: pypi

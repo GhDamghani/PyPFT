@@ -163,8 +163,8 @@ Two workflows, both `ubuntu-latest` only, `shell: pwsh`, on every pull request a
 
 A third workflow, `.github/workflows/publish.yml`, runs only when a GitHub Release is published:
 `scripts/Build-Distribution.ps1 -Tag <tag>` (fails unless the tag is `v<pyproject version>`, then a
-clean `uv build` and `twine check --strict`), upload to TestPyPI, then PyPI behind the `pypi`
-environment's manual approval -- both via Trusted Publishing, no stored token.
+clean `uv build` and `twine check --strict`), then upload to PyPI behind the `pypi`
+environment's manual approval, via Trusted Publishing, no stored token.
 
 No inline shell logic lives in the YAML, so a red CI leg is always reproducible locally.
 
