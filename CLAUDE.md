@@ -53,6 +53,8 @@ unquoted forward references, no 3.13+ stdlib APIs). To test the newest releases 
 `uv pip install --no-config --upgrade matplotlib numba llvmlite numpy opencv-python-headless scipy`, then
 `./scripts/Invoke-QualityGate.ps1 -NoSync`.
 
+- Set up a fresh clone in one step: `./scripts/Install-DevEnvironment.ps1 [-SkipSamples]` (`uv sync`,
+  the samples download, `pre-commit install --overwrite`; idempotent).
 - Install/sync the environment: `uv sync` — run this after every pull/branch switch, since `pyproject.toml`
   changes frequently right now.
 - Run the test suite: `uv run pytest` (tests live under `tests/`, mirroring `src/pypft/`'s package layout —

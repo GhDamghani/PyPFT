@@ -14,6 +14,18 @@ fork::
    git clone https://github.com/<your-username>/PyPFT.git
    cd PyPFT
 
+One-step setup
+--------------
+
+After installing `uv <https://docs.astral.sh/uv/>`_, one script from the repository root
+does everything in the next two sections: syncs the environment, downloads the test
+samples, and installs the commit hook (``-SkipSamples`` leaves the download for later).
+It needs PowerShell 7 (``pwsh``), available on Windows, macOS and Linux::
+
+   pwsh ./scripts/Install-DevEnvironment.ps1
+
+The sections below do the same steps by hand.
+
 Install uv and the environment
 ------------------------------
 
