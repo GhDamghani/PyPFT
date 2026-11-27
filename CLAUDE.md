@@ -797,14 +797,16 @@ docs/_build` (warnings fail the build), part of the quality gate.
 below). Sphinx requires toctree documents to live under its own source directory, so `docs/conf.py`
 registers a `config-inited` hook that copies `notebooks/*.ipynb` into `docs/_notebooks/` before Sphinx reads
 its sources; `docs/tutorials.rst`'s toctree globs `_notebooks/*`. This avoids a symlink (which needs
-elevated privileges on Windows, one of CI's three platforms). `nb_execution_mode = "off"` — notebooks are
-executed and checked by `nbmake` in CI, not re-executed by the docs build. `myst_enable_extensions =
+elevated privileges on Windows, one of CI's three platforms). `nb_execution_mode = "cache"` — the committed
+notebooks carry no outputs, so the docs build executes them (~3 min cold; `.readthedocs.yaml`'s `pre_build`
+downloads the MD-CNN sample for `09`). Each copy gets a hidden (`remove-cell`) first cell that `os.chdir`s
+into `notebooks/`, so their `../tests/samples`/`../scripts` paths resolve. `myst_enable_extensions =
 ["dollarmath"]` is what makes notebook `$...$`/`$$...$$` math render in the docs at all (without it the
 dollars show literally, with no build warning). Display math inside a list item needs a blank line and a
 two-space indent before its `$$...$$` line, or the item's text and the math merge into one paragraph.
 
 `docs/conf.py`'s `exclude_patterns` must list `"jupyter_execute"` alongside `"_build"`: even with
-`nb_execution_mode = "off"`, `myst_nb`'s jupyter-cache machinery writes a `docs/jupyter_execute/` directory
+notebook execution cached, `myst_nb`'s jupyter-cache machinery writes a `docs/jupyter_execute/` directory
 directly under the *source* tree (not under `docs/_build/`) as a side effect of a second `sphinx-build -W`
 run against an already-pickled environment. Without the exclude, Sphinx then discovers those `.ipynb`
 files as new source documents outside any toctree on the next build and `-W` fails on the resulting

@@ -17,9 +17,13 @@ exclude_patterns = ["_build", "jupyter_execute", "Thumbs.db", ".DS_Store"]
 
 html_theme = "furo"
 
-# Notebooks are executed and checked by `nbmake` in CI (scripts/Test-Notebooks.ps1),
-# not by Sphinx -- building the docs only renders their already-committed output.
-nb_execution_mode = "off"
+# Tracked notebooks are stripped of their outputs, so the docs build executes them
+# to render their figures. `cache` re-executes only notebooks whose code changed
+# (jupyter-cache, in `docs/.jupyter_cache/`). `09_experimental_data` needs the
+# downloaded MD-CNN sample (`python -m pypft.samples --directory tests/samples`).
+nb_execution_mode = "cache"
+nb_execution_timeout = 600
+nb_execution_raise_on_error = True
 
 # Notebook Markdown writes math as `$...$` (inline) and `$$...$$` (display).
 myst_enable_extensions = ["dollarmath"]
@@ -34,6 +38,19 @@ nitpick_ignore_regex = [("myst", r"ref-\d+")]
 # key myst-nb needs to pick a syntax highlighter for code cells.
 NOTEBOOK_METADATA = {"language_info": {"name": "python"}}
 
+# The copies run from ``docs/_notebooks/``, but their relative paths
+# (``../tests/samples``, ``../scripts``) are written for ``notebooks/``. A hidden
+# first cell moves the kernel there; ``remove-cell`` keeps it out of the page.
+NOTEBOOKS_DIRECTORY = Path(__file__).resolve().parents[1] / "notebooks"
+CHDIR_CELL = {
+    "cell_type": "code",
+    "execution_count": None,
+    "id": "docs-chdir",
+    "metadata": {"tags": ["remove-cell"]},
+    "outputs": [],
+    "source": f"import os\nos.chdir({str(NOTEBOOKS_DIRECTORY)!r})",
+}
+
 
 def _copy_notebooks(app, config) -> None:
     """Copy ``notebooks/*.ipynb`` into ``docs/_notebooks/`` before Sphinx reads.
@@ -45,7 +62,7 @@ def _copy_notebooks(app, config) -> None:
     ``tutorials.rst``'s glob toctree see them, without a symlink (which
     needs elevated privileges on Windows). Each copy gains
     ``NOTEBOOK_METADATA``, since the tracked notebooks are stripped of all
-    metadata.
+    metadata, and ``CHDIR_CELL`` first, so their relative paths resolve.
 
     :param app: The running Sphinx application.
     :type app: sphinx.application.Sphinx
@@ -53,12 +70,13 @@ def _copy_notebooks(app, config) -> None:
     :type config: sphinx.config.Config
 
     """
-    source = Path(__file__).resolve().parents[1] / "notebooks"
+    source = NOTEBOOKS_DIRECTORY
     destination = Path(app.srcdir) / "_notebooks"
     destination.mkdir(exist_ok=True)
     for notebook in source.glob("*.ipynb"):
         content = json.loads(notebook.read_text(encoding="utf-8"))
         content["metadata"] = {**NOTEBOOK_METADATA, **content["metadata"]}
+        content["cells"] = [CHDIR_CELL, *content["cells"]]
         (destination / notebook.name).write_text(
             json.dumps(content, indent=1, ensure_ascii=False), encoding="utf-8"
         )
