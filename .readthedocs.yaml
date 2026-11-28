@@ -15,6 +15,11 @@ build:
       # The docs build executes the notebooks; 09_experimental_data reads this
       # downloaded sample.
       - python -m pypft.samples --directory tests/samples
+    build:
+      # Serial, unlike RTD's default `-j auto`: parallel readers race to create
+      # jupyter-cache's SQLite database ("table settings already exists").
+      html:
+        - python -m sphinx -T -W --keep-going -b html -d _build/doctrees -D language=en docs $READTHEDOCS_OUTPUT/html
 
 sphinx:
   configuration: docs/conf.py
